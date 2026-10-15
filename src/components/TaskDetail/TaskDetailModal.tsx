@@ -126,6 +126,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               <span>Início: <strong>{formatDateBR(task.startDate)}</strong></span>
               <span>Término: <strong>{formatDateBR(task.endDate)}</strong></span>
               <span>Duração: <strong>{task.durationDays}d</strong></span>
+              <span>Predecessoras: <strong>{task.predecessorText || '—'}</strong></span>
               {task.resourceNames.length > 0 && (
                 <span>Recursos: <strong>{task.resourceNames.join(', ')}</strong></span>
               )}

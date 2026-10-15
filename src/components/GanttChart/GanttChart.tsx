@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Task, ZoomLevel } from '../../types/project';
-import { parseISODate, toISODate, isWeekend } from '../../utils/scheduler';
+import { parseISODate, toISODate, isWeekend, parsePredecessors } from '../../utils/scheduler';
 
 interface GanttChartProps {
   tasks: Task[];
@@ -247,30 +247,54 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
             {tasks.map((task, index) => {
               if (!task.predecessorText) return null;
-              const preds = task.predecessorText
-                .split(',')
-                .map((s) => parseInt(s.trim(), 10))
-                .filter(Boolean);
-
+              const preds = parsePredecessors(task.predecessorText);
               const toCoord = taskCoordinates.get(index + 1);
               if (!toCoord) return null;
 
-              return preds.map((predId) => {
+              return preds.map(({ predId, type }) => {
                 const fromCoord = taskCoordinates.get(predId);
                 if (!fromCoord) return null;
 
                 const isCrit = showCriticalPath && task.isCritical;
-                const p1x = fromCoord.endX;
-                const p1y = fromCoord.y;
-                const p2x = toCoord.startX;
-                const p2y = toCoord.y;
-                const midX = p1x + Math.max(8, (p2x - p1x) / 2);
+                let pathData = '';
 
-                const pathData = `M ${p1x} ${p1y} L ${midX} ${p1y} L ${midX} ${p2y} L ${p2x} ${p2y}`;
+                if (type === 'II') {
+                  // Início para Início (Start-to-Start):
+                  // Sai do início (startX) da predecessora e conecta no início (startX) da tarefa
+                  const p1x = fromCoord.startX;
+                  const p1y = fromCoord.y;
+                  const p2x = toCoord.startX;
+                  const p2y = toCoord.y;
+                  const leftX = Math.min(p1x, p2x) - 12;
+                  pathData = `M ${p1x} ${p1y} L ${leftX} ${p1y} L ${leftX} ${p2y} L ${p2x} ${p2y}`;
+                } else if (type === 'TT') {
+                  // Término para Término (Finish-to-Finish):
+                  // Sai do término (endX) da predecessora e conecta no término (endX) da tarefa
+                  const p1x = fromCoord.endX;
+                  const p1y = fromCoord.y;
+                  const p2x = toCoord.endX;
+                  const p2y = toCoord.y;
+                  const rightX = Math.max(p1x, p2x) + 12;
+                  pathData = `M ${p1x} ${p1y} L ${rightX} ${p1y} L ${rightX} ${p2y} L ${p2x} ${p2y}`;
+                } else {
+                  // Padrão TI (Término para Início - Finish-to-Start):
+                  // Sai do término (endX) da predecessora e conecta no início (startX) da tarefa
+                  const p1x = fromCoord.endX;
+                  const p1y = fromCoord.y;
+                  const p2x = toCoord.startX;
+                  const p2y = toCoord.y;
+                  if (p2x >= p1x + 10) {
+                    const midX = p1x + (p2x - p1x) / 2;
+                    pathData = `M ${p1x} ${p1y} L ${midX} ${p1y} L ${midX} ${p2y} L ${p2x} ${p2y}`;
+                  } else {
+                    const offsetY = p2y > p1y ? 14 : -14;
+                    pathData = `M ${p1x} ${p1y} L ${p1x + 8} ${p1y} L ${p1x + 8} ${p1y + offsetY} L ${p2x - 8} ${p1y + offsetY} L ${p2x - 8} ${p2y} L ${p2x} ${p2y}`;
+                  }
+                }
 
                 return (
                   <path
-                    key={`${predId}->${index + 1}`}
+                    key={`${predId}-${type}->${index + 1}`}
                     d={pathData}
                     fill="none"
                     stroke={isCrit ? '#c00000' : '#555'}

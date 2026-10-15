@@ -411,7 +411,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     className="cell-input"
                     defaultValue={task.predecessorText}
                     autoFocus
-                    placeholder="Ex: 1, 2"
+                    placeholder="Ex: 1, 2ii, 3tt"
                     onBlur={(e) => {
                       onUpdateTask(task.id, { predecessorText: e.target.value });
                       handleCellBlur();

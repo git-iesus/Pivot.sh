@@ -29,10 +29,23 @@ export function toWorkDay(date: Date, activeWeekDays: number[] = [1, 2, 3, 4, 5]
   return result;
 }
 
+// Retorna o dia útil anterior caso a data caia em dia inativo
+export function toPrevWorkDay(date: Date, activeWeekDays: number[] = [1, 2, 3, 4, 5]): Date {
+  const result = new Date(date);
+  if (!activeWeekDays || activeWeekDays.length === 0) return result;
+
+  let attempts = 0;
+  while (!isWorkDay(result, activeWeekDays) && attempts < 14) {
+    result.setDate(result.getDate() - 1);
+    attempts++;
+  }
+  return result;
+}
+
 // Adiciona N dias úteis de atividade a uma data
 export function addWorkDays(startDate: Date, days: number, activeWeekDays: number[] = [1, 2, 3, 4, 5]): Date {
   if (days <= 0) return new Date(startDate);
-  const result = new Date(startDate);
+  const result = toWorkDay(startDate, activeWeekDays);
   if (!activeWeekDays || activeWeekDays.length === 0) {
     result.setDate(result.getDate() + days - 1);
     return result;
@@ -47,6 +60,26 @@ export function addWorkDays(startDate: Date, days: number, activeWeekDays: numbe
       if (added === days) break;
     }
     result.setDate(result.getDate() + 1);
+  }
+  return result;
+}
+
+// Subtrai N dias úteis de atividade a partir de uma data de término (cálculo retroativo para TT)
+export function subtractWorkDays(endDate: Date, days: number, activeWeekDays: number[] = [1, 2, 3, 4, 5]): Date {
+  if (days <= 0) return new Date(endDate);
+  const result = toPrevWorkDay(endDate, activeWeekDays);
+  if (!activeWeekDays || activeWeekDays.length === 0) {
+    result.setDate(result.getDate() - (days - 1));
+    return result;
+  }
+
+  let count = 0;
+  while (count < days) {
+    if (isWorkDay(result, activeWeekDays)) {
+      count++;
+      if (count === days) break;
+    }
+    result.setDate(result.getDate() - 1);
   }
   return result;
 }
@@ -94,9 +127,47 @@ export function parseISODate(isoStr: string): Date {
   return new Date(y, m - 1, d);
 }
 
+export interface ParsedPredecessor {
+  predId: number;
+  type: 'TI' | 'II' | 'TT' | 'IT';
+}
+
+/**
+ * Faz o parsing de strings de predecessoras no formato do MS Project
+ * Suporta: "3", "3ii", "3II", "3tt", "3TT", "3ti", "3TI", "3it", "3IT", "3ss", "3ff", etc.
+ */
+export function parsePredecessors(predText?: string): ParsedPredecessor[] {
+  if (!predText) return [];
+  const items = predText.split(',').map((s) => s.trim()).filter(Boolean);
+  const result: ParsedPredecessor[] = [];
+
+  for (const item of items) {
+    const match = item.match(/^(\d+)\s*([a-zA-Z]*)/);
+    if (match) {
+      const predId = parseInt(match[1], 10);
+      if (isNaN(predId)) continue;
+      const rawType = (match[2] || '').toUpperCase();
+      let type: 'TI' | 'II' | 'TT' | 'IT' = 'TI';
+      if (rawType === 'II' || rawType === 'SS') {
+        type = 'II';
+      } else if (rawType === 'TT' || rawType === 'FF') {
+        type = 'TT';
+      } else if (rawType === 'IT' || rawType === 'SF') {
+        type = 'IT';
+      } else {
+        type = 'TI';
+      }
+      result.push({ predId, type });
+    }
+  }
+
+  return result;
+}
+
 /**
  * Recalcula o cronograma completo (Predecessoras, Resumo e Caminho Crítico)
  * respeitando o Calendário Base de Trabalho (dias ativos e inativos)
+ * com suporte completo a Predecessoras TI (Término-Início), II (Início-Início) e TT (Término-Término).
  */
 export function recalculateSchedule(tasks: Task[], activeWeekDays: number[] = [1, 2, 3, 4, 5]): Task[] {
   if (!tasks || tasks.length === 0) return [];
@@ -121,57 +192,120 @@ export function recalculateSchedule(tasks: Task[], activeWeekDays: number[] = [1
     taskMap.set(idx + 1, t); // 1-based index conforme tabela do MS Project
   });
 
-  // 3. Propagação de Agendamento Automático via Predecessoras
-  updatedTasks.forEach((task, idx) => {
-    if (task.mode === 'auto' && !task.isSummary && task.predecessorText) {
-      const predIds = task.predecessorText
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
+  // 3. Propagação de Agendamento via Predecessoras (com suporte a TI, II e TT)
+  // Realiza múltiplas passagens para propagar encadeamentos dependentes com segurança
+  let scheduleChanged = true;
+  let pass = 0;
+  while (scheduleChanged && pass < 4) {
+    scheduleChanged = false;
+    pass++;
 
-      let maxPredEndDate: Date | null = null;
+    updatedTasks.forEach((task, idx) => {
+      const currentTaskNum = idx + 1;
 
-      for (const predStr of predIds) {
-        // Suporta formato "1", "1TI", "1FS"
-        const cleanMatch = predStr.match(/^(\d+)/);
-        if (cleanMatch) {
-          const predNum = parseInt(cleanMatch[1], 10);
-          const predTask = taskMap.get(predNum);
-          if (predTask && predNum < idx + 1) {
+      if (!task.isSummary && task.predecessorText && task.predecessorText.trim() !== '') {
+        const parsedPreds = parsePredecessors(task.predecessorText);
+        if (parsedPreds.length === 0) return;
+
+        let maxReqStart: Date | null = null;
+        let maxReqEnd: Date | null = null;
+
+        for (const { predId, type } of parsedPreds) {
+          if (predId === currentTaskNum) continue; // Evita auto-referência
+          const predTask = taskMap.get(predId);
+          if (!predTask) continue;
+
+          if (type === 'II') {
+            // Início-Início: a tarefa deve iniciar junto com o início da tarefa referenciada
+            const predStart = parseISODate(predTask.startDate);
+            const reqStart = toWorkDay(predStart, activeWeekDays);
+            if (!maxReqStart || reqStart > maxReqStart) {
+              maxReqStart = reqStart;
+            }
+          } else if (type === 'TT') {
+            // Término-Término: a tarefa deve finalizar junto com o término da tarefa referenciada
             const predEnd = parseISODate(predTask.endDate);
-            // Próximo dia útil após o término da predecessora
-            const nextStart = new Date(predEnd);
-            nextStart.setDate(nextStart.getDate() + 1);
-            const validStart = toWorkDay(nextStart, activeWeekDays);
-
-            if (!maxPredEndDate || validStart > maxPredEndDate) {
-              maxPredEndDate = validStart;
+            const reqEnd = toPrevWorkDay(predEnd, activeWeekDays);
+            if (!maxReqEnd || reqEnd > maxReqEnd) {
+              maxReqEnd = reqEnd;
+            }
+          } else if (type === 'IT') {
+            // Início-Término: a tarefa finaliza no início da predecessora
+            const predStart = parseISODate(predTask.startDate);
+            const reqEnd = toPrevWorkDay(predStart, activeWeekDays);
+            if (!maxReqEnd || reqEnd > maxReqEnd) {
+              maxReqEnd = reqEnd;
+            }
+          } else {
+            // Padrão TI: Término-Início (começa no dia útil seguinte ao término)
+            const predEnd = parseISODate(predTask.endDate);
+            const nextDay = new Date(predEnd);
+            nextDay.setDate(nextDay.getDate() + 1);
+            const reqStart = toWorkDay(nextDay, activeWeekDays);
+            if (!maxReqStart || reqStart > maxReqStart) {
+              maxReqStart = reqStart;
             }
           }
         }
-      }
 
-      if (maxPredEndDate) {
-        task.startDate = toISODate(maxPredEndDate);
-        if (task.durationDays === 0) {
-          task.endDate = task.startDate;
-        } else {
-          const end = addWorkDays(maxPredEndDate, task.durationDays, activeWeekDays);
-          task.endDate = toISODate(end);
+        let newStartDate = task.startDate;
+        let newEndDate = task.endDate;
+
+        if (maxReqEnd && !maxReqStart) {
+          // Apenas restrição TT: finaliza junto com o término referenciado
+          const finalEnd = maxReqEnd;
+          const finalStart = task.durationDays === 0
+            ? finalEnd
+            : subtractWorkDays(finalEnd, task.durationDays, activeWeekDays);
+          newStartDate = toISODate(finalStart);
+          newEndDate = toISODate(finalEnd);
+        } else if (maxReqStart && !maxReqEnd) {
+          // Apenas restrição TI ou II: inicia junto ou após
+          const finalStart = maxReqStart;
+          const finalEnd = task.durationDays === 0
+            ? finalStart
+            : addWorkDays(finalStart, task.durationDays, activeWeekDays);
+          newStartDate = toISODate(finalStart);
+          newEndDate = toISODate(finalEnd);
+        } else if (maxReqStart && maxReqEnd) {
+          // Combinação de restrições de início e término
+          const tentativeStart = maxReqStart;
+          const tentativeEnd = task.durationDays === 0
+            ? tentativeStart
+            : addWorkDays(tentativeStart, task.durationDays, activeWeekDays);
+          if (tentativeEnd < maxReqEnd) {
+            const finalEnd = maxReqEnd;
+            const finalStart = task.durationDays === 0
+              ? finalEnd
+              : subtractWorkDays(finalEnd, task.durationDays, activeWeekDays);
+            newStartDate = toISODate(finalStart);
+            newEndDate = toISODate(finalEnd);
+          } else {
+            newStartDate = toISODate(tentativeStart);
+            newEndDate = toISODate(tentativeEnd);
+          }
+        }
+
+        if (newStartDate !== task.startDate || newEndDate !== task.endDate) {
+          task.startDate = newStartDate;
+          task.endDate = newEndDate;
+          scheduleChanged = true;
+        }
+      } else if (task.mode === 'auto' && !task.isSummary) {
+        // Tarefas automáticas sem predecessoras: ajusta para dias úteis válidos e alinha duração
+        const start = toWorkDay(parseISODate(task.startDate), activeWeekDays);
+        const newStartDate = toISODate(start);
+        const newEndDate = task.durationDays === 0
+          ? newStartDate
+          : toISODate(addWorkDays(start, task.durationDays, activeWeekDays));
+        if (newStartDate !== task.startDate || newEndDate !== task.endDate) {
+          task.startDate = newStartDate;
+          task.endDate = newEndDate;
+          scheduleChanged = true;
         }
       }
-    } else if (task.mode === 'auto' && !task.isSummary) {
-      // Ajustar data de término com base na duração e início válido
-      const start = toWorkDay(parseISODate(task.startDate), activeWeekDays);
-      task.startDate = toISODate(start);
-      if (task.durationDays === 0) {
-        task.endDate = task.startDate;
-      } else {
-        const end = addWorkDays(start, task.durationDays, activeWeekDays);
-        task.endDate = toISODate(end);
-      }
-    }
-  });
+    });
+  }
 
   // 4. Calcular Tarefas de Resumo (De baixo para cima)
   for (let i = updatedTasks.length - 1; i >= 0; i--) {
@@ -232,7 +366,7 @@ export function recalculateSchedule(tasks: Task[], activeWeekDays: number[] = [1
       updatedTasks.forEach((t, idx) => {
         const tIndex = idx + 1;
         if (criticalIndices.has(tIndex) && t.predecessorText) {
-          const preds = t.predecessorText.split(',').map((p) => parseInt(p.trim(), 10)).filter(Boolean);
+          const preds = parsePredecessors(t.predecessorText).map((p) => p.predId);
           preds.forEach((p) => {
             if (!criticalIndices.has(p)) {
               criticalIndices.add(p);
