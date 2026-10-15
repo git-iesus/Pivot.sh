@@ -11,7 +11,9 @@ import { ResourceSheetModal } from './components/ResourceSheet/ResourceSheetModa
 import { ProjectInfoModal } from './components/ProjectInfo/ProjectInfoModal';
 import { StatusBar } from './components/StatusBar/StatusBar';
 import { TaskDetailModal } from './components/TaskDetail/TaskDetailModal';
+import { CostReportModal } from './components/CostReport/CostReportModal';
 import { WeekView } from './components/WeekView/WeekView';
+import { CheckCircle2 } from 'lucide-react';
 
 export const App: React.FC = () => {
   // Estado Principal
@@ -47,6 +49,7 @@ export const App: React.FC = () => {
   const [isBackstageOpen, setIsBackstageOpen] = useState<boolean>(false);
   const [isResourceModalOpen, setIsResourceModalOpen] = useState<boolean>(false);
   const [isProjectInfoModalOpen, setIsProjectInfoModalOpen] = useState<boolean>(false);
+  const [isCostReportOpen, setIsCostReportOpen] = useState<boolean>(false);
   const [selectedDetailTaskId, setSelectedDetailTaskId] = useState<string | null>(null);
 
   // Alturas individuais das linhas estilo Excel
@@ -97,12 +100,44 @@ export const App: React.FC = () => {
     }, 10);
   };
 
-  // Salvar no localStorage
+  // Status de Salvamento Automático (Estilo Google Sheets)
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
+  const [lastSavedTime, setLastSavedTime] = useState<string>(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<any>(null);
+  const saveTimeoutRef = useRef<any>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, 2800);
+  }, []);
+
+  // Salvar no localStorage com indicador em tempo real (Auto-save)
   const saveToStorage = useCallback((newTasks: Task[], newRes: Resource[], newMeta: ProjectMetadata) => {
+    setSaveStatus('saving');
     localStorage.setItem('ms_project_tasks', JSON.stringify(newTasks));
     localStorage.setItem('ms_project_resources', JSON.stringify(newRes));
     localStorage.setItem('ms_project_metadata', JSON.stringify(newMeta));
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setSaveStatus('saved');
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      setLastSavedTime(timeStr);
+    }, 400);
   }, []);
+
+  const handleManualSave = useCallback(() => {
+    saveToStorage(tasks, resources, metadata);
+    showToast('Todas as alterações já foram salvas automaticamente!');
+  }, [tasks, resources, metadata, saveToStorage, showToast]);
 
   // Atualizador com histórico de Undo
   const pushTaskState = useCallback((newTasks: Task[], customActiveDays?: number[]) => {
@@ -161,6 +196,7 @@ export const App: React.FC = () => {
       outlineLevel: parentLevel,
       isSummary: false,
       isMilestone: false,
+      cost: 0,
     };
 
     let newTasks: Task[];
@@ -193,6 +229,7 @@ export const App: React.FC = () => {
       outlineLevel: 1,
       isSummary: false,
       isMilestone: true,
+      cost: 0,
     };
     pushTaskState([...tasks, newTask]);
     setSelectedTaskId(newTask.id);
@@ -217,6 +254,7 @@ export const App: React.FC = () => {
       outlineLevel: 0,
       isSummary: true,
       isMilestone: false,
+      cost: 0,
     };
     pushTaskState([...tasks, newTask]);
     setSelectedTaskId(newTask.id);
@@ -283,7 +321,7 @@ export const App: React.FC = () => {
       baselineDurationDays: t.durationDays,
     }));
     pushTaskState(updated);
-    alert('Linha de Base 0 definida com sucesso para todas as tarefas do projeto!');
+    showToast('Linha de Base 0 definida com sucesso!');
   };
 
   // Exportação e Importação
@@ -325,9 +363,10 @@ export const App: React.FC = () => {
             if (parsed.metadata) setMetadata(parsed.metadata);
             saveToStorage(parsed.tasks, parsed.resources || resources, parsed.metadata || metadata);
             setIsBackstageOpen(false);
+            showToast('Projeto importado com sucesso!');
           }
         } catch (err) {
-          alert('Erro ao carregar arquivo JSON.');
+          showToast('Erro ao carregar arquivo JSON.');
         }
       };
       reader.readAsText(file);
@@ -339,7 +378,9 @@ export const App: React.FC = () => {
     if (confirm('Deseja iniciar um novo projeto? As alterações atuais serão salvas como cópia.')) {
       setTasks([]);
       setSelectedTaskId(null);
+      saveToStorage([], resources, metadata);
       setIsBackstageOpen(false);
+      showToast('Novo projeto iniciado.');
     }
   };
 
@@ -376,8 +417,7 @@ export const App: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        saveToStorage(tasks, resources, metadata);
-        alert('Projeto salvo com sucesso!');
+        handleManualSave();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
         handleUndo();
@@ -388,12 +428,14 @@ export const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [tasks, resources, metadata, saveToStorage]);
+  }, [handleUndo, handleRedo, handleManualSave]);
 
   return (
     <div className="ms-project-app">
       {/* Faixa de Opções (Ribbon) Estilo Office 2010 */}
       <Ribbon
+        saveStatus={saveStatus}
+        lastSavedTime={lastSavedTime}
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         viewMode={viewMode}
@@ -405,10 +447,7 @@ export const App: React.FC = () => {
         showGridLines={showGridLines}
         setShowGridLines={setShowGridLines}
         onOpenBackstage={() => setIsBackstageOpen(true)}
-        onSave={() => {
-          saveToStorage(tasks, resources, metadata);
-          alert('Projeto salvo com sucesso!');
-        }}
+        onSave={handleManualSave}
         onUndo={handleUndo}
         onRedo={handleRedo}
         canUndo={history.length > 0}
@@ -424,8 +463,7 @@ export const App: React.FC = () => {
         onSetProgress={handleSetProgress}
         onSetTaskMode={handleSetTaskMode}
         onOpenResourceSheet={() => setIsResourceModalOpen(true)}
-        onOpenProjectInfo={() => setIsProjectInfoModalOpen(true)}
-        onSetBaseline={handleSetBaseline}
+        onOpenCostReport={() => setIsCostReportOpen(true)}
         selectedTaskId={selectedTaskId}
       />
 
@@ -537,6 +575,8 @@ export const App: React.FC = () => {
 
       {/* Barra de Status Inferior do Office 2010 */}
       <StatusBar
+        saveStatus={saveStatus}
+        lastSavedTime={lastSavedTime}
         taskCount={tasks.length}
         selectedTaskId={selectedTaskId}
         taskMode={defaultTaskMode}
@@ -558,9 +598,8 @@ export const App: React.FC = () => {
         resources={resources}
         onNewProject={handleNewProject}
         onSaveProject={() => {
-          saveToStorage(tasks, resources, metadata);
+          handleManualSave();
           setIsBackstageOpen(false);
-          alert('Projeto salvo com sucesso!');
         }}
         onExportXLSX={handleExportXLSX}
         onExportCSV={handleExportCSV}
@@ -601,6 +640,22 @@ export const App: React.FC = () => {
         onClose={() => setSelectedDetailTaskId(null)}
         onUpdateTask={handleUpdateTask}
       />
+
+      <CostReportModal
+        isOpen={isCostReportOpen}
+        onClose={() => setIsCostReportOpen(false)}
+        tasks={tasks}
+        resources={resources}
+        metadata={metadata}
+      />
+
+      {/* Notificação Toast Estilo Google Sheets */}
+      {toastMessage && (
+        <div className="office-toast-notification">
+          <CheckCircle2 size={16} className="toast-icon" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 };

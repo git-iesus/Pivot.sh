@@ -51,6 +51,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: false,
+    cost: 3600,
   },
   {
     id: 't_3',
@@ -66,6 +67,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: false,
+    cost: 6000,
   },
   {
     id: 't_4',
@@ -81,6 +83,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: true,
+    cost: 0,
   },
   {
     id: 't_5',
@@ -111,6 +114,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: false,
+    cost: 6720,
   },
   {
     id: 't_7',
@@ -126,6 +130,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: false,
+    cost: 5760,
   },
   {
     id: 't_8',
@@ -141,6 +146,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: true,
+    cost: 0,
   },
   {
     id: 't_9',
@@ -171,6 +177,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: false,
+    cost: 4400,
   },
   {
     id: 't_11',
@@ -186,6 +193,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: false,
+    cost: 8800,
   },
   {
     id: 't_12',
@@ -201,6 +209,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: false,
+    cost: 9120,
   },
   {
     id: 't_13',
@@ -216,6 +225,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: true,
+    cost: 0,
   },
   {
     id: 't_14',
@@ -246,6 +256,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: false,
+    cost: 4080,
   },
   {
     id: 't_16',
@@ -261,6 +272,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: false,
+    cost: 4500,
   },
   {
     id: 't_17',
@@ -291,6 +303,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: false,
+    cost: 5200,
   },
   {
     id: 't_19',
@@ -306,6 +319,7 @@ const rawTasks: Task[] = [
     outlineLevel: 1,
     isSummary: false,
     isMilestone: true,
+    cost: 0,
   },
 ];
 

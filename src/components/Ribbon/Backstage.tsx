@@ -8,7 +8,8 @@ import {
   ArrowLeft,
   Calendar,
   CheckCircle2,
-  Users
+  Users,
+  DollarSign
 } from 'lucide-react';
 import { ProjectMetadata, Task, Resource } from '../../types/project';
 
@@ -62,6 +63,12 @@ export const Backstage: React.FC<BackstageProps> = ({
   const projectEndDate = tasks.length > 0
     ? tasks.reduce((max, t) => (t.endDate > max ? t.endDate : max), tasks[0].endDate)
     : '—';
+
+  // Soma total de custos simples (tarefas não-resumo para evitar dupla contagem)
+  const totalProjectCost = tasks
+    .filter((t) => !t.isSummary)
+    .reduce((sum, t) => sum + (t.cost || 0), 0);
+  const tasksWithCost = tasks.filter((t) => !t.isSummary && (t.cost || 0) > 0).length;
 
   return (
     <div className="backstage-overlay">
@@ -173,6 +180,25 @@ export const Backstage: React.FC<BackstageProps> = ({
               <div className="info-row">
                 <span className="label">Moeda Padrão:</span>
                 <span className="value">{metadata.currency === 'BRL' ? 'R$ (Real Brasileiro)' : metadata.currency}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="backstage-card">
+            <div className="card-header">
+              <DollarSign size={20} className="card-icon" />
+              <h3>Custos do Projeto</h3>
+            </div>
+            <div className="card-body">
+              <div className="info-row">
+                <span className="label">Custo Total Previsto:</span>
+                <span className="value font-bold" style={{ color: '#166534', fontSize: '13.5px' }}>
+                  {totalProjectCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              </div>
+              <div className="info-row">
+                <span className="label">Tarefas com Custo:</span>
+                <span className="value">{tasksWithCost} de {totalTasks}</span>
               </div>
             </div>
           </div>

@@ -41,6 +41,7 @@ export interface ColumnWidths {
   endDate: number;
   predecessors: number;
   resources: number;
+  cost: number;
   progress: number;
 }
 
@@ -62,6 +63,7 @@ const COLUMNS: ColumnDef[] = [
   { key: 'endDate', label: 'Término', minWidth: 80, className: 'col-date' },
   { key: 'predecessors', label: 'Predecessoras', minWidth: 85, className: 'col-pred' },
   { key: 'resources', label: 'Nomes dos Recursos', minWidth: 100, className: 'col-res' },
+  { key: 'cost', label: 'Custo', minWidth: 75, className: 'col-cost' },
   { key: 'progress', label: '% Concluída', minWidth: 80, className: 'col-progress' },
 ];
 
@@ -75,6 +77,7 @@ const DEFAULT_COL_WIDTHS: ColumnWidths = {
   endDate: 92,
   predecessors: 95,
   resources: 140,
+  cost: 95,
   progress: 90,
 };
 
@@ -196,7 +199,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
   };
 
   // Grid Template e Largura Total calculados dinamicamente
-  const gridTemplateColumns = `${colWidths.id}px ${colWidths.info}px ${colWidths.mode}px ${colWidths.name}px ${colWidths.duration}px ${colWidths.startDate}px ${colWidths.endDate}px ${colWidths.predecessors}px ${colWidths.resources}px ${colWidths.progress}px`;
+  const gridTemplateColumns = `${colWidths.id}px ${colWidths.info}px ${colWidths.mode}px ${colWidths.name}px ${colWidths.duration}px ${colWidths.startDate}px ${colWidths.endDate}px ${colWidths.predecessors}px ${colWidths.resources}px ${colWidths.cost}px ${colWidths.progress}px`;
   const totalRowWidth = Object.values(colWidths).reduce((a, b) => a + b, 0);
 
   return (
@@ -453,6 +456,39 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                 )}
               </div>
 
+              {/* Custo */}
+              <div 
+                className="sheet-cell col-cost text-right"
+                onDoubleClick={() => !task.isSummary && setEditingCell({ taskId: task.id, field: 'cost' })}
+              >
+                {isEditing('cost') ? (
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    className="cell-input text-right"
+                    defaultValue={task.cost ?? 0}
+                    autoFocus
+                    onBlur={(e) => {
+                      const val = Math.max(0, parseFloat(e.target.value) || 0);
+                      onUpdateTask(task.id, { cost: val });
+                      handleCellBlur();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const val = Math.max(0, parseFloat((e.target as HTMLInputElement).value) || 0);
+                        onUpdateTask(task.id, { cost: val });
+                        handleCellBlur();
+                      }
+                    }}
+                  />
+                ) : (
+                  <span>
+                    {(task.cost ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                )}
+              </div>
+
               {/* % Concluída */}
               <div 
                 className="sheet-cell col-progress"
@@ -490,7 +526,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
           onClick={onAddTask}
         >
           <div className="sheet-cell col-id">+</div>
-          <div className="sheet-cell add-cell-prompt" style={{ gridColumn: 'span 9' }}>
+          <div className="sheet-cell add-cell-prompt" style={{ gridColumn: 'span 10' }}>
             <Plus size={14} /> <span>Clique para adicionar uma nova tarefa...</span>
           </div>
         </div>

@@ -118,11 +118,61 @@ input, select, button {
   cursor: default;
 }
 
+.title-center-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .window-title {
   font-size: 12px;
   font-weight: 600;
   color: #ffffff;
   text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+}
+
+.autosave-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.autosave-pill.saved {
+  background: rgba(255, 255, 255, 0.15);
+  color: #dcfce7;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.autosave-pill.saving {
+  background: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.autosave-pill .cloud-icon {
+  color: #86efac;
+}
+
+.autosave-pill .check-badge-icon {
+  color: #86efac;
+  margin-left: -2px;
+}
+
+.autosave-pill .spin-icon {
+  animation: spinLoader 0.9s linear infinite;
+  color: #fde047;
+}
+
+@keyframes spinLoader {
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .ribbon-tabs-bar {
@@ -566,6 +616,15 @@ input, select, button {
   justify-content: flex-start;
 }
 
+.sheet-cell.col-cost {
+  justify-content: flex-end;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: #1e3a8a;
+  padding: 0 10px;
+}
+
 .sheet-cell.col-progress {
   justify-content: center;
   padding: 0 6px;
@@ -985,6 +1044,43 @@ input, select, button {
 
 .status-mode-btn:hover {
   background: #e2e8f0;
+}
+
+.status-separator {
+  color: #cbd5e1;
+  font-size: 11px;
+  user-select: none;
+}
+
+.status-autosave-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #475569;
+}
+
+.status-autosave-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-autosave-dot.saved {
+  background: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
+}
+
+.status-autosave-dot.saving {
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+  animation: pulseDot 0.8s infinite alternate;
+}
+
+@keyframes pulseDot {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
 }
 
 .view-mode-shortcuts {
@@ -2232,3 +2328,410 @@ input, select, button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* --- Badge de Auto-salvar no Modal de Detalhes --- */
+.modal-autosave-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #14532d;
+  background: #dcfce7;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+  border: 1px solid #bbf7d0;
+  user-select: none;
+}
+
+/* --- Notificação Toast Estilo Google Sheets --- */
+.office-toast-notification {
+  position: fixed;
+  bottom: 34px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  z-index: 99999;
+  border: 1px solid #334155;
+  animation: toastSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.office-toast-notification .toast-icon {
+  color: #4ade80;
+  flex-shrink: 0;
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* =========================================================
+   CostReportModal — Relatório de Custos e Orçamento
+   ========================================================= */
+
+.cost-report-modal {
+  width: 980px;
+  max-width: 96vw;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.cost-report-content {
+  padding: 16px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.cost-report-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cost-report-proj-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-right: 14px;
+}
+
+.cost-report-proj-manager {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.cost-report-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Grid de KPIs */
+.cost-kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cost-kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid;
+}
+
+.cost-kpi-card.planned {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.cost-kpi-card.planned .kpi-icon-wrapper {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.cost-kpi-card.executed {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.cost-kpi-card.executed .kpi-icon-wrapper {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.cost-kpi-card.balance {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+.cost-kpi-card.balance .kpi-icon-wrapper {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.cost-kpi-card.progress-card {
+  background: #faf5ff;
+  border-color: #e9d5ff;
+}
+.cost-kpi-card.progress-card .kpi-icon-wrapper {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.kpi-icon-wrapper {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kpi-content {
+  overflow: hidden;
+}
+
+.kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.kpi-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 2px 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-subtitle {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+/* Barra de Progresso Financeiro */
+.cost-progress-section {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.cost-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 8px;
+}
+
+.cost-progress-bar-track {
+  height: 12px;
+  background: #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.cost-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #16a34a, #22c55e);
+  transition: width 0.3s ease;
+}
+
+/* Toolbar de Filtro e Busca */
+.cost-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.cost-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.cost-search-icon {
+  position: absolute;
+  left: 9px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.cost-search-input {
+  padding-left: 30px !important;
+  padding-right: 24px !important;
+  width: 250px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 6px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.cost-filter-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cost-filter-btn {
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cost-filter-btn:hover {
+  background: #f1f5f9;
+}
+
+.cost-filter-btn.active {
+  background: #194d33;
+  color: #ffffff;
+  border-color: #194d33;
+}
+
+/* Tabela de Custos */
+.cost-table-container {
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+}
+
+.cost-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cost-table th {
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-bottom: 1px solid #cbd5e1;
+  border-right: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-size: 11.5px;
+}
+
+.cost-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  border-right: 1px solid #f1f5f9;
+}
+
+.cost-row:hover {
+  background: #f8fafc;
+}
+
+.cost-row.summary-row {
+  background: #f1f5f9;
+  font-weight: 600;
+}
+
+.cost-row.milestone-row {
+  color: #475569;
+  font-style: italic;
+}
+
+.summary-task-name {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.cost-mini-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+
+.cost-mini-bar {
+  flex: 1;
+  height: 6px;
+  background: #16a34a;
+  border-radius: 3px;
+  max-width: 50px;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+.status-pill.done {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-pill.running {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-pill.pending {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.cost-total-row {
+  background: #e2e8f0 !important;
+  font-size: 12px;
+  border-top: 2px solid #94a3b8;
+  position: sticky;
+  bottom: 0;
+}
+
+.cost-total-row td {
+  padding: 9px 10px;
+}
+
+.cost-empty-message {
+  text-align: center;
+  padding: 30px !important;
+  color: #64748b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+

@@ -15,12 +15,13 @@ const HEADERS = [
   'Término',
   'Predecessoras',
   'Recursos',
+  'Custo (R$)',
   '% Concluída',
   'Tipo',
   'Caminho Crítico',
 ];
 
-function getTaskRows(tasks: Task[]): string[][] {
+function getTaskRows(tasks: Task[]): (string | number)[][] {
   return tasks.map((t) => [
     String(tasks.indexOf(t) + 1),
     t.wbsIndex,
@@ -30,6 +31,7 @@ function getTaskRows(tasks: Task[]): string[][] {
     t.endDate,
     t.predecessorText || '',
     t.resourceNames.join('; '),
+    t.cost || 0,
     `${t.progress}%`,
     t.isMilestone ? 'Marco' : t.isSummary ? 'Resumo' : 'Tarefa',
     t.isCritical ? 'Sim' : 'Não',
@@ -50,6 +52,7 @@ export function exportToXLSX(tasks: Task[], _resources: Resource[], metadata: Pr
     { wch: 12 }, // Término
     { wch: 14 }, // Predecessoras
     { wch: 30 }, // Recursos
+    { wch: 14 }, // Custo
     { wch: 12 }, // % Concluída
     { wch: 10 }, // Tipo
     { wch: 14 }, // Caminho Crítico

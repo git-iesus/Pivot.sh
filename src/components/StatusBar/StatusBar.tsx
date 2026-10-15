@@ -3,6 +3,8 @@ import { Clock, Calendar, ZoomIn, ZoomOut, BarChart3, Table, CalendarDays } from
 import { ViewMode, ZoomLevel } from '../../types/project';
 
 interface StatusBarProps {
+  saveStatus?: 'saved' | 'saving';
+  lastSavedTime?: string;
   taskCount: number;
   selectedTaskId: string | null;
   taskMode: 'manual' | 'auto';
@@ -14,6 +16,8 @@ interface StatusBarProps {
 }
 
 export const StatusBar: React.FC<StatusBarProps> = ({
+  saveStatus = 'saved',
+  lastSavedTime = 'agora',
   taskCount,
   selectedTaskId,
   taskMode,
@@ -44,6 +48,14 @@ export const StatusBar: React.FC<StatusBarProps> = ({
       <div className="status-center">
         <span>{taskCount} tarefas no cronograma</span>
         {selectedTaskId && <span className="selection-info">· Tarefa selecionada</span>}
+        <span className="status-separator">|</span>
+        <span
+          className="status-autosave-indicator"
+          title={`Todas as alterações são salvas automaticamente no armazenamento local. Último salvamento: ${lastSavedTime}`}
+        >
+          <span className={`status-autosave-dot ${saveStatus === 'saving' ? 'saving' : 'saved'}`}></span>
+          <span>{saveStatus === 'saving' ? 'Salvando...' : 'Todas as alterações salvas'}</span>
+        </span>
       </div>
 
       <div className="status-right">

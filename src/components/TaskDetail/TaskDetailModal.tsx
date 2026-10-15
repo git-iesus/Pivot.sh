@@ -27,6 +27,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   onUpdateTask,
 }) => {
   const [taskName, setTaskName] = useState('');
+  const [cost, setCost] = useState<number>(0);
   const [subTasks, setSubTasks] = useState<SubTask[]>([]);
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
   const [notes, setNotes] = useState('');
@@ -42,6 +43,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   useEffect(() => {
     if (task) {
       setTaskName(task.name || '');
+      setCost(task.cost ?? 0);
       setSubTasks(task.subTasks || []);
       setNotes(task.notes || '');
       setEditingSubTaskId(null);
@@ -146,7 +148,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const handleMarkComplete = () => {
     // Sem sub-tarefas: checkbox master → 100%
     const finalName = taskName.trim() || task.name;
-    onUpdateTask(task.id, { name: finalName, progress: 100, subTasks: [], notes });
+    onUpdateTask(task.id, { name: finalName, progress: 100, subTasks: [], notes, cost });
     onClose();
   };
 
@@ -155,7 +157,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       ? Math.round((subTasks.filter((st) => st.done).length / subTasks.length) * 100)
       : task.progress;
     const finalName = taskName.trim() || task.name;
-    onUpdateTask(task.id, { name: finalName, subTasks, progress: newProgress, notes });
+    onUpdateTask(task.id, { name: finalName, subTasks, progress: newProgress, notes, cost });
     onClose();
   };
 
@@ -167,34 +169,54 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     computedProgress === 100 ? '#2e7d32' : computedProgress >= 50 ? '#1976d2' : '#e65100';
 
   return (
-    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) handleSave(); }}>
       <div className="modal-window task-detail-modal">
         {/* Cabeçalho */}
         <div className="modal-titlebar">
           <div className="title-with-icon">
             <CheckCircle2 size={18} />
             <span>Detalhe da Tarefa</span>
+            <span className="modal-autosave-badge" title="Todas as alterações neste card são salvas automaticamente sem necessidade de botão">
+              <Check size={11} /> Salvo automaticamente
+            </span>
           </div>
-          <button className="close-btn" onClick={onClose} title="Fechar">
+          <button className="close-btn" onClick={handleSave} title="Fechar (salva automaticamente)">
             <X size={16} />
           </button>
         </div>
 
         <div className="modal-form-content task-detail-body">
-          {/* Nome e infos básicas com edição de nome */}
+          {/* Nome e Custo com edição direta */}
           <div className="task-detail-header">
-            <div className="form-group" style={{ marginBottom: '8px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
-                Nome da Tarefa:
-              </label>
-              <input
-                type="text"
-                className="office-input"
-                style={{ fontSize: '13.5px', fontWeight: 600, color: '#194d33', width: '100%' }}
-                value={taskName}
-                onChange={(e) => setTaskName(e.target.value)}
-                placeholder="Digite o nome da tarefa..."
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: '12px', marginBottom: '8px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
+                  Nome da Tarefa:
+                </label>
+                <input
+                  type="text"
+                  className="office-input"
+                  style={{ fontSize: '13.5px', fontWeight: 600, color: '#194d33', width: '100%' }}
+                  value={taskName}
+                  onChange={(e) => setTaskName(e.target.value)}
+                  placeholder="Digite o nome da tarefa..."
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
+                  Custo Previsto (R$):
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  className="office-input"
+                  style={{ fontSize: '13.5px', fontWeight: 600, color: '#1e3a8a', width: '100%' }}
+                  value={cost}
+                  onChange={(e) => setCost(Math.max(0, parseFloat(e.target.value) || 0))}
+                  placeholder="0,00"
+                />
+              </div>
             </div>
             <div className="task-detail-meta">
               <span>EAP: <strong>{task.wbsIndex || '—'}</strong></span>
@@ -202,6 +224,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               <span>Término: <strong>{formatDateBR(task.endDate)}</strong></span>
               <span>Duração: <strong>{task.durationDays}d</strong></span>
               <span>Predecessoras: <strong>{task.predecessorText || '—'}</strong></span>
+              <span>Custo: <strong>{(cost || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span>
               {task.resourceNames.length > 0 && (
                 <span>Recursos: <strong>{task.resourceNames.join(', ')}</strong></span>
               )}

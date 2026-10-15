@@ -22,11 +22,17 @@ import {
   Sparkles,
   Grid,
   BarChart3,
-  CalendarDays
+  CalendarDays,
+  Cloud,
+  Check,
+  Loader2,
+  DollarSign
 } from 'lucide-react';
 import { ViewMode, ZoomLevel } from '../../types/project';
 
 interface RibbonProps {
+  saveStatus?: 'saved' | 'saving';
+  lastSavedTime?: string;
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   viewMode: ViewMode;
@@ -54,12 +60,13 @@ interface RibbonProps {
   onSetProgress: (progress: number) => void;
   onSetTaskMode: (mode: 'manual' | 'auto') => void;
   onOpenResourceSheet: () => void;
-  onOpenProjectInfo: () => void;
-  onSetBaseline: () => void;
+  onOpenCostReport: () => void;
   selectedTaskId: string | null;
 }
 
 export const Ribbon: React.FC<RibbonProps> = ({
+  saveStatus = 'saved',
+  lastSavedTime = 'agora',
   currentTab,
   setCurrentTab,
   viewMode,
@@ -87,10 +94,9 @@ export const Ribbon: React.FC<RibbonProps> = ({
   onSetProgress,
   onSetTaskMode,
   onOpenResourceSheet,
-  onOpenProjectInfo,
-  onSetBaseline,
+  onOpenCostReport,
 }) => {
-  const [activeTab, setActiveTab] = useState<'tarefa' | 'recurso' | 'projeto' | 'exibir' | 'formato'>('tarefa');
+  const [activeTab, setActiveTab] = useState<'tarefa' | 'recursos' | 'exibir' | 'formato'>('tarefa');
 
   return (
     <div className="ribbon-container">
@@ -100,7 +106,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
           <div className="app-icon" title="Microsoft Project 2010 (PT-BR)">
             <span className="app-badge">P</span>
           </div>
-          <button className="qa-btn" onClick={onSave} title="Salvar (Ctrl+S)">
+          <button className="qa-btn" onClick={onSave} title="Salvar manualmente (Ctrl+S) - As alterações já são salvas automaticamente">
             <Save size={14} />
           </button>
           <button className="qa-btn" onClick={onUndo} disabled={!canUndo} title="Desfazer (Ctrl+Z)">
@@ -110,8 +116,26 @@ export const Ribbon: React.FC<RibbonProps> = ({
             <RotateCw size={14} />
           </button>
         </div>
-        <div className="window-title">
-          <span>Projeto1 - Microsoft Project (Português - Brasil)</span>
+
+        <div className="title-center-group">
+          <span className="window-title">PIVOT.SH (pt-br)</span>
+          <div
+            className={`autosave-pill ${saveStatus}`}
+            title={saveStatus === 'saving' ? 'Salvando alterações em tempo real...' : `Todas as alterações são salvas automaticamente sem precisar clicar em salvar (estilo Google Sheets). Último salvamento: ${lastSavedTime}`}
+          >
+            {saveStatus === 'saving' ? (
+              <>
+                <Loader2 size={12} className="spin-icon" />
+                <span>Salvando...</span>
+              </>
+            ) : (
+              <>
+                <Cloud size={13} className="cloud-icon" />
+                <Check size={10} className="check-badge-icon" />
+                <span>Salvo automaticamente</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -127,16 +151,10 @@ export const Ribbon: React.FC<RibbonProps> = ({
           Tarefa
         </button>
         <button
-          className={`ribbon-tab ${activeTab === 'recurso' ? 'active' : ''}`}
-          onClick={() => setActiveTab('recurso')}
+          className={`ribbon-tab ${activeTab === 'recursos' ? 'active' : ''}`}
+          onClick={() => setActiveTab('recursos')}
         >
-          Recurso
-        </button>
-        <button
-          className={`ribbon-tab ${activeTab === 'projeto' ? 'active' : ''}`}
-          onClick={() => setActiveTab('projeto')}
-        >
-          Projeto
+          Recursos
         </button>
         <button
           className={`ribbon-tab ${activeTab === 'exibir' ? 'active' : ''}`}
@@ -253,34 +271,20 @@ export const Ribbon: React.FC<RibbonProps> = ({
           </div>
         )}
 
-        {activeTab === 'recurso' && (
+        {activeTab === 'recursos' && (
           <div className="ribbon-tab-content">
             <div className="ribbon-group">
               <div className="group-content">
-                <button className="large-tool-btn" onClick={onOpenResourceSheet}>
+                <button className="large-tool-btn" onClick={onOpenResourceSheet} title="Abrir planilha de recursos">
                   <Users size={28} className="tool-icon primary-color" />
                   <span>Planilha de Recursos</span>
                 </button>
-              </div>
-              <div className="group-label">Atribuições</div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'projeto' && (
-          <div className="ribbon-tab-content">
-            <div className="ribbon-group">
-              <div className="group-content">
-                <button className="large-tool-btn" onClick={onOpenProjectInfo}>
-                  <Info size={28} className="tool-icon primary-color" />
-                  <span>Informações do Projeto</span>
-                </button>
-                <button className="large-tool-btn" onClick={onSetBaseline} title="Definir Linha de Base">
-                  <CheckCircle size={28} className="tool-icon success-color" />
-                  <span>Definir Linha de Base</span>
+                <button className="large-tool-btn" onClick={onOpenCostReport} title="Visualizar Relatório de Custos do Projeto">
+                  <DollarSign size={28} className="tool-icon success-color" />
+                  <span>Relatório de Custos</span>
                 </button>
               </div>
-              <div className="group-label">Propriedades</div>
+              <div className="group-label">Recursos &amp; Custos</div>
             </div>
           </div>
         )}
