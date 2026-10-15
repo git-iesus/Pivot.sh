@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Task, Resource, ProjectMetadata, ViewMode, ZoomLevel } from './types/project';
 import { defaultTasks, defaultResources, defaultMetadata } from './data/sampleProjects';
 import { recalculateSchedule, toISODate, toWorkDay, addWorkDays } from './utils/scheduler';
-import { exportToXLSX, exportToCSV, exportToTXT } from './utils/exportImport';
+import { exportToXLSX, exportToCSV } from './utils/exportImport';
 import { Ribbon } from './components/Ribbon/Ribbon';
 import { Backstage } from './components/Ribbon/Backstage';
 import { TaskSheet } from './components/TaskSheet/TaskSheet';
@@ -119,9 +119,9 @@ export const App: React.FC = () => {
 
   const handleAddTask = () => {
     const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
-    const today = toWorkDay(new Date(), activeDays);
-    const startStr = toISODate(today);
-    const endStr = toISODate(addWorkDays(today, 1, activeDays));
+    const now = new Date();
+    const startStr = toISODate(now);
+    const endStr = toISODate(addWorkDays(now, 1, activeDays));
 
     const selectedIndex = tasks.findIndex((t) => t.id === selectedTaskId);
     const parentLevel = selectedIndex >= 0 ? tasks[selectedIndex].outlineLevel : 0;
@@ -135,7 +135,7 @@ export const App: React.FC = () => {
       endDate: endStr,
       progress: 0,
       mode: defaultTaskMode,
-      predecessorText: selectedIndex >= 0 ? String(selectedIndex + 1) : '',
+      predecessorText: '',
       resourceNames: [],
       outlineLevel: parentLevel,
       isSummary: false,
@@ -272,10 +272,6 @@ export const App: React.FC = () => {
 
   const handleExportCSV = () => {
     exportToCSV(tasks, metadata);
-  };
-
-  const handleExportTXT = () => {
-    exportToTXT(tasks, metadata);
   };
 
   const handleExportJSON = () => {
@@ -540,7 +536,6 @@ export const App: React.FC = () => {
         }}
         onExportXLSX={handleExportXLSX}
         onExportCSV={handleExportCSV}
-        onExportTXT={handleExportTXT}
         onExportJSON={handleExportJSON}
         onImportJSON={handleImportJSON}
         onOpenProjectInfo={() => {

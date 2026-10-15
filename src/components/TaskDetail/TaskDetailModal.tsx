@@ -9,18 +9,31 @@ interface TaskDetailModalProps {
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
 }
 
+// Formata data de YYYY-MM-DD para DD-MM-YYYY
+function formatDateBR(dateStr?: string): string {
+  if (!dateStr || dateStr === '—') return '—';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [y, m, d] = parts;
+    return `${d}-${m}-${y}`;
+  }
+  return dateStr;
+}
+
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   task,
   isOpen,
   onClose,
   onUpdateTask,
 }) => {
+  const [taskName, setTaskName] = useState('');
   const [subTasks, setSubTasks] = useState<SubTask[]>([]);
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
     if (task) {
+      setTaskName(task.name || '');
       setSubTasks(task.subTasks || []);
       setNotes(task.notes || '');
     }
@@ -57,7 +70,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   const handleMarkComplete = () => {
     // Sem sub-tarefas: checkbox master → 100%
-    onUpdateTask(task.id, { progress: 100, subTasks: [], notes });
+    const finalName = taskName.trim() || task.name;
+    onUpdateTask(task.id, { name: finalName, progress: 100, subTasks: [], notes });
     onClose();
   };
 
@@ -65,7 +79,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const newProgress = hasSubTasks
       ? Math.round((subTasks.filter((st) => st.done).length / subTasks.length) * 100)
       : task.progress;
-    onUpdateTask(task.id, { subTasks, progress: newProgress, notes });
+    const finalName = taskName.trim() || task.name;
+    onUpdateTask(task.id, { name: finalName, subTasks, progress: newProgress, notes });
     onClose();
   };
 
@@ -91,13 +106,25 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         </div>
 
         <div className="modal-form-content task-detail-body">
-          {/* Nome e infos básicas */}
+          {/* Nome e infos básicas com edição de nome */}
           <div className="task-detail-header">
-            <h3 className="task-detail-title">{task.name}</h3>
+            <div className="form-group" style={{ marginBottom: '8px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
+                Nome da Tarefa:
+              </label>
+              <input
+                type="text"
+                className="office-input"
+                style={{ fontSize: '13.5px', fontWeight: 600, color: '#194d33', width: '100%' }}
+                value={taskName}
+                onChange={(e) => setTaskName(e.target.value)}
+                placeholder="Digite o nome da tarefa..."
+              />
+            </div>
             <div className="task-detail-meta">
               <span>EAP: <strong>{task.wbsIndex || '—'}</strong></span>
-              <span>Início: <strong>{task.startDate}</strong></span>
-              <span>Término: <strong>{task.endDate}</strong></span>
+              <span>Início: <strong>{formatDateBR(task.startDate)}</strong></span>
+              <span>Término: <strong>{formatDateBR(task.endDate)}</strong></span>
               <span>Duração: <strong>{task.durationDays}d</strong></span>
               {task.resourceNames.length > 0 && (
                 <span>Recursos: <strong>{task.resourceNames.join(', ')}</strong></span>

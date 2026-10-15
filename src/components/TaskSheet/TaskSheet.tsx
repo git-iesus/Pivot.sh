@@ -249,7 +249,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     }}
                   />
                 ) : (
-                  <span>{task.predecessorText || '-'}</span>
+                  <span>{task.predecessorText || ''}</span>
                 )}
               </div>
 

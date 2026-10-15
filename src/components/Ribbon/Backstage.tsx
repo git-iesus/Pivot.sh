@@ -22,10 +22,20 @@ interface BackstageProps {
   onSaveProject: () => void;
   onExportXLSX: () => void;
   onExportCSV: () => void;
-  onExportTXT: () => void;
   onExportJSON: () => void;
   onImportJSON: () => void;
   onOpenProjectInfo: () => void;
+}
+
+// Formata data de YYYY-MM-DD para DD-MM-YYYY
+function formatDateBR(dateStr?: string): string {
+  if (!dateStr || dateStr === '—') return '—';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [y, m, d] = parts;
+    return `${d}-${m}-${y}`;
+  }
+  return dateStr;
 }
 
 export const Backstage: React.FC<BackstageProps> = ({
@@ -38,7 +48,6 @@ export const Backstage: React.FC<BackstageProps> = ({
   onSaveProject,
   onExportXLSX,
   onExportCSV,
-  onExportTXT,
   onExportJSON,
   onImportJSON,
   onOpenProjectInfo
@@ -87,10 +96,6 @@ export const Backstage: React.FC<BackstageProps> = ({
             <Download size={18} />
             <span>Exportar CSV</span>
           </button>
-          <button className="backstage-menu-item" onClick={onExportTXT}>
-            <Download size={18} />
-            <span>Exportar TXT</span>
-          </button>
           <button className="backstage-menu-item" onClick={onExportJSON}>
             <Download size={18} />
             <span>Exportar Backup (JSON)</span>
@@ -117,15 +122,15 @@ export const Backstage: React.FC<BackstageProps> = ({
             <div className="card-body">
               <div className="info-row">
                 <span className="label">Início do Projeto:</span>
-                <span className="value">{metadata.startDate}</span>
+                <span className="value">{formatDateBR(metadata.startDate)}</span>
               </div>
               <div className="info-row">
                 <span className="label">Término Previsto:</span>
-                <span className="value">{projectEndDate}</span>
+                <span className="value">{formatDateBR(projectEndDate)}</span>
               </div>
               <div className="info-row">
                 <span className="label">Data de Status:</span>
-                <span className="value">{metadata.currentDate}</span>
+                <span className="value">{formatDateBR(metadata.currentDate)}</span>
               </div>
               <div className="info-row">
                 <span className="label">Calendário Base:</span>
@@ -175,16 +180,13 @@ export const Backstage: React.FC<BackstageProps> = ({
 
         <div className="backstage-actions-box">
           <h3>Exportar Projeto</h3>
-          <p>Exporte seu projeto para planilha, CSV ou relatório de texto para compartilhamento e análise.</p>
+          <p>Exporte seu projeto para planilha XLSX ou CSV para compartilhamento e análise.</p>
           <div className="actions-row">
             <button className="btn-office primary" onClick={onExportXLSX}>
               <Download size={16} /> Exportar como XLSX (Excel)
             </button>
             <button className="btn-office" onClick={onExportCSV}>
               <Download size={16} /> Exportar como CSV
-            </button>
-            <button className="btn-office" onClick={onExportTXT}>
-              <Download size={16} /> Exportar como TXT
             </button>
             <button className="btn-office" onClick={onExportJSON}>
               <Save size={16} /> Baixar Cópia JSON

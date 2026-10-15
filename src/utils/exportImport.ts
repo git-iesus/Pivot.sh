@@ -94,37 +94,6 @@ export function exportToCSV(tasks: Task[], metadata: ProjectMetadata): void {
   URL.revokeObjectURL(url);
 }
 
-export function exportToTXT(tasks: Task[], metadata: ProjectMetadata): void {
-  const colWidths = [5, 10, 44, 14, 12, 12, 14, 28, 12, 10, 15];
-  const sep = colWidths.map((w) => '-'.repeat(w)).join('+');
-
-  const padCell = (str: string, width: number) =>
-    str.length > width ? str.slice(0, width - 1) + '…' : str.padEnd(width, ' ');
-
-  const formatRow = (cells: string[]) =>
-    cells.map((c, i) => padCell(c, colWidths[i])).join('|');
-
-  const lines: string[] = [];
-  lines.push(`RELATÓRIO DO PROJETO: ${metadata.title}`);
-  lines.push(`Gerente: ${metadata.manager}  |  Início: ${metadata.startDate}  |  Status em: ${metadata.currentDate}`);
-  lines.push(`Calendário: ${metadata.calendar}  |  Moeda: ${metadata.currency}`);
-  lines.push('');
-  lines.push(sep);
-  lines.push(formatRow(HEADERS));
-  lines.push(sep);
-
-  getTaskRows(tasks).forEach((row) => {
-    lines.push(formatRow(row));
-  });
-
-  lines.push(sep);
-  lines.push(`Total de tarefas: ${tasks.length}`);
-  lines.push(`Gerado em: ${new Date().toLocaleString('pt-BR')}`);
-
-  const content = lines.join('\r\n');
-  downloadFile(`${metadata.title || 'projeto'}.txt`, content, 'text/plain;charset=utf-8');
-}
-
 export function downloadFile(filename: string, content: string, contentType: string) {
   const blob = new Blob([content], { type: contentType });
   const url = URL.createObjectURL(blob);
