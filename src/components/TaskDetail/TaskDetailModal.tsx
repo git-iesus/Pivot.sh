@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Task, SubTask } from '../../types/project';
-import { X, Plus, CheckSquare, Square, Trash2, CheckCircle2 } from 'lucide-react';
+import { X, Plus, CheckSquare, Square, Trash2, CheckCircle2, GripVertical, Pencil, Check } from 'lucide-react';
 
 interface TaskDetailModalProps {
   task: Task | null;
@@ -31,11 +31,23 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Reordenação via Drag and Drop
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Edição de Sub-tarefa
+  const [editingSubTaskId, setEditingSubTaskId] = useState<string | null>(null);
+  const [editingSubTaskTitle, setEditingSubTaskTitle] = useState('');
+
   useEffect(() => {
     if (task) {
       setTaskName(task.name || '');
       setSubTasks(task.subTasks || []);
       setNotes(task.notes || '');
+      setEditingSubTaskId(null);
+      setEditingSubTaskTitle('');
+      setDraggedIndex(null);
+      setDragOverIndex(null);
     }
   }, [task, isOpen]);
 
@@ -66,6 +78,69 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   const handleRemoveSubTask = (id: string) => {
     setSubTasks(subTasks.filter((st) => st.id !== id));
+    if (editingSubTaskId === id) {
+      setEditingSubTaskId(null);
+      setEditingSubTaskTitle('');
+    }
+  };
+
+  // Funções de Edição de Sub-tarefa
+  const handleStartEditSubTask = (id: string, currentTitle: string) => {
+    setEditingSubTaskId(id);
+    setEditingSubTaskTitle(currentTitle);
+  };
+
+  const handleSaveSubTaskEdit = (id: string) => {
+    const trimmed = editingSubTaskTitle.trim();
+    if (trimmed) {
+      setSubTasks((prev) =>
+        prev.map((st) => (st.id === id ? { ...st, title: trimmed } : st))
+      );
+    }
+    setEditingSubTaskId(null);
+    setEditingSubTaskTitle('');
+  };
+
+  const handleCancelSubTaskEdit = () => {
+    setEditingSubTaskId(null);
+    setEditingSubTaskTitle('');
+  };
+
+  // Funções de Drag & Drop para Re-ordenação
+  const handleDragStart = (e: React.DragEvent<HTMLLIElement>, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLLIElement>, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLLIElement>, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const updated = [...subTasks];
+    const [movedItem] = updated.splice(draggedIndex, 1);
+    updated.splice(targetIndex, 0, movedItem);
+
+    setSubTasks(updated);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   const handleMarkComplete = () => {
@@ -180,29 +255,104 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
             {hasSubTasks && (
               <ul className="subtask-list">
-                {subTasks.map((st) => (
-                  <li key={st.id} className={`subtask-item ${st.done ? 'done' : ''}`}>
-                    <button
-                      className="subtask-toggle-btn"
-                      onClick={() => handleToggleSubTask(st.id)}
-                      title={st.done ? 'Desmarcar' : 'Marcar como feito'}
+                {subTasks.map((st, index) => {
+                  const isEditing = editingSubTaskId === st.id;
+                  const isDragging = draggedIndex === index;
+                  const isDragOver = dragOverIndex === index && draggedIndex !== index;
+
+                  return (
+                    <li
+                      key={st.id}
+                      className={`subtask-item ${st.done ? 'done' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                      draggable={!isEditing}
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDrop={(e) => handleDrop(e, index)}
+                      onDragEnd={handleDragEnd}
                     >
-                      {st.done ? (
-                        <CheckSquare size={18} className="icon-done" />
+                      {/* Alça de Arraste (Grip) */}
+                      <div
+                        className="subtask-drag-handle"
+                        title="Clique e arraste para reordenar para cima ou para baixo"
+                      >
+                        <GripVertical size={16} />
+                      </div>
+
+                      {/* Checkbox de Conclusão */}
+                      <button
+                        className="subtask-toggle-btn"
+                        onClick={() => handleToggleSubTask(st.id)}
+                        title={st.done ? 'Desmarcar' : 'Marcar como feito'}
+                      >
+                        {st.done ? (
+                          <CheckSquare size={18} className="icon-done" />
+                        ) : (
+                          <Square size={18} className="icon-pending" />
+                        )}
+                      </button>
+
+                      {/* Título da Sub-tarefa ou Input de Edição */}
+                      {isEditing ? (
+                        <div className="subtask-edit-box">
+                          <input
+                            type="text"
+                            className="office-input subtask-inline-input"
+                            value={editingSubTaskTitle}
+                            autoFocus
+                            placeholder="Nome da sub-tarefa..."
+                            onChange={(e) => setEditingSubTaskTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveSubTaskEdit(st.id);
+                              if (e.key === 'Escape') handleCancelSubTaskEdit();
+                            }}
+                          />
+                          <button
+                            className="subtask-btn-action save"
+                            onClick={() => handleSaveSubTaskEdit(st.id)}
+                            title="Salvar alteração (Enter)"
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            className="subtask-btn-action cancel"
+                            onClick={handleCancelSubTaskEdit}
+                            title="Cancelar (Esc)"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
                       ) : (
-                        <Square size={18} className="icon-pending" />
+                        <span
+                          className="subtask-title"
+                          onDoubleClick={() => handleStartEditSubTask(st.id, st.title)}
+                          title="Duplo clique para editar"
+                        >
+                          {st.title}
+                        </span>
                       )}
-                    </button>
-                    <span className="subtask-title">{st.title}</span>
-                    <button
-                      className="subtask-remove-btn"
-                      onClick={() => handleRemoveSubTask(st.id)}
-                      title="Remover sub-tarefa"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </li>
-                ))}
+
+                      {/* Ações (Editar e Apagar) */}
+                      {!isEditing && (
+                        <div className="subtask-actions">
+                          <button
+                            className="subtask-edit-btn"
+                            onClick={() => handleStartEditSubTask(st.id, st.title)}
+                            title="Editar sub-tarefa"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            className="subtask-remove-btn"
+                            onClick={() => handleRemoveSubTask(st.id)}
+                            title="Remover sub-tarefa"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
 

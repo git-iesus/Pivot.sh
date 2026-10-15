@@ -1687,10 +1687,11 @@ input, select, button {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border-bottom: 1px solid var(--office-grid-border);
   background: #fff;
-  transition: background 0.1s;
+  transition: background 0.1s, border-color 0.15s;
+  position: relative;
 }
 
 .subtask-item:last-child {
@@ -1698,7 +1699,38 @@ input, select, button {
 }
 
 .subtask-item:hover {
-  background: var(--office-row-hover);
+  background: #f8fafc;
+}
+
+.subtask-item.dragging {
+  opacity: 0.45;
+  background: #f1f5f9;
+  border: 1px dashed #94a3b8;
+}
+
+.subtask-item.drag-over {
+  border-top: 2px solid #217346 !important;
+  background: #f0fdf4;
+}
+
+.subtask-drag-handle {
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  padding: 2px 0;
+  user-select: none;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.subtask-drag-handle:hover {
+  color: #334155;
+}
+
+.subtask-drag-handle:active {
+  cursor: grabbing;
 }
 
 .subtask-item.done .subtask-title {
@@ -1730,23 +1762,107 @@ input, select, button {
   color: var(--office-text);
   line-height: 1.4;
   user-select: text;
+  cursor: pointer;
+}
+
+.subtask-title:hover {
+  color: #1b5e20;
+}
+
+/* --- Edição inline de sub-tarefa --- */
+.subtask-edit-box {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.subtask-inline-input {
+  flex: 1;
+  padding: 3px 8px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  height: 28px !important;
+  border: 1px solid #217346 !important;
+  border-radius: 3px !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 2px rgba(33, 115, 70, 0.15) !important;
+}
+
+.subtask-btn-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.subtask-btn-action.save {
+  background: #217346;
+  color: #ffffff;
+}
+
+.subtask-btn-action.save:hover {
+  background: #194d33;
+}
+
+.subtask-btn-action.cancel {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
+.subtask-btn-action.cancel:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+/* --- Ações à direita (Editar e Excluir) --- */
+.subtask-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.subtask-item:hover .subtask-actions {
+  opacity: 1;
+}
+
+.subtask-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 3px 5px;
+  color: #64748b;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+
+.subtask-edit-btn:hover {
+  color: #217346;
+  background: #e8f5e9;
 }
 
 .subtask-remove-btn {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 2px 4px;
-  color: #bdbdbd;
+  padding: 3px 5px;
+  color: #94a3b8;
   border-radius: 3px;
   display: flex;
   align-items: center;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s;
-}
-
-.subtask-item:hover .subtask-remove-btn {
-  opacity: 1;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
 }
 
 .subtask-remove-btn:hover {
