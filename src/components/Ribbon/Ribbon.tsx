@@ -118,7 +118,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
         </div>
 
         <div className="title-center-group">
-          <span className="window-title">PIVOT.SH (pt-br)</span>
+          <span className="window-title">pivot.sh</span>
           <div
             className={`autosave-pill ${saveStatus}`}
             title={saveStatus === 'saving' ? 'Salvando alterações em tempo real...' : `Todas as alterações são salvas automaticamente sem precisar clicar em salvar (estilo Google Sheets). Último salvamento: ${lastSavedTime}`}
