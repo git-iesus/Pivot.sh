@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Task, 
   Resource 
@@ -10,7 +10,8 @@ import {
   Calendar, 
   Flag, 
   CheckCircle,
-  Plus
+  Plus,
+  ListTodo
 } from 'lucide-react';
 import { formatDatePTBR } from '../../utils/scheduler';
 
@@ -28,9 +29,55 @@ interface TaskSheetProps {
   scrollRef: React.RefObject<HTMLDivElement | null>;
 }
 
+export interface ColumnWidths {
+  id: number;
+  info: number;
+  mode: number;
+  name: number;
+  duration: number;
+  startDate: number;
+  endDate: number;
+  predecessors: number;
+  resources: number;
+  progress: number;
+}
+
+interface ColumnDef {
+  key: keyof ColumnWidths;
+  label: string;
+  title?: string;
+  minWidth: number;
+  className: string;
+}
+
+const COLUMNS: ColumnDef[] = [
+  { key: 'id', label: 'ID', minWidth: 32, className: 'col-id' },
+  { key: 'info', label: 'i', title: 'Indicadores', minWidth: 22, className: 'col-info' },
+  { key: 'mode', label: 'Modo', title: 'Modo da Tarefa', minWidth: 40, className: 'col-mode' },
+  { key: 'name', label: 'Nome da Tarefa', minWidth: 160, className: 'col-name' },
+  { key: 'duration', label: 'Duração', minWidth: 65, className: 'col-duration' },
+  { key: 'startDate', label: 'Início', minWidth: 80, className: 'col-date' },
+  { key: 'endDate', label: 'Término', minWidth: 80, className: 'col-date' },
+  { key: 'predecessors', label: 'Predecessoras', minWidth: 85, className: 'col-pred' },
+  { key: 'resources', label: 'Nomes dos Recursos', minWidth: 100, className: 'col-res' },
+  { key: 'progress', label: '% Concluída', minWidth: 80, className: 'col-progress' },
+];
+
+const DEFAULT_COL_WIDTHS: ColumnWidths = {
+  id: 38,
+  info: 24,
+  mode: 46,
+  name: 330,
+  duration: 75,
+  startDate: 92,
+  endDate: 92,
+  predecessors: 95,
+  resources: 140,
+  progress: 90,
+};
+
 export const TaskSheet: React.FC<TaskSheetProps> = ({
   tasks,
-  resources,
   selectedTaskId,
   onSelectTask,
   onUpdateTask,
@@ -42,6 +89,60 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
 }) => {
   const [editingCell, setEditingCell] = useState<{ taskId: string; field: keyof Task } | null>(null);
 
+  // Larguras das colunas estilo Excel (com persistência no localStorage)
+  const [colWidths, setColWidths] = useState<ColumnWidths>(() => {
+    const saved = localStorage.getItem('ms_project_col_widths');
+    if (saved) {
+      try {
+        return { ...DEFAULT_COL_WIDTHS, ...JSON.parse(saved) };
+      } catch (e) {
+        // fallback
+      }
+    }
+    return DEFAULT_COL_WIDTHS;
+  });
+
+  const resizingCol = useRef<{ key: keyof ColumnWidths; startX: number; startWidth: number } | null>(null);
+
+  const handleMouseDownResize = (key: keyof ColumnWidths, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    resizingCol.current = {
+      key,
+      startX: e.clientX,
+      startWidth: colWidths[key],
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!resizingCol.current) return;
+      const { key, startX, startWidth } = resizingCol.current;
+      const delta = moveEvent.clientX - startX;
+      const minW = COLUMNS.find((c) => c.key === key)?.minWidth || 30;
+      const newWidth = Math.max(minW, startWidth + delta);
+
+      setColWidths((prev) => {
+        const next = { ...prev, [key]: newWidth };
+        localStorage.setItem('ms_project_col_widths', JSON.stringify(next));
+        return next;
+      });
+    };
+
+    const handleMouseUp = () => {
+      resizingCol.current = null;
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
   const handleCellBlur = () => {
     setEditingCell(null);
   };
@@ -52,28 +153,41 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
     onUpdateTask(task.id, { durationDays: valid });
   };
 
+  // Grid Template e Largura Total calculados dinamicamente
+  const gridTemplateColumns = `${colWidths.id}px ${colWidths.info}px ${colWidths.mode}px ${colWidths.name}px ${colWidths.duration}px ${colWidths.startDate}px ${colWidths.endDate}px ${colWidths.predecessors}px ${colWidths.resources}px ${colWidths.progress}px`;
+  const totalRowWidth = Object.values(colWidths).reduce((a, b) => a + b, 0);
+
   return (
     <div className="task-sheet-container">
-      {/* Cabeçalho da Tabela */}
-      <div className="task-sheet-header">
-        <div className="sheet-col col-id">ID</div>
-        <div className="sheet-col col-info" title="Indicadores">i</div>
-        <div className="sheet-col col-mode" title="Modo da Tarefa">Modo</div>
-        <div className="sheet-col col-name">Nome da Tarefa</div>
-        <div className="sheet-col col-duration">Duração</div>
-        <div className="sheet-col col-date">Início</div>
-        <div className="sheet-col col-date">Término</div>
-        <div className="sheet-col col-pred">Predecessoras</div>
-        <div className="sheet-col col-res">Nomes dos Recursos</div>
-        <div className="sheet-col col-progress">% Concluída</div>
-      </div>
-
-      {/* Corpo Rolável */}
+      {/* Container Rolável Único: o cabeçalho e as linhas compartilham o mesmo scroll horizontal, eliminando qualquer desalinhamento */}
       <div 
         className="task-sheet-body" 
         ref={scrollRef} 
         onScroll={onScroll}
       >
+        {/* Cabeçalho da Tabela - Fixo no topo e redimensionável por coluna */}
+        <div 
+          className="task-sheet-header"
+          style={{ width: `${totalRowWidth}px`, gridTemplateColumns }}
+        >
+          {COLUMNS.map((col) => (
+            <div 
+              key={col.key} 
+              className={`sheet-col ${col.className}`}
+              title={col.title}
+            >
+              <span className="col-header-text">{col.label}</span>
+              {/* Alça de redimensionamento estilo Excel */}
+              <div 
+                className="col-resizer" 
+                onMouseDown={(e) => handleMouseDownResize(col.key, e)}
+                title="Arraste para redimensionar a coluna (como no Excel)"
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Linhas de Tarefas */}
         {tasks.map((task, index) => {
           const isSelected = selectedTaskId === task.id;
           const isEditing = (field: keyof Task) =>
@@ -83,6 +197,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
             <div
               key={task.id}
               className={`sheet-row ${isSelected ? 'selected' : ''} ${task.isSummary ? 'summary-row' : ''} ${task.isCritical ? 'critical-row' : ''}`}
+              style={{ width: `${totalRowWidth}px`, gridTemplateColumns }}
               onClick={() => onSelectTask(task.id)}
             >
               {/* ID */}
@@ -103,7 +218,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                 )}
               </div>
 
-              {/* Nome da Tarefa com recuo EAP */}
+              {/* Nome da Tarefa com recuo EAP e Badge de sub-tarefas elegante */}
               <div 
                 className="sheet-cell col-name"
                 style={{ paddingLeft: `${8 + task.outlineLevel * 18}px` }}
@@ -138,19 +253,24 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     }}
                   />
                 ) : (
-                  <span
-                    className={`task-name-text ${task.isSummary ? 'font-bold' : ''} task-name-link`}
+                  <div 
+                    className="task-name-content"
                     onClick={(e) => { e.stopPropagation(); onOpenTaskDetail(task.id); }}
-                    title="Clique para ver detalhes e sub-tarefas"
+                    title="Clique para abrir detalhes e checklist"
                   >
-                    {task.name}
-                    {/* Indicador de sub-tarefas */}
+                    <span className={`task-name-text ${task.isSummary ? 'font-bold' : ''}`}>
+                      {task.name}
+                    </span>
                     {task.subTasks && task.subTasks.length > 0 && (
-                      <span className="subtask-badge" title={`${task.subTasks.filter(s => s.done).length}/${task.subTasks.length} sub-tarefas`}>
-                        {task.subTasks.filter(s => s.done).length}/{task.subTasks.length}
+                      <span 
+                        className="subtask-pill-badge" 
+                        title={`${task.subTasks.filter(s => s.done).length} de ${task.subTasks.length} sub-tarefas concluídas`}
+                      >
+                        <ListTodo size={11} className="subtask-pill-icon" />
+                        <span>{task.subTasks.filter(s => s.done).length}/{task.subTasks.length}</span>
                       </span>
                     )}
-                  </span>
+                  </div>
                 )}
               </div>
 
@@ -273,7 +393,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                   />
                 ) : (
                   <span title={task.resourceNames.join(', ')}>
-                    {task.resourceNames.join('; ') || '-'}
+                    {task.resourceNames.join('; ')}
                   </span>
                 )}
               </div>
@@ -309,7 +429,11 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
         })}
 
         {/* Linha para Adicionar Nova Tarefa */}
-        <div className="sheet-row add-row" onClick={onAddTask}>
+        <div 
+          className="sheet-row add-row" 
+          style={{ width: `${totalRowWidth}px`, gridTemplateColumns }}
+          onClick={onAddTask}
+        >
           <div className="sheet-cell col-id">+</div>
           <div className="sheet-cell add-cell-prompt" style={{ gridColumn: 'span 9' }}>
             <Plus size={14} /> <span>Clique para adicionar uma nova tarefa...</span>

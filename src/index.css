@@ -413,41 +413,76 @@ input, select, button {
 
 .task-sheet-header {
   display: grid;
-  grid-template-columns: 36px 24px 44px minmax(280px, 2.5fr) 75px 85px 85px 95px 120px 80px;
   height: 48px;
   background: linear-gradient(180deg, #f2f5f9 0%, #e2e8f0 100%);
   border-bottom: 1px solid #cbd5e1;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 11px;
   color: #334155;
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: 10;
 }
 
 .sheet-col {
+  position: relative;
   display: flex;
   align-items: center;
-  padding: 0 6px;
+  padding: 0 8px;
   border-right: 1px solid #cbd5e1;
+  overflow: hidden;
+  user-select: none;
+  font-weight: 700;
+}
+
+.sheet-col.col-id, 
+.sheet-col.col-info, 
+.sheet-col.col-mode, 
+.sheet-col.col-date, 
+.sheet-col.col-pred, 
+.sheet-col.col-progress {
+  justify-content: center;
+  text-align: center;
+}
+
+.sheet-col.col-duration {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.col-header-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  pointer-events: none;
 }
 
-.sheet-col.col-id, .sheet-col.col-info, .sheet-col.col-mode {
-  justify-content: center;
+.col-resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 5;
+  background-color: transparent;
+  transition: background-color 0.12s;
+}
+
+.col-resizer:hover,
+.col-resizer:active {
+  background-color: var(--office-green);
 }
 
 .task-sheet-body {
   flex: 1;
   overflow-y: scroll;
   overflow-x: auto;
+  background: #ffffff;
 }
 
 .sheet-row {
   display: grid;
-  grid-template-columns: 36px 24px 44px minmax(280px, 2.5fr) 75px 85px 85px 95px 120px 80px;
   min-height: 40px;
   height: 40px;
   border-bottom: 1px solid var(--office-grid-border);
@@ -481,40 +516,86 @@ input, select, button {
   height: 100%;
   display: flex;
   align-items: center;
-  padding: 2px 6px;
+  padding: 0 8px;
   border-right: 1px solid var(--office-grid-border);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.sheet-cell.col-name {
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: break-word;
-  line-height: 1.35;
-  text-overflow: clip;
+.sheet-cell.col-id,
+.sheet-cell.col-info,
+.sheet-cell.col-mode,
+.sheet-cell.col-date,
+.sheet-cell.col-pred {
+  justify-content: center;
+  text-align: center;
 }
 
-.task-name-text {
+.sheet-cell.col-duration {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.sheet-cell.col-res {
+  justify-content: flex-start;
+}
+
+.sheet-cell.col-progress {
+  justify-content: center;
+  padding: 0 6px;
+}
+
+.sheet-cell.col-name {
+  padding: 2px 8px;
+  overflow: hidden;
+  justify-content: flex-start;
   white-space: normal;
-  word-break: break-word;
-  overflow-wrap: break-word;
-  line-height: 1.35;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+}
+
+.task-name-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
   overflow: hidden;
 }
 
-.sheet-cell.col-id {
-  justify-content: center;
-  color: var(--office-text-muted);
-  background-color: #f8fafc;
+.task-name-content:hover .task-name-text {
+  color: var(--office-green);
+  text-decoration: underline;
 }
 
-.sheet-cell.col-info, .sheet-cell.col-mode {
-  justify-content: center;
+.task-name-text {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--office-text);
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  flex: 1;
+}
+
+.subtask-pill-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px;
+  background: #1b5e20;
+  color: #ffffff !important;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  user-select: none;
+  letter-spacing: 0.3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.subtask-pill-icon {
+  flex-shrink: 0;
 }
 
 .collapse-btn {
