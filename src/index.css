@@ -523,7 +523,32 @@ input, select, button {
   text-overflow: ellipsis;
 }
 
-.sheet-cell.col-id,
+.sheet-cell.col-id {
+  position: relative;
+  justify-content: center;
+  text-align: center;
+  background-color: #f8fafc;
+  color: var(--office-text-muted);
+  user-select: none;
+}
+
+.row-resizer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 6px;
+  cursor: row-resize;
+  z-index: 6;
+  background-color: transparent;
+  transition: background-color 0.12s;
+}
+
+.row-resizer:hover,
+.row-resizer:active {
+  background-color: var(--office-green);
+}
+
 .sheet-cell.col-info,
 .sheet-cell.col-mode,
 .sheet-cell.col-date,

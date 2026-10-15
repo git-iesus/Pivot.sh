@@ -49,6 +49,27 @@ export const App: React.FC = () => {
   const [isProjectInfoModalOpen, setIsProjectInfoModalOpen] = useState<boolean>(false);
   const [selectedDetailTaskId, setSelectedDetailTaskId] = useState<string | null>(null);
 
+  // Alturas individuais das linhas estilo Excel
+  const [rowHeights, setRowHeights] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem('ms_project_row_heights');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // fallback
+      }
+    }
+    return {};
+  });
+
+  const handleUpdateRowHeight = useCallback((taskId: string, height: number) => {
+    setRowHeights((prev) => {
+      const next = { ...prev, [taskId]: height };
+      localStorage.setItem('ms_project_row_heights', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   // Divisor de Painéis (Splitter)
   const [splitWidth, setSplitWidth] = useState<number>(() => {
     return Math.floor(window.innerWidth * 0.44);
@@ -425,6 +446,8 @@ export const App: React.FC = () => {
                 }}
                 onAddTask={handleAddTask}
                 onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
+                rowHeights={rowHeights}
+                onUpdateRowHeight={handleUpdateRowHeight}
                 scrollTop={0}
                 onScroll={handleScroll('sheet')}
                 scrollRef={taskSheetScrollRef}
@@ -443,6 +466,7 @@ export const App: React.FC = () => {
                 showGridLines={showGridLines}
                 selectedTaskId={selectedTaskId}
                 onSelectTask={setSelectedTaskId}
+                rowHeights={rowHeights}
                 scrollTop={0}
                 onScroll={handleScroll('gantt')}
                 scrollRef={ganttScrollRef}
@@ -465,6 +489,8 @@ export const App: React.FC = () => {
                 }}
                 onAddTask={handleAddTask}
                 onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
+                rowHeights={rowHeights}
+                onUpdateRowHeight={handleUpdateRowHeight}
                 scrollTop={0}
                 onScroll={() => {}}
                 scrollRef={taskSheetScrollRef}
@@ -499,6 +525,8 @@ export const App: React.FC = () => {
               }}
               onAddTask={handleAddTask}
               onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
+              rowHeights={rowHeights}
+              onUpdateRowHeight={handleUpdateRowHeight}
               scrollTop={0}
               onScroll={() => {}}
               scrollRef={taskSheetScrollRef}

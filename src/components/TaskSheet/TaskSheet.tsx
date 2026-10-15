@@ -24,6 +24,8 @@ interface TaskSheetProps {
   onToggleCollapse: (taskId: string) => void;
   onAddTask: () => void;
   onOpenTaskDetail: (taskId: string) => void;
+  rowHeights?: Record<string, number>;
+  onUpdateRowHeight?: (taskId: string, height: number) => void;
   scrollTop: number;
   onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
   scrollRef: React.RefObject<HTMLDivElement | null>;
@@ -84,6 +86,8 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
   onToggleCollapse,
   onAddTask,
   onOpenTaskDetail,
+  rowHeights,
+  onUpdateRowHeight,
   onScroll,
   scrollRef
 }) => {
@@ -103,6 +107,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
   });
 
   const resizingCol = useRef<{ key: keyof ColumnWidths; startX: number; startWidth: number } | null>(null);
+  const resizingRow = useRef<{ taskId: string; startY: number; startHeight: number } | null>(null);
 
   const handleMouseDownResize = (key: keyof ColumnWidths, e: React.MouseEvent) => {
     e.preventDefault();
@@ -133,6 +138,43 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
 
     const handleMouseUp = () => {
       resizingCol.current = null;
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Redimensionamento de linhas individualmente estilo Excel
+  const handleMouseDownRowResize = (taskId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const currentH = (rowHeights && rowHeights[taskId]) || 40;
+    resizingRow.current = {
+      taskId,
+      startY: e.clientY,
+      startHeight: currentH,
+    };
+
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!resizingRow.current) return;
+      const { taskId, startY, startHeight } = resizingRow.current;
+      const deltaY = moveEvent.clientY - startY;
+      const newHeight = Math.max(26, startHeight + deltaY);
+      if (onUpdateRowHeight) {
+        onUpdateRowHeight(taskId, newHeight);
+      }
+    };
+
+    const handleMouseUp = () => {
+      resizingRow.current = null;
       document.body.style.cursor = 'default';
       document.body.style.userSelect = '';
       window.removeEventListener('mousemove', handleMouseMove);
@@ -193,15 +235,28 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
           const isEditing = (field: keyof Task) =>
             editingCell?.taskId === task.id && editingCell?.field === field;
 
+          const rowHeight = (rowHeights && rowHeights[task.id]) || 40;
+
           return (
             <div
               key={task.id}
               className={`sheet-row ${isSelected ? 'selected' : ''} ${task.isSummary ? 'summary-row' : ''} ${task.isCritical ? 'critical-row' : ''}`}
-              style={{ width: `${totalRowWidth}px`, gridTemplateColumns }}
+              style={{ width: `${totalRowWidth}px`, gridTemplateColumns, height: `${rowHeight}px`, minHeight: `${rowHeight}px` }}
               onClick={() => onSelectTask(task.id)}
             >
-              {/* ID */}
-              <div className="sheet-cell col-id">{index + 1}</div>
+              {/* ID com alça de redimensionamento estilo Excel */}
+              <div className="sheet-cell col-id">
+                <span>{index + 1}</span>
+                <div 
+                  className="row-resizer"
+                  onMouseDown={(e) => handleMouseDownRowResize(task.id, e)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    if (onUpdateRowHeight) onUpdateRowHeight(task.id, 40);
+                  }}
+                  title="Arraste para redimensionar a altura da linha (ou clique duplo para restaurar)"
+                />
+              </div>
 
               {/* Indicadores */}
               <div className="sheet-cell col-info">

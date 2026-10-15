@@ -13,6 +13,7 @@ interface GanttChartProps {
   onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   activeWeekDays?: number[];
+  rowHeights?: Record<string, number>;
 }
 
 export const GanttChart: React.FC<GanttChartProps> = ({
@@ -25,6 +26,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   onScroll,
   scrollRef,
   activeWeekDays = [1, 2, 3, 4, 5],
+  rowHeights,
 }) => {
   const [hoveredTask, setHoveredTask] = useState<Task | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
@@ -139,17 +141,29 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const todayStr = toISODate(new Date());
   const todayX = getXForDate(todayStr) + dayWidth / 2;
 
+  // Layout vertical acumulado com suporte a alturas de linhas dinâmicas estilo Excel
+  const taskLayout = useMemo(() => {
+    const positions: { y: number; height: number; centerY: number }[] = [];
+    let currentY = 0;
+    tasks.forEach((t) => {
+      const h = (rowHeights && rowHeights[t.id]) || 40;
+      positions.push({ y: currentY, height: h, centerY: currentY + h / 2 });
+      currentY += h;
+    });
+    return { positions, totalHeight: currentY };
+  }, [tasks, rowHeights]);
+
   // Mapa de índice para coordenadas de tarefas (para desenhar as setas de dependência)
   const taskCoordinates = useMemo(() => {
     const coords = new Map<number, { startX: number; endX: number; y: number }>();
     tasks.forEach((task, index) => {
       const startX = getXForDate(task.startDate);
       const endX = getXForDate(task.endDate) + dayWidth;
-      const y = index * rowHeight + rowHeight / 2;
-      coords.set(index + 1, { startX, endX, y });
+      const layout = taskLayout.positions[index] || { y: index * 40, height: 40, centerY: index * 40 + 20 };
+      coords.set(index + 1, { startX, endX, y: layout.centerY });
     });
     return coords;
-  }, [tasks, startDate, dayWidth, rowHeight]);
+  }, [tasks, startDate, dayWidth, taskLayout]);
 
   return (
     <div className="gantt-chart-container">
@@ -188,7 +202,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       >
         <div 
           className="gantt-canvas" 
-          style={{ width: `${totalDays * dayWidth}px`, height: `${tasks.length * rowHeight}px` }}
+          style={{ width: `${totalDays * dayWidth}px`, height: `${taskLayout.totalHeight}px` }}
         >
           {/* Colunas de Fim de Semana e Linhas de Grade */}
           {daysList.map((d, i) => (
@@ -205,7 +219,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
           </div>
 
           {/* Camada SVG para Conectores de Dependência (Setas) */}
-          <svg className="gantt-dependency-svg" width={totalDays * dayWidth} height={tasks.length * rowHeight}>
+          <svg className="gantt-dependency-svg" width={totalDays * dayWidth} height={taskLayout.totalHeight}>
             <defs>
               <marker
                 id="arrowhead"
@@ -273,7 +287,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
             const startX = getXForDate(task.startDate);
             const endX = getXForDate(task.endDate) + dayWidth;
             const width = Math.max(dayWidth, endX - startX);
-            const y = index * rowHeight;
+            const layout = taskLayout.positions[index] || { y: index * 40, height: 40, centerY: index * 40 + 20 };
             const isSelected = selectedTaskId === task.id;
             const isCrit = showCriticalPath && task.isCritical;
 
@@ -281,7 +295,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
               <div
                 key={task.id}
                 className={`gantt-row-layer ${isSelected ? 'selected-row' : ''}`}
-                style={{ top: `${y}px`, height: `${rowHeight}px` }}
+                style={{ top: `${layout.y}px`, height: `${layout.height}px` }}
                 onClick={() => onSelectTask(task.id)}
               >
                 {/* Linha de Base (se houver) */}
