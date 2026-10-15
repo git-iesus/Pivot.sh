@@ -4,23 +4,7 @@ Uma réplica funcional e moderna do **Microsoft Project 2010** em idioma **Portu
 
 ---
 
-## 🚀 Como Iniciar
-
-### Opção 1: Via Script Pronto
-Basta dar dois cliques no arquivo:
-```cmd
-iniciar-ms-project.bat
-```
-Ele abrirá automaticamente o navegador em `http://localhost:4173`.
-
-### Opção 2: Via Terminal
-```bash
-npm run dev
-# ou
-npm run preview
-```
-
----
+LINK: https://ms-project-clone-indol.vercel.app/
 
 ## 🎯 Funcionalidades Implementadas
 
