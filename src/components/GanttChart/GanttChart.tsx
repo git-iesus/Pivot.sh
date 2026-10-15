@@ -345,7 +345,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                     }}
                     onMouseLeave={() => setHoveredTask(null)}
                   >
-                    <div className="summary-bracket-bar">
+                    <div className={`summary-bracket-bar ${task.progress === 100 ? 'completed' : ''}`}>
                       <div className="summary-bracket-left"></div>
                       <div className="summary-bracket-center" style={{ width: `${task.progress}%` }}></div>
                       <div className="summary-bracket-right"></div>
@@ -363,7 +363,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                     }}
                     onMouseLeave={() => setHoveredTask(null)}
                   >
-                    <div className={`milestone-diamond-shape ${isCrit ? 'critical' : ''}`}></div>
+                    <div className={`milestone-diamond-shape ${isCrit ? 'critical' : ''} ${task.progress === 100 ? 'completed' : ''}`}></div>
                     <span className="bar-resource-label">
                       {task.name} ({task.startDate})
                     </span>
@@ -371,7 +371,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                 ) : (
                   /* 3. Tarefa Normal */
                   <div
-                    className={`task-bar ${isCrit ? 'critical' : ''}`}
+                    className={`task-bar ${isCrit ? 'critical' : ''} ${task.progress === 100 ? 'completed' : ''}`}
                     style={{ left: `${startX}px`, width: `${width}px` }}
                     onMouseEnter={(e) => {
                       setHoveredTask(task);

@@ -243,7 +243,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
           return (
             <div
               key={task.id}
-              className={`sheet-row ${isSelected ? 'selected' : ''} ${task.isSummary ? 'summary-row' : ''} ${task.isCritical ? 'critical-row' : ''}`}
+              className={`sheet-row ${isSelected ? 'selected' : ''} ${task.isSummary ? 'summary-row' : ''} ${task.isCritical ? 'critical-row' : ''} ${task.progress === 100 ? 'completed-row' : ''}`}
               style={{ width: `${totalRowWidth}px`, gridTemplateColumns, height: `${rowHeight}px`, minHeight: `${rowHeight}px` }}
               onClick={() => onSelectTask(task.id)}
             >
@@ -263,7 +263,11 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
 
               {/* Indicadores */}
               <div className="sheet-cell col-info">
-                {task.progress === 100 && <CheckCircle size={13} className="text-success" />}
+                {task.progress === 100 && (
+                  <span title="Concluída (100%)" style={{ display: 'inline-flex' }}>
+                    <CheckCircle size={14} className="task-indicator-done" />
+                  </span>
+                )}
                 {task.isMilestone && <Flag size={13} className="text-accent" />}
               </div>
 
@@ -316,7 +320,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     onClick={(e) => { e.stopPropagation(); onOpenTaskDetail(task.id); }}
                     title="Clique para abrir detalhes e checklist"
                   >
-                    <span className={`task-name-text ${task.isSummary ? 'font-bold' : ''}`}>
+                    <span className={`task-name-text ${task.isSummary ? 'font-bold' : ''} ${task.progress === 100 ? 'completed-text' : ''}`}>
                       {task.name}
                     </span>
                     {task.subTasks && task.subTasks.length > 0 && (

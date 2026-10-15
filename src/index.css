@@ -562,6 +562,44 @@ input, select, button {
   color: #b91c1c;
 }
 
+/* Linha de Tarefa Concluída (100%): leve coloração verde e texto riscado */
+.sheet-row.completed-row {
+  background-color: #ebfaef !important;
+}
+
+.sheet-row.completed-row:nth-child(even) {
+  background-color: #e4f7ea !important;
+}
+
+.sheet-row.completed-row:hover {
+  background-color: #d7f4e1 !important;
+}
+
+.sheet-row.completed-row.selected {
+  background-color: #c9eed5 !important;
+}
+
+.sheet-row.completed-row .col-id {
+  background-color: #e1f6e8 !important;
+  color: #166534 !important;
+  font-weight: 600;
+}
+
+.sheet-row.completed-row .task-name-text,
+.task-name-text.completed-text {
+  text-decoration: line-through !important;
+  color: #166534 !important;
+}
+
+.sheet-row.completed-row .task-name-content:hover .task-name-text {
+  color: #14532d !important;
+  text-decoration: line-through underline !important;
+}
+
+.task-indicator-done {
+  color: #16a34a !important;
+}
+
 .sheet-cell {
   height: 100%;
   display: flex;
@@ -875,21 +913,49 @@ input, select, button {
 
 .task-bar {
   position: absolute;
-  height: 18px;
+  height: 19px;
   background: linear-gradient(180deg, #5b9bd5 0%, #2b579a 100%);
   border: 1px solid #1f4e79;
-  border-radius: 3px;
+  border-radius: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
   padding: 0 4px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
   z-index: 4;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.task-bar:hover {
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+  filter: brightness(1.05);
 }
 
 .task-bar.critical {
-  background: linear-gradient(180deg, #e06d53 0%, #c00000 100%);
-  border-color: #8c0000;
+  background: linear-gradient(180deg, #d33a2a 0%, #b82b1c 50%, #991f12 100%);
+  border-color: #7f1d1d;
+  border-radius: 4px;
+}
+
+/* Tarefas finalizadas (100%): barra verde com texto 100% centralizado */
+.task-bar.completed {
+  background: linear-gradient(180deg, #2ecc71 0%, #27ae60 50%, #219653 100%) !important;
+  border: 1px solid #1e7e34 !important;
+  border-radius: 4px !important;
+  box-shadow: 0 1px 3px rgba(21, 87, 36, 0.35) !important;
+  justify-content: center !important;
+}
+
+.task-bar.completed .task-progress-fill {
+  display: none !important;
+}
+
+.task-bar.completed .task-bar-text {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 10px !important;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
+  letter-spacing: 0.2px;
 }
 
 .task-progress-fill {
@@ -898,7 +964,7 @@ input, select, button {
   top: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.25);
-  border-radius: 2px 0 0 2px;
+  border-radius: 3px 0 0 3px;
 }
 
 .task-bar-text {
@@ -974,6 +1040,19 @@ input, select, button {
 .milestone-diamond-shape.critical {
   background: #c00000;
   border-color: #7f1d1d;
+}
+
+.milestone-diamond-shape.completed {
+  background: #28a745 !important;
+  border-color: #1e7e34 !important;
+}
+
+.summary-bracket-bar.completed {
+  background: #1e7e34;
+}
+
+.summary-bracket-bar.completed .summary-bracket-center {
+  background: #28a745;
 }
 
 .gantt-tooltip {
