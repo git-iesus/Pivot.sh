@@ -193,9 +193,6 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           <div className="title-with-icon">
             <CheckCircle2 size={18} />
             <span>Detalhe da Tarefa</span>
-            <span className="modal-autosave-badge" title="Todas as alterações neste card são salvas automaticamente sem necessidade de botão">
-              <Check size={11} /> Salvo automaticamente
-            </span>
           </div>
           <button className="close-btn" onClick={handleSave} title="Fechar (salva automaticamente)">
             <X size={16} />
