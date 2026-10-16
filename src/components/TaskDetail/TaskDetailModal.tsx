@@ -1,6 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Task, SubTask } from '../../types/project';
-import { X, Plus, CheckSquare, Square, Trash2, CheckCircle2, GripVertical, Pencil, Check } from 'lucide-react';
+import { 
+  X, 
+  Plus, 
+  CheckSquare, 
+  Square, 
+  Trash2, 
+  CheckCircle2, 
+  GripVertical, 
+  Pencil, 
+  Check,
+  Calendar,
+  Link2,
+  Layers,
+  Users,
+  DollarSign,
+  Sparkles
+} from 'lucide-react';
+import { HybridNotesEditor } from './HybridNotesEditor';
 
 interface TaskDetailModalProps {
   task: Task | null;
@@ -186,47 +203,51 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         </div>
 
         <div className="modal-form-content task-detail-body">
-          {/* Nome e Custo com edição direta */}
+          {/* Nome da Tarefa como Título Real (Borderless) e Custo elegante */}
           <div className="task-detail-header">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: '12px', marginBottom: '8px' }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
-                  Nome da Tarefa:
-                </label>
-                <input
-                  type="text"
-                  className="office-input"
-                  style={{ fontSize: '13.5px', fontWeight: 600, color: '#194d33', width: '100%' }}
-                  value={taskName}
-                  onChange={(e) => setTaskName(e.target.value)}
-                  placeholder="Digite o nome da tarefa..."
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
-                  Custo Previsto (R$):
-                </label>
+            <div className="task-title-header-row">
+              <input
+                type="text"
+                className="task-title-input"
+                value={taskName}
+                onChange={(e) => setTaskName(e.target.value)}
+                placeholder="Nome da tarefa..."
+                title="Clique para editar o nome da tarefa"
+              />
+              <div className="task-cost-badge" title="Custo previsto da tarefa (R$)">
+                <DollarSign size={13} className="cost-badge-icon" />
+                <span className="cost-badge-prefix">R$</span>
                 <input
                   type="number"
                   min="0"
                   step="any"
-                  className="office-input"
-                  style={{ fontSize: '13.5px', fontWeight: 600, color: '#1e3a8a', width: '100%' }}
+                  className="cost-badge-input"
                   value={cost}
                   onChange={(e) => setCost(Math.max(0, parseFloat(e.target.value) || 0))}
                   placeholder="0,00"
                 />
               </div>
             </div>
-            <div className="task-detail-meta">
-              <span>EAP: <strong>{task.wbsIndex || '—'}</strong></span>
-              <span>Início: <strong>{formatDateBR(task.startDate)}</strong></span>
-              <span>Término: <strong>{formatDateBR(task.endDate)}</strong></span>
-              <span>Duração: <strong>{task.durationDays}d</strong></span>
-              <span>Predecessoras: <strong>{task.predecessorText || '—'}</strong></span>
-              <span>Custo: <strong>{(cost || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span>
+
+            {/* Agrupamento de Metadados em Chips / Badges elegantes */}
+            <div className="task-metadata-chips-bar">
+              <div className="meta-chip date-chip" title="Data de Início, Término e Duração">
+                <Calendar size={13} className="chip-icon" />
+                <span>{formatDateBR(task.startDate)} ➔ {formatDateBR(task.endDate)} ({task.durationDays}d)</span>
+              </div>
+              <div className="meta-chip pred-chip" title="Predecessoras da tarefa">
+                <Link2 size={13} className="chip-icon" />
+                <span>Pred: <strong>{task.predecessorText || 'Nenhuma'}</strong></span>
+              </div>
+              <div className="meta-chip eap-chip" title="Estrutura Analítica do Projeto (EAP / WBS)">
+                <Layers size={13} className="chip-icon" />
+                <span>EAP: <strong>{task.wbsIndex || '—'}</strong></span>
+              </div>
               {task.resourceNames.length > 0 && (
-                <span>Recursos: <strong>{task.resourceNames.join(', ')}</strong></span>
+                <div className="meta-chip res-chip" title="Recursos atribuídos">
+                  <Users size={13} className="chip-icon" />
+                  <span>{task.resourceNames.join(', ')}</span>
+                </div>
               )}
             </div>
           </div>
@@ -379,38 +400,44 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               </ul>
             )}
 
-            {/* Input para nova sub-tarefa */}
+            {/* Input para nova sub-tarefa com ícone + interno e botão sob demanda */}
             <div className="subtask-add-row">
-              <input
-                type="text"
-                className="office-input subtask-input"
-                placeholder="Nova sub-tarefa... (Enter para adicionar)"
-                value={newSubTaskTitle}
-                onChange={(e) => setNewSubTaskTitle(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-              <button
-                className="btn-office primary"
-                onClick={handleAddSubTask}
-                disabled={!newSubTaskTitle.trim()}
-                title="Adicionar sub-tarefa"
-              >
-                <Plus size={15} />
-                Adicionar
-              </button>
+              <div className="subtask-input-wrapper">
+                <Plus size={15} className="subtask-input-icon" />
+                <input
+                  type="text"
+                  className="office-input subtask-input-field"
+                  placeholder="Nova sub-tarefa... (Enter para adicionar)"
+                  value={newSubTaskTitle}
+                  onChange={(e) => setNewSubTaskTitle(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                />
+                {newSubTaskTitle.trim().length > 0 && (
+                  <button
+                    className="subtask-add-btn-active"
+                    onClick={handleAddSubTask}
+                    title="Adicionar sub-tarefa"
+                  >
+                    Adicionar
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Notas */}
-          <div className="form-group" style={{ marginTop: '12px' }}>
-            <label>Notas / Observações:</label>
-            <textarea
-              className="office-input"
-              rows={3}
-              style={{ resize: 'vertical', fontFamily: 'inherit' }}
+          {/* Notas / Observações com Editor Híbrido Live Markdown / WYSIWYG */}
+          <div className="notes-section-container">
+            <div className="notes-header-row">
+              <label className="notes-label">Notas / Observações:</label>
+              <span className="notes-discovery-hint" title="Digite marcadores de Markdown para formatar na hora ou selecione um trecho de texto">
+                <Sparkles size={11} className="notes-hint-icon" />
+                Suporta: <code># título</code>, <code>*negrito*</code>, <code>_sublinhado_</code>, <code>::destaque::</code>
+              </span>
+            </div>
+            <HybridNotesEditor
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Anotações sobre esta tarefa..."
+              onChange={setNotes}
+              placeholder="Escreva notas ou observações sobre esta tarefa... Suporta # títulos, *negrito*, _sublinhado_, ::destaque:: e listas."
             />
           </div>
         </div>

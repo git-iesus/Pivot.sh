@@ -1731,27 +1731,118 @@ input, select, button {
 }
 
 .task-detail-header {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
-.task-detail-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--office-green-dark);
-  margin-bottom: 8px;
+.task-title-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.task-title-input {
+  flex: 1;
+  font-size: 19px;
+  font-weight: 600;
+  color: #14532d;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 6px 10px;
+  transition: all 0.15s ease;
   line-height: 1.3;
 }
 
-.task-detail-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 20px;
-  font-size: 12px;
-  color: var(--office-text-muted);
+.task-title-input:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
 }
 
-.task-detail-meta span strong {
-  color: var(--office-text);
+.task-title-input:focus {
+  outline: none;
+  border-color: #16a34a;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.15);
+}
+
+.task-cost-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 8px;
+  transition: all 0.15s ease;
+}
+
+.task-cost-badge:hover,
+.task-cost-badge:focus-within {
+  border-color: #16a34a;
+  background: #ffffff;
+}
+
+.cost-badge-icon {
+  color: #16a34a;
+  flex-shrink: 0;
+}
+
+.cost-badge-prefix {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.cost-badge-input {
+  width: 70px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e3a8a;
+  outline: none;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Agrupamento de Metadados em Chips / Badges */
+.task-metadata-chips-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11.5px;
+  color: #475569;
+  font-weight: 500;
+  transition: all 0.12s ease;
+  user-select: none;
+}
+
+.meta-chip:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+
+.meta-chip .chip-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.meta-chip strong {
+  color: #0f172a;
 }
 
 .task-detail-divider {
@@ -2045,15 +2136,227 @@ input, select, button {
   background: #ffeaea;
 }
 
-/* --- Adicionar nova sub-tarefa --- */
+/* --- Adicionar nova sub-tarefa com ícone + interno e botão sob demanda --- */
 .subtask-add-row {
   display: flex;
-  gap: 8px;
   align-items: center;
+  width: 100%;
 }
 
-.subtask-input {
-  flex: 1;
+.subtask-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.subtask-input-icon {
+  position: absolute;
+  left: 10px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.subtask-input-field {
+  width: 100%;
+  padding-left: 32px !important;
+  padding-right: 86px !important;
+  height: 34px !important;
+  font-size: 13px !important;
+  border-radius: 6px !important;
+}
+
+.subtask-add-btn-active {
+  position: absolute;
+  right: 5px;
+  background: #16a34a;
+  color: #ffffff;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  animation: fadeInBtn 0.15s ease;
+}
+
+.subtask-add-btn-active:hover {
+  background: #15803d;
+}
+
+@keyframes fadeInBtn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* =========================================================
+   Hybrid Notes Editor (Notas / Observações)
+   ========================================================= */
+
+.notes-section-container {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notes-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notes-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.notes-discovery-hint {
+  font-size: 10.5px;
+  color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.notes-discovery-hint code {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 10px;
+  color: #475569;
+}
+
+.notes-hint-icon {
+  color: #eab308;
+}
+
+.hybrid-notes-container {
+  position: relative;
+  width: 100%;
+}
+
+.hybrid-notes-editor {
+  min-height: 95px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #1e293b;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.hybrid-notes-editor:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.15);
+}
+
+.hybrid-notes-editor:empty:before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+  font-style: italic;
+  font-size: 12px;
+}
+
+.hybrid-notes-editor h1 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 6px 0 3px 0;
+  line-height: 1.25;
+}
+
+.hybrid-notes-editor h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 5px 0 2px 0;
+  line-height: 1.3;
+}
+
+.hybrid-notes-editor h3 {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #334155;
+  margin: 4px 0 2px 0;
+}
+
+.hybrid-notes-editor ul, 
+.hybrid-notes-editor ol {
+  padding-left: 20px;
+  margin: 4px 0;
+}
+
+.hybrid-notes-editor li {
+  margin-bottom: 2px;
+}
+
+.notes-highlight {
+  background-color: #fef08a !important;
+  color: #854d0e !important;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* Floating Bubble Menu */
+.bubble-toolbar {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 4px 6px;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  z-index: 100;
+  animation: bubblePop 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bubblePop {
+  from { opacity: 0; transform: translate(-50%, 6px) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+.bubble-btn {
+  background: transparent;
+  border: none;
+  color: #e2e8f0;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+}
+
+.bubble-btn:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.bubble-btn.highlight-btn:hover {
+  color: #facc15;
+}
+
+.bubble-separator {
+  width: 1px;
+  height: 16px;
+  background: #334155;
+  margin: 0 3px;
 }
 
 /* --- Badge de sub-tarefas na linha da planilha --- */
