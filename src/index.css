@@ -2165,7 +2165,7 @@ input, select, button {
 }
 
 .week-day-column.day-today {
-  background: #f0fdf4;
+  background: #fffaf5;
 }
 
 .week-day-header {
@@ -2178,8 +2178,8 @@ input, select, button {
 }
 
 .week-day-column.day-today .week-day-header {
-  background: #dcfce7;
-  border-bottom-color: #86efac;
+  background: #fae8d4;
+  border-bottom-color: #fed7aa;
 }
 
 .day-title-row {
@@ -2196,6 +2196,10 @@ input, select, button {
   letter-spacing: 0.5px;
 }
 
+.week-day-column.day-today .day-name {
+  color: #8c4a1e;
+}
+
 .day-date-number {
   font-size: 16px;
   font-weight: 800;
@@ -2203,7 +2207,7 @@ input, select, button {
 }
 
 .week-day-column.day-today .day-date-number {
-  color: #166534;
+  color: #7c2d12;
 }
 
 .day-status-tags {
@@ -2216,7 +2220,7 @@ input, select, button {
 .tag-today {
   font-size: 10px;
   font-weight: 700;
-  background: #16a34a;
+  background: #8c4a1e;
   color: #fff;
   padding: 1px 6px;
   border-radius: 4px;
@@ -2232,6 +2236,10 @@ input, select, button {
   font-size: 10px;
   color: #64748b;
   font-weight: 500;
+}
+
+.week-day-column.day-today .tag-task-count {
+  color: #8c4a1e;
 }
 
 /* Lista de Tarefas do Dia */

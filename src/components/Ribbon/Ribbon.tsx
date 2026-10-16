@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Save,
   RotateCcw,
   RotateCw,
   Plus,
@@ -103,12 +102,9 @@ export const Ribbon: React.FC<RibbonProps> = ({
       {/* Barra de Título Superior / Quick Access Toolbar */}
       <div className="title-bar">
         <div className="quick-access">
-          <div className="app-icon" title="Microsoft Project 2010 (PT-BR)">
+          <div className="app-icon">
             <span className="app-badge">P</span>
           </div>
-          <button className="qa-btn" onClick={onSave} title="Salvar manualmente (Ctrl+S) - As alterações já são salvas automaticamente">
-            <Save size={14} />
-          </button>
           <button className="qa-btn" onClick={onUndo} disabled={!canUndo} title="Desfazer (Ctrl+Z)">
             <RotateCcw size={14} />
           </button>
@@ -118,7 +114,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
         </div>
 
         <div className="title-center-group">
-          <span className="window-title">pivot.sh</span>
+          <span className="window-title">Pivot.sh</span>
           <div
             className={`autosave-pill ${saveStatus}`}
             title={saveStatus === 'saving' ? 'Salvando alterações em tempo real...' : `Todas as alterações são salvas automaticamente sem precisar clicar em salvar (estilo Google Sheets). Último salvamento: ${lastSavedTime}`}
