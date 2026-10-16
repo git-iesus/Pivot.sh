@@ -792,13 +792,15 @@ input, select, button {
 
 .gantt-timeline-header {
   height: 48px;
+  min-height: 48px;
   background: linear-gradient(180deg, #f2f5f9 0%, #e2e8f0 100%);
   border-bottom: 1px solid #cbd5e1;
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: 15;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
 }
 
 .timeline-months-row {
@@ -816,6 +818,9 @@ input, select, button {
   color: #1e293b;
   border-right: 1px solid #cbd5e1;
   background: #f1f5f9;
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .timeline-days-row {
@@ -832,11 +837,24 @@ input, select, button {
   font-size: 10px;
   color: #334155;
   line-height: 1.1;
+  flex-shrink: 0;
 }
 
 .timeline-day-cell.weekend {
   background-color: #e2e8f0;
   color: #94a3b8;
+}
+
+.timeline-day-cell.exception-off-day {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.timeline-day-cell.exception-work-day {
+  background-color: #dcfce7;
+  color: #15803d;
+  font-weight: 600;
 }
 
 .gantt-chart-body {
@@ -858,6 +876,17 @@ input, select, button {
 
 .gantt-day-column.weekend-col {
   background-color: var(--gantt-weekend-bg);
+}
+
+.gantt-day-column.exception-off-col {
+  background-color: rgba(254, 226, 226, 0.45);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(239, 68, 68, 0.06),
+    rgba(239, 68, 68, 0.06) 4px,
+    transparent 4px,
+    transparent 8px
+  );
 }
 
 .gantt-day-column.grid-line {
@@ -3125,3 +3154,232 @@ input, select, button {
   gap: 8px;
 }
 
+/* =========================================================
+   Motor de Datas de Exceção (CalendarExceptionsModal & Ribbon)
+   ========================================================= */
+.ribbon-exception-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #d97706;
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 700;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  margin-left: 2px;
+}
+
+.exceptions-modal {
+  width: 760px;
+  max-width: 95vw;
+  max-height: 90vh;
+}
+
+.exceptions-info-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0c4a6e;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  margin-bottom: 14px;
+}
+
+.exceptions-info-icon {
+  color: #0284c7;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.exception-add-form {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.exception-form-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 10px;
+}
+
+.exception-form-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1.4fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.exception-form-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.exception-behavior-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.behavior-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.behavior-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.behavior-pill:hover {
+  background: #f1f5f9;
+}
+
+.behavior-pill.non-working.active {
+  background: #fef2f2;
+  border-color: #f87171;
+  color: #b91c1c;
+}
+
+.behavior-pill.working.active {
+  background: #f0fdf4;
+  border-color: #4ade80;
+  color: #15803d;
+}
+
+.add-exception-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-weight: 600;
+}
+
+.exceptions-list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exceptions-list-header {
+  font-size: 12px;
+  color: #1e293b;
+}
+
+.exceptions-empty-state {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  padding: 20px;
+  text-align: center;
+  color: #64748b;
+  font-size: 11.5px;
+}
+
+.exceptions-table-wrapper {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+}
+
+.exceptions-table th,
+.exceptions-table td {
+  padding: 7px 10px;
+  font-size: 11.5px;
+}
+
+.exception-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.exception-type-badge.feriado {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.exception-type-badge.recesso,
+.exception-type-badge.emenda {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.exception-type-badge.expediente-atípico {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.exception-status-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.exception-status-toggle.off {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.exception-status-toggle.work {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.icon-delete-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #64748b;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-delete-btn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}

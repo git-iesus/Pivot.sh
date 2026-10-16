@@ -25,7 +25,8 @@ import {
   Cloud,
   Check,
   Loader2,
-  DollarSign
+  DollarSign,
+  CalendarOff
 } from 'lucide-react';
 import { ViewMode, ZoomLevel } from '../../types/project';
 
@@ -58,6 +59,8 @@ interface RibbonProps {
   onUnlinkTasks: () => void;
   onSetProgress: (progress: number) => void;
   onSetTaskMode: (mode: 'manual' | 'auto') => void;
+  onOpenExceptionsModal: () => void;
+  exceptionsCount?: number;
   onOpenResourceSheet: () => void;
   onOpenCostReport: () => void;
   selectedTaskId: string | null;
@@ -92,6 +95,8 @@ export const Ribbon: React.FC<RibbonProps> = ({
   onUnlinkTasks,
   onSetProgress,
   onSetTaskMode,
+  onOpenExceptionsModal,
+  exceptionsCount = 0,
   onOpenResourceSheet,
   onOpenCostReport,
 }) => {
@@ -222,13 +227,24 @@ export const Ribbon: React.FC<RibbonProps> = ({
             <div className="ribbon-group">
               <div className="group-content horizontal">
                 <div className="small-tools-column">
-                  <button className="small-tool-btn" onClick={() => onSetTaskMode('auto')}>
+                  <button className="small-tool-btn" onClick={() => onSetTaskMode('auto')} title="Agendamento Automático">
                     <Clock size={14} className="primary-color" />
                     <span>Agendamento Automático</span>
                   </button>
-                  <button className="small-tool-btn" onClick={() => onSetTaskMode('manual')}>
+                  <button className="small-tool-btn" onClick={() => onSetTaskMode('manual')} title="Agendado Manualmente">
                     <Calendar size={14} />
                     <span>Agendado Manualmente</span>
+                  </button>
+                  <button
+                    className="small-tool-btn"
+                    onClick={onOpenExceptionsModal}
+                    title="Gerenciar Datas de Exceção (Feriados, Recessos, Emendas e Expedientes Atípicos)"
+                  >
+                    <CalendarOff size={14} className="accent-color" />
+                    <span>Datas de Exceção</span>
+                    {exceptionsCount > 0 && (
+                      <span className="ribbon-exception-badge">{exceptionsCount}</span>
+                    )}
                   </button>
                 </div>
               </div>

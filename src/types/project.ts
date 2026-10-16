@@ -52,6 +52,17 @@ export interface Resource {
   maxUnits: number; // Ex: 100%
 }
 
+export type ExceptionCategory = 'Feriado' | 'Recesso' | 'Emenda' | 'Expediente Atípico' | 'Outro';
+
+export interface CalendarException {
+  id: string;
+  name: string;
+  date: string; // YYYY-MM-DD (Data inicial)
+  endDate?: string; // YYYY-MM-DD (Data final opcional para períodos)
+  type: ExceptionCategory;
+  isWorkingDay: boolean; // false = dia não útil (pula data), true = dia útil atípico (conta como dia de trabalho)
+}
+
 export interface ProjectMetadata {
   title: string;
   manager: string;
@@ -59,6 +70,7 @@ export interface ProjectMetadata {
   currentDate: string; // Data de status
   calendar: string;
   activeWeekDays: number[]; // 0 = Domingo, 1 = Segunda, 2 = Terça, 3 = Quarta, 4 = Quinta, 5 = Sexta, 6 = Sábado
+  exceptions?: CalendarException[]; // Datas de exceção globais do projeto
   currency: 'BRL' | 'USD' | 'EUR';
 }
 

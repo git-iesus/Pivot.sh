@@ -1,7 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Task, Resource, ProjectMetadata, ViewMode, ZoomLevel } from './types/project';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Task, Resource, ProjectMetadata, ViewMode, ZoomLevel, CalendarException } from './types/project';
 import { defaultTasks, defaultResources, defaultMetadata } from './data/sampleProjects';
-import { recalculateSchedule, toISODate, toWorkDay, addWorkDays } from './utils/scheduler';
+import {
+  recalculateSchedule,
+  toISODate,
+  toWorkDay,
+  addWorkDays,
+  parseISODate,
+  getWorkDaysDifference,
+} from './utils/scheduler';
 import { exportToXLSX, exportToCSV } from './utils/exportImport';
 import { Ribbon } from './components/Ribbon/Ribbon';
 import { Backstage } from './components/Ribbon/Backstage';
@@ -12,14 +19,47 @@ import { ProjectInfoModal } from './components/ProjectInfo/ProjectInfoModal';
 import { StatusBar } from './components/StatusBar/StatusBar';
 import { TaskDetailModal } from './components/TaskDetail/TaskDetailModal';
 import { CostReportModal } from './components/CostReport/CostReportModal';
+import { CalendarExceptionsModal } from './components/CalendarExceptions/CalendarExceptionsModal';
 import { WeekView } from './components/WeekView/WeekView';
 import { CheckCircle2 } from 'lucide-react';
 
 export const App: React.FC = () => {
-  // Estado Principal
+  // Metadados e Calendário Global (carregado primeiro para alimentar o motor de agendamento)
+  const [metadata, setMetadata] = useState<ProjectMetadata>(() => {
+    const saved = localStorage.getItem('ms_project_metadata');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...defaultMetadata,
+          ...parsed,
+          activeWeekDays: parsed.activeWeekDays || [1, 2, 3, 4, 5],
+          exceptions: parsed.exceptions || [],
+        };
+      } catch (e) {
+        // fallback
+      }
+    }
+    return { ...defaultMetadata, exceptions: defaultMetadata.exceptions || [] };
+  });
+
+  // Estado Principal de Tarefas (Sempre validado pelo motor de agendamento ao inicializar)
   const [tasks, setTasks] = useState<Task[]>(() => {
     const saved = localStorage.getItem('ms_project_tasks');
-    return saved ? JSON.parse(saved) : defaultTasks;
+    const rawTasks: Task[] = saved ? JSON.parse(saved) : defaultTasks;
+    const savedMeta = localStorage.getItem('ms_project_metadata');
+    let activeDays = [1, 2, 3, 4, 5];
+    let exceptions: CalendarException[] = [];
+    if (savedMeta) {
+      try {
+        const parsedMeta = JSON.parse(savedMeta);
+        activeDays = parsedMeta.activeWeekDays || [1, 2, 3, 4, 5];
+        exceptions = parsedMeta.exceptions || [];
+      } catch (e) {
+        // fallback
+      }
+    }
+    return recalculateSchedule(rawTasks, activeDays, exceptions);
   });
 
   const [resources, setResources] = useState<Resource[]>(() => {
@@ -27,10 +67,12 @@ export const App: React.FC = () => {
     return saved ? JSON.parse(saved) : defaultResources;
   });
 
-  const [metadata, setMetadata] = useState<ProjectMetadata>(() => {
-    const saved = localStorage.getItem('ms_project_metadata');
-    return saved ? JSON.parse(saved) : defaultMetadata;
-  });
+  // Fonte Única da Verdade (Single Source of Truth) compartilhada entre Planilha e Gantt
+  const scheduledTasks = useMemo(() => {
+    const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
+    const exceptions = metadata.exceptions || [];
+    return recalculateSchedule(tasks, activeDays, exceptions);
+  }, [tasks, metadata.activeWeekDays, metadata.exceptions]);
 
   // Histórico de Desfazer/Refazer
   const [history, setHistory] = useState<Task[][]>([]);
@@ -50,6 +92,7 @@ export const App: React.FC = () => {
   const [isResourceModalOpen, setIsResourceModalOpen] = useState<boolean>(false);
   const [isProjectInfoModalOpen, setIsProjectInfoModalOpen] = useState<boolean>(false);
   const [isCostReportOpen, setIsCostReportOpen] = useState<boolean>(false);
+  const [isExceptionsModalOpen, setIsExceptionsModalOpen] = useState<boolean>(false);
   const [selectedDetailTaskId, setSelectedDetailTaskId] = useState<string | null>(null);
 
   // Alturas individuais das linhas estilo Excel
@@ -135,52 +178,93 @@ export const App: React.FC = () => {
   }, []);
 
   const handleManualSave = useCallback(() => {
-    saveToStorage(tasks, resources, metadata);
+    saveToStorage(scheduledTasks, resources, metadata);
     showToast('Todas as alterações já foram salvas automaticamente!');
-  }, [tasks, resources, metadata, saveToStorage, showToast]);
+  }, [scheduledTasks, resources, metadata, saveToStorage, showToast]);
 
-  // Atualizador com histórico de Undo
-  const pushTaskState = useCallback((newTasks: Task[], customActiveDays?: number[]) => {
-    setHistory((prev) => [...prev.slice(-30), tasks]);
-    setFuture([]);
-    const activeDays = customActiveDays || metadata.activeWeekDays || [1, 2, 3, 4, 5];
-    const calculated = recalculateSchedule(newTasks, activeDays);
-    setTasks(calculated);
-    saveToStorage(calculated, resources, metadata);
-  }, [tasks, resources, metadata, saveToStorage]);
+  // Atualizador com histórico de Undo (garantindo sincronia total via recalculateSchedule)
+  const pushTaskState = useCallback(
+    (newTasks: Task[], customActiveDays?: number[], customExceptions?: CalendarException[]) => {
+      setHistory((prev) => [...prev.slice(-30), scheduledTasks]);
+      setFuture([]);
+      const activeDays = customActiveDays || metadata.activeWeekDays || [1, 2, 3, 4, 5];
+      const exceptions = customExceptions !== undefined ? customExceptions : metadata.exceptions || [];
+      const calculated = recalculateSchedule(newTasks, activeDays, exceptions);
+      setTasks(calculated);
+      saveToStorage(calculated, resources, metadata);
+    },
+    [scheduledTasks, resources, metadata, saveToStorage]
+  );
 
   const handleUndo = () => {
     if (history.length === 0) return;
     const previous = history[history.length - 1];
+    const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
+    const exceptions = metadata.exceptions || [];
+    const calculatedPrev = recalculateSchedule(previous, activeDays, exceptions);
     setHistory((prev) => prev.slice(0, prev.length - 1));
-    setFuture((prev) => [tasks, ...prev]);
-    setTasks(previous);
-    saveToStorage(previous, resources, metadata);
+    setFuture((prev) => [scheduledTasks, ...prev]);
+    setTasks(calculatedPrev);
+    saveToStorage(calculatedPrev, resources, metadata);
   };
 
   const handleRedo = () => {
     if (future.length === 0) return;
     const next = future[0];
+    const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
+    const exceptions = metadata.exceptions || [];
+    const calculatedNext = recalculateSchedule(next, activeDays, exceptions);
     setFuture((prev) => prev.slice(1));
-    setHistory((prev) => [...prev, tasks]);
-    setTasks(next);
-    saveToStorage(next, resources, metadata);
+    setHistory((prev) => [...prev, scheduledTasks]);
+    setTasks(calculatedNext);
+    saveToStorage(calculatedNext, resources, metadata);
   };
 
-  // Ações de Tarefas
+  // Ações de Tarefas (centralizadas no motor de agendamento)
   const handleUpdateTask = (taskId: string, updates: Partial<Task>) => {
-    const updated = tasks.map((t) => (t.id === taskId ? { ...t, ...updates } : t));
+    const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
+    const exceptions = metadata.exceptions || [];
+
+    const updated = scheduledTasks.map((t) => {
+      if (t.id !== taskId) return t;
+      const merged = { ...t, ...updates };
+
+      // Se o usuário editou a Data de Término diretamente na planilha, sincroniza a Duração em dias úteis
+      if (updates.endDate && updates.durationDays === undefined && !t.isSummary) {
+        const start = parseISODate(merged.startDate);
+        const end = parseISODate(updates.endDate);
+        if (end >= start) {
+          const diffDays = getWorkDaysDifference(start, end, activeDays, exceptions);
+          merged.durationDays = t.isMilestone ? 0 : Math.max(1, diffDays);
+        }
+      }
+      return merged;
+    });
     pushTaskState(updated);
+  };
+
+  const handleUpdateExceptions = (newExceptions: CalendarException[]) => {
+    const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
+    const updatedMeta: ProjectMetadata = {
+      ...metadata,
+      exceptions: newExceptions,
+    };
+    setMetadata(updatedMeta);
+    const recalculated = recalculateSchedule(scheduledTasks, activeDays, newExceptions);
+    setTasks(recalculated);
+    saveToStorage(recalculated, resources, updatedMeta);
+    showToast('Cronograma atualizado com as Datas de Exceção!');
   };
 
   const handleAddTask = () => {
     const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
-    const now = new Date();
+    const exceptions = metadata.exceptions || [];
+    const now = toWorkDay(new Date(), activeDays, exceptions);
     const startStr = toISODate(now);
-    const endStr = toISODate(addWorkDays(now, 1, activeDays));
+    const endStr = toISODate(addWorkDays(now, 1, activeDays, exceptions));
 
-    const selectedIndex = tasks.findIndex((t) => t.id === selectedTaskId);
-    const parentLevel = selectedIndex >= 0 ? tasks[selectedIndex].outlineLevel : 0;
+    const selectedIndex = scheduledTasks.findIndex((t) => t.id === selectedTaskId);
+    const parentLevel = selectedIndex >= 0 ? scheduledTasks[selectedIndex].outlineLevel : 0;
 
     const newTask: Task = {
       id: `task_${Date.now()}`,
@@ -201,9 +285,13 @@ export const App: React.FC = () => {
 
     let newTasks: Task[];
     if (selectedIndex >= 0) {
-      newTasks = [...tasks.slice(0, selectedIndex + 1), newTask, ...tasks.slice(selectedIndex + 1)];
+      newTasks = [
+        ...scheduledTasks.slice(0, selectedIndex + 1),
+        newTask,
+        ...scheduledTasks.slice(selectedIndex + 1),
+      ];
     } else {
-      newTasks = [...tasks, newTask];
+      newTasks = [...scheduledTasks, newTask];
     }
 
     pushTaskState(newTasks);
@@ -212,7 +300,8 @@ export const App: React.FC = () => {
 
   const handleAddMilestone = () => {
     const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
-    const today = toWorkDay(new Date(), activeDays);
+    const exceptions = metadata.exceptions || [];
+    const today = toWorkDay(new Date(), activeDays, exceptions);
     const dateStr = toISODate(today);
 
     const newTask: Task = {
@@ -231,13 +320,14 @@ export const App: React.FC = () => {
       isMilestone: true,
       cost: 0,
     };
-    pushTaskState([...tasks, newTask]);
+    pushTaskState([...scheduledTasks, newTask]);
     setSelectedTaskId(newTask.id);
   };
 
   const handleAddSummaryTask = () => {
     const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
-    const today = toWorkDay(new Date(), activeDays);
+    const exceptions = metadata.exceptions || [];
+    const today = toWorkDay(new Date(), activeDays, exceptions);
     const dateStr = toISODate(today);
 
     const newTask: Task = {
@@ -246,7 +336,7 @@ export const App: React.FC = () => {
       name: 'Nova Fase / Tarefa Resumo',
       durationDays: 5,
       startDate: dateStr,
-      endDate: toISODate(addWorkDays(today, 5, activeDays)),
+      endDate: toISODate(addWorkDays(today, 5, activeDays, exceptions)),
       progress: 0,
       mode: 'auto',
       predecessorText: '',
@@ -256,20 +346,20 @@ export const App: React.FC = () => {
       isMilestone: false,
       cost: 0,
     };
-    pushTaskState([...tasks, newTask]);
+    pushTaskState([...scheduledTasks, newTask]);
     setSelectedTaskId(newTask.id);
   };
 
   const handleDeleteSelected = () => {
     if (!selectedTaskId) return;
-    const newTasks = tasks.filter((t) => t.id !== selectedTaskId);
+    const newTasks = scheduledTasks.filter((t) => t.id !== selectedTaskId);
     pushTaskState(newTasks);
     setSelectedTaskId(null);
   };
 
   const handleIndentTask = () => {
     if (!selectedTaskId) return;
-    const newTasks = tasks.map((t) =>
+    const newTasks = scheduledTasks.map((t) =>
       t.id === selectedTaskId ? { ...t, outlineLevel: Math.min(5, t.outlineLevel + 1) } : t
     );
     pushTaskState(newTasks);
@@ -277,7 +367,7 @@ export const App: React.FC = () => {
 
   const handleOutdentTask = () => {
     if (!selectedTaskId) return;
-    const newTasks = tasks.map((t) =>
+    const newTasks = scheduledTasks.map((t) =>
       t.id === selectedTaskId ? { ...t, outlineLevel: Math.max(0, t.outlineLevel - 1) } : t
     );
     pushTaskState(newTasks);
@@ -285,10 +375,10 @@ export const App: React.FC = () => {
 
   const handleLinkTasks = () => {
     if (!selectedTaskId) return;
-    const idx = tasks.findIndex((t) => t.id === selectedTaskId);
+    const idx = scheduledTasks.findIndex((t) => t.id === selectedTaskId);
     if (idx > 0) {
       const predId = idx; // Tarefa anterior (1-based)
-      const current = tasks[idx];
+      const current = scheduledTasks[idx];
       const newPreds = current.predecessorText
         ? `${current.predecessorText}, ${predId}`
         : `${predId}`;
@@ -313,28 +403,17 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleSetBaseline = () => {
-    const updated = tasks.map((t) => ({
-      ...t,
-      baselineStartDate: t.startDate,
-      baselineEndDate: t.endDate,
-      baselineDurationDays: t.durationDays,
-    }));
-    pushTaskState(updated);
-    showToast('Linha de Base 0 definida com sucesso!');
-  };
-
   // Exportação e Importação
   const handleExportXLSX = () => {
-    exportToXLSX(tasks, resources, metadata);
+    exportToXLSX(scheduledTasks, resources, metadata);
   };
 
   const handleExportCSV = () => {
-    exportToCSV(tasks, metadata);
+    exportToCSV(scheduledTasks, metadata);
   };
 
   const handleExportJSON = () => {
-    const jsonData = JSON.stringify({ metadata, resources, tasks }, null, 2);
+    const jsonData = JSON.stringify({ metadata, resources, tasks: scheduledTasks }, null, 2);
     const blob = new Blob([jsonData], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -358,10 +437,23 @@ export const App: React.FC = () => {
         try {
           const parsed = JSON.parse(event.target?.result as string);
           if (parsed.tasks) {
-            setTasks(recalculateSchedule(parsed.tasks));
+            const nextMeta: ProjectMetadata = parsed.metadata
+              ? {
+                  ...defaultMetadata,
+                  ...parsed.metadata,
+                  activeWeekDays: parsed.metadata.activeWeekDays || [1, 2, 3, 4, 5],
+                  exceptions: parsed.metadata.exceptions || [],
+                }
+              : metadata;
+            const recalculated = recalculateSchedule(
+              parsed.tasks,
+              nextMeta.activeWeekDays || [1, 2, 3, 4, 5],
+              nextMeta.exceptions || []
+            );
+            setTasks(recalculated);
             if (parsed.resources) setResources(parsed.resources);
-            if (parsed.metadata) setMetadata(parsed.metadata);
-            saveToStorage(parsed.tasks, parsed.resources || resources, parsed.metadata || metadata);
+            if (parsed.metadata) setMetadata(nextMeta);
+            saveToStorage(recalculated, parsed.resources || resources, nextMeta);
             setIsBackstageOpen(false);
             showToast('Projeto importado com sucesso!');
           }
@@ -430,6 +522,8 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleUndo, handleRedo, handleManualSave]);
 
+  const selectedTaskObj = scheduledTasks.find((t) => t.id === selectedTaskId);
+
   return (
     <div className="ms-project-app">
       {/* Faixa de Opções (Ribbon) Estilo Office 2010 */}
@@ -462,6 +556,8 @@ export const App: React.FC = () => {
         onUnlinkTasks={handleUnlinkTasks}
         onSetProgress={handleSetProgress}
         onSetTaskMode={handleSetTaskMode}
+        onOpenExceptionsModal={() => setIsExceptionsModalOpen(true)}
+        exceptionsCount={(metadata.exceptions || []).length}
         onOpenResourceSheet={() => setIsResourceModalOpen(true)}
         onOpenCostReport={() => setIsCostReportOpen(true)}
         selectedTaskId={selectedTaskId}
@@ -473,13 +569,13 @@ export const App: React.FC = () => {
           <>
             <div className="sheet-pane" style={{ width: `${splitWidth}px` }}>
               <TaskSheet
-                tasks={tasks}
+                tasks={scheduledTasks}
                 resources={resources}
                 selectedTaskId={selectedTaskId}
                 onSelectTask={setSelectedTaskId}
                 onUpdateTask={handleUpdateTask}
                 onToggleCollapse={(id) => {
-                  const t = tasks.find((item) => item.id === id);
+                  const t = scheduledTasks.find((item) => item.id === id);
                   if (t) handleUpdateTask(id, { collapsed: !t.collapsed });
                 }}
                 onAddTask={handleAddTask}
@@ -498,7 +594,7 @@ export const App: React.FC = () => {
 
             <div className="gantt-pane">
               <GanttChart
-                tasks={tasks}
+                tasks={scheduledTasks}
                 zoomLevel={zoomLevel}
                 showCriticalPath={showCriticalPath}
                 showGridLines={showGridLines}
@@ -509,6 +605,7 @@ export const App: React.FC = () => {
                 onScroll={handleScroll('gantt')}
                 scrollRef={ganttScrollRef}
                 activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
+                exceptions={metadata.exceptions || []}
               />
             </div>
           </>
@@ -516,13 +613,13 @@ export const App: React.FC = () => {
           <>
             <div className="sheet-pane" style={{ width: `${splitWidth}px` }}>
               <TaskSheet
-                tasks={tasks}
+                tasks={scheduledTasks}
                 resources={resources}
                 selectedTaskId={selectedTaskId}
                 onSelectTask={setSelectedTaskId}
                 onUpdateTask={handleUpdateTask}
                 onToggleCollapse={(id) => {
-                  const t = tasks.find((item) => item.id === id);
+                  const t = scheduledTasks.find((item) => item.id === id);
                   if (t) handleUpdateTask(id, { collapsed: !t.collapsed });
                 }}
                 onAddTask={handleAddTask}
@@ -541,8 +638,9 @@ export const App: React.FC = () => {
 
             <div className="gantt-pane">
               <WeekView
-                tasks={tasks}
+                tasks={scheduledTasks}
                 activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
+                exceptions={metadata.exceptions || []}
                 selectedTaskId={selectedTaskId}
                 onSelectTask={setSelectedTaskId}
                 onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
@@ -552,13 +650,13 @@ export const App: React.FC = () => {
         ) : (
           <div className="sheet-pane-fullscreen">
             <TaskSheet
-              tasks={tasks}
+              tasks={scheduledTasks}
               resources={resources}
               selectedTaskId={selectedTaskId}
               onSelectTask={setSelectedTaskId}
               onUpdateTask={handleUpdateTask}
               onToggleCollapse={(id) => {
-                const t = tasks.find((item) => item.id === id);
+                const t = scheduledTasks.find((item) => item.id === id);
                 if (t) handleUpdateTask(id, { collapsed: !t.collapsed });
               }}
               onAddTask={handleAddTask}
@@ -577,7 +675,7 @@ export const App: React.FC = () => {
       <StatusBar
         saveStatus={saveStatus}
         lastSavedTime={lastSavedTime}
-        taskCount={tasks.length}
+        taskCount={scheduledTasks.length}
         selectedTaskId={selectedTaskId}
         taskMode={defaultTaskMode}
         onToggleTaskMode={() =>
@@ -594,7 +692,7 @@ export const App: React.FC = () => {
         isOpen={isBackstageOpen}
         onClose={() => setIsBackstageOpen(false)}
         metadata={metadata}
-        tasks={tasks}
+        tasks={scheduledTasks}
         resources={resources}
         onNewProject={handleNewProject}
         onSaveProject={() => {
@@ -617,7 +715,7 @@ export const App: React.FC = () => {
         resources={resources}
         onUpdateResources={(updated) => {
           setResources(updated);
-          saveToStorage(tasks, updated, metadata);
+          saveToStorage(scheduledTasks, updated, metadata);
         }}
       />
 
@@ -626,16 +724,28 @@ export const App: React.FC = () => {
         onClose={() => setIsProjectInfoModalOpen(false)}
         metadata={metadata}
         onUpdateMetadata={(updated) => {
-          setMetadata(updated);
-          const activeDays = updated.activeWeekDays || [1, 2, 3, 4, 5];
-          const recalculated = recalculateSchedule(tasks, activeDays);
+          const mergedMeta: ProjectMetadata = {
+            ...updated,
+            exceptions: updated.exceptions || metadata.exceptions || [],
+          };
+          setMetadata(mergedMeta);
+          const activeDays = mergedMeta.activeWeekDays || [1, 2, 3, 4, 5];
+          const recalculated = recalculateSchedule(scheduledTasks, activeDays, mergedMeta.exceptions || []);
           setTasks(recalculated);
-          saveToStorage(recalculated, resources, updated);
+          saveToStorage(recalculated, resources, mergedMeta);
         }}
       />
 
+      <CalendarExceptionsModal
+        isOpen={isExceptionsModalOpen}
+        onClose={() => setIsExceptionsModalOpen(false)}
+        exceptions={metadata.exceptions || []}
+        onUpdateExceptions={handleUpdateExceptions}
+        defaultDate={selectedTaskObj?.startDate || metadata.startDate || '2026-10-16'}
+      />
+
       <TaskDetailModal
-        task={tasks.find((t) => t.id === selectedDetailTaskId) || null}
+        task={scheduledTasks.find((t) => t.id === selectedDetailTaskId) || null}
         isOpen={selectedDetailTaskId !== null}
         onClose={() => setSelectedDetailTaskId(null)}
         onUpdateTask={handleUpdateTask}
@@ -644,7 +754,7 @@ export const App: React.FC = () => {
       <CostReportModal
         isOpen={isCostReportOpen}
         onClose={() => setIsCostReportOpen(false)}
-        tasks={tasks}
+        tasks={scheduledTasks}
         resources={resources}
         metadata={metadata}
       />

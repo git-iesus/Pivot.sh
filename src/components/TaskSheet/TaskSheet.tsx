@@ -380,6 +380,15 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                       if (e.target.value) onUpdateTask(task.id, { startDate: e.target.value });
                       handleCellBlur();
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const val = (e.target as HTMLInputElement).value;
+                        if (val) onUpdateTask(task.id, { startDate: val });
+                        handleCellBlur();
+                      } else if (e.key === 'Escape') {
+                        handleCellBlur();
+                      }
+                    }}
                   />
                 ) : (
                   <span>{formatDatePTBR(task.startDate)}</span>
@@ -400,6 +409,15 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     onBlur={(e) => {
                       if (e.target.value) onUpdateTask(task.id, { endDate: e.target.value });
                       handleCellBlur();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const val = (e.target as HTMLInputElement).value;
+                        if (val) onUpdateTask(task.id, { endDate: val });
+                        handleCellBlur();
+                      } else if (e.key === 'Escape') {
+                        handleCellBlur();
+                      }
                     }}
                   />
                 ) : (

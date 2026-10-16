@@ -1,6 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Task, ZoomLevel } from '../../types/project';
-import { parseISODate, toISODate, isWeekend, parsePredecessors } from '../../utils/scheduler';
+import { Task, ZoomLevel, CalendarException } from '../../types/project';
+import {
+  parseISODate,
+  toISODate,
+  isWeekend,
+  parsePredecessors,
+  getExceptionForDate,
+  formatDatePTBR,
+} from '../../utils/scheduler';
 
 interface GanttChartProps {
   tasks: Task[];
@@ -13,6 +20,7 @@ interface GanttChartProps {
   onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   activeWeekDays?: number[];
+  exceptions?: CalendarException[];
   rowHeights?: Record<string, number>;
 }
 
@@ -26,15 +34,17 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   onScroll,
   scrollRef,
   activeWeekDays = [1, 2, 3, 4, 5],
+  exceptions = [],
   rowHeights,
 }) => {
   const [hoveredTask, setHoveredTask] = useState<Task | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
 
   // Determinar extensão de datas do projeto
-  const { startDate, endDate, totalDays, dayWidth, rowHeight } = useMemo(() => {
+  const { startDate, totalDays, dayWidth } = useMemo(() => {
     let minDate = new Date();
-    let maxDate = new Date();
+    minDate.setHours(0, 0, 0, 0);
+    let maxDate = new Date(minDate);
 
     if (tasks.length > 0) {
       minDate = parseISODate(tasks[0].startDate);
@@ -50,13 +60,15 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
     // Adiciona margem antes e depois
     const chartStart = new Date(minDate);
+    chartStart.setHours(0, 0, 0, 0);
     chartStart.setDate(chartStart.getDate() - 3);
 
     const chartEnd = new Date(maxDate);
+    chartEnd.setHours(0, 0, 0, 0);
     chartEnd.setDate(chartEnd.getDate() + 15);
 
     const diffTime = Math.abs(chartEnd.getTime() - chartStart.getTime());
-    const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const totalDays = Math.max(20, Math.round(diffTime / (1000 * 60 * 60 * 24)));
 
     let dayWidth = 32;
     if (zoomLevel === 'weeks') dayWidth = 18;
@@ -71,24 +83,35 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     };
   }, [tasks, zoomLevel]);
 
-  // Lista de dias gerados
+  // Lista de dias gerados (sincronizada com Calendário Base e Datas de Exceção)
   const daysList = useMemo(() => {
-    const list: { date: Date; iso: string; dayNum: number; dayOfWeek: string; isWeekend: boolean }[] = [];
+    const list: {
+      date: Date;
+      iso: string;
+      dayNum: number;
+      dayOfWeek: string;
+      isWeekend: boolean;
+      exception?: CalendarException;
+    }[] = [];
     const cur = new Date(startDate);
+    cur.setHours(0, 0, 0, 0);
     const daysNames = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
     for (let i = 0; i < totalDays; i++) {
+      const iso = toISODate(cur);
+      const ex = getExceptionForDate(iso, exceptions);
       list.push({
         date: new Date(cur),
-        iso: toISODate(cur),
+        iso,
         dayNum: cur.getDate(),
         dayOfWeek: daysNames[cur.getDay()],
-        isWeekend: isWeekend(cur, activeWeekDays),
+        isWeekend: isWeekend(cur, activeWeekDays, exceptions),
+        exception: ex,
       });
       cur.setDate(cur.getDate() + 1);
     }
     return list;
-  }, [startDate, totalDays, activeWeekDays]);
+  }, [startDate, totalDays, activeWeekDays, exceptions]);
 
   // Agrupamento por Meses para o Cabeçalho Superior
   const monthGroups = useMemo(() => {
@@ -130,10 +153,11 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     return months;
   }, [daysList, dayWidth]);
 
-  // Função para calcular a coordenada X de uma data
+  // Função para calcular a coordenada X exata de uma data (alinhada 1:1 com as células do cabeçalho)
   const getXForDate = (dateStr: string): number => {
     const target = parseISODate(dateStr);
-    const diff = (target.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+    target.setHours(0, 0, 0, 0);
+    const diff = Math.round((target.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
     return Math.max(0, diff * dayWidth);
   };
 
@@ -165,53 +189,73 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     return coords;
   }, [tasks, startDate, dayWidth, taskLayout]);
 
+  const totalCanvasWidth = totalDays * dayWidth;
+
   return (
     <div className="gantt-chart-container">
-      {/* Cabeçalho da Escala de Tempo Dupla */}
-      <div className="gantt-timeline-header">
-        {/* Nível 1: Meses */}
-        <div className="timeline-months-row">
-          {monthGroups.map((mg, i) => (
-            <div key={i} className="timeline-month-cell" style={{ width: `${mg.width}px` }}>
-              {mg.label}
-            </div>
-          ))}
-        </div>
-
-        {/* Nível 2: Dias da Semana */}
-        <div className="timeline-days-row">
-          {daysList.map((d, i) => (
-            <div
-              key={i}
-              className={`timeline-day-cell ${d.isWeekend ? 'weekend' : ''}`}
-              style={{ width: `${dayWidth}px` }}
-              title={d.iso}
-            >
-              <span className="day-num">{d.dayNum}</span>
-              <span className="day-name">{d.dayOfWeek}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Área das Barras e Grade do Gráfico */}
-      <div 
-        className="gantt-chart-body" 
-        ref={scrollRef} 
+      {/* Container Rolável Único: Cabeçalho e Canvas compartilham o mesmo scroll e largura exata */}
+      <div
+        className="gantt-chart-body"
+        ref={scrollRef}
         onScroll={onScroll}
       >
-        <div 
-          className="gantt-canvas" 
-          style={{ width: `${totalDays * dayWidth}px`, height: `${taskLayout.totalHeight}px` }}
+        {/* Cabeçalho da Escala de Tempo Dupla (Fixo no topo durante scroll vertical) */}
+        <div
+          className="gantt-timeline-header"
+          style={{ width: `${totalCanvasWidth}px`, minWidth: `${totalCanvasWidth}px` }}
         >
-          {/* Colunas de Fim de Semana e Linhas de Grade */}
-          {daysList.map((d, i) => (
-            <div
-              key={i}
-              className={`gantt-day-column ${d.isWeekend ? 'weekend-col' : ''} ${showGridLines ? 'grid-line' : ''}`}
-              style={{ left: `${i * dayWidth}px`, width: `${dayWidth}px` }}
-            />
-          ))}
+          {/* Nível 1: Meses */}
+          <div className="timeline-months-row" style={{ width: `${totalCanvasWidth}px` }}>
+            {monthGroups.map((mg, i) => (
+              <div
+                key={i}
+                className="timeline-month-cell"
+                style={{ width: `${mg.width}px`, minWidth: `${mg.width}px`, maxWidth: `${mg.width}px` }}
+              >
+                {mg.label}
+              </div>
+            ))}
+          </div>
+
+          {/* Nível 2: Dias da Semana */}
+          <div className="timeline-days-row" style={{ width: `${totalCanvasWidth}px` }}>
+            {daysList.map((d, i) => {
+              const isNonWorkingException = d.exception && !d.exception.isWorkingDay;
+              const isWorkingException = d.exception && d.exception.isWorkingDay;
+              const tooltipTitle = d.exception
+                ? `${formatDatePTBR(d.iso)} — ${d.exception.type}: ${d.exception.name} (${d.exception.isWorkingDay ? 'Dia Útil Atípico' : 'Dia Não Útil'})`
+                : formatDatePTBR(d.iso);
+
+              return (
+                <div
+                  key={i}
+                  className={`timeline-day-cell ${d.isWeekend ? 'weekend' : ''} ${isNonWorkingException ? 'exception-off-day' : ''} ${isWorkingException ? 'exception-work-day' : ''}`}
+                  style={{ width: `${dayWidth}px`, minWidth: `${dayWidth}px`, maxWidth: `${dayWidth}px` }}
+                  title={tooltipTitle}
+                >
+                  <span className="day-num">{d.dayNum}</span>
+                  <span className="day-name">{d.dayOfWeek}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div
+          className="gantt-canvas"
+          style={{ width: `${totalCanvasWidth}px`, minWidth: `${totalCanvasWidth}px`, height: `${taskLayout.totalHeight}px` }}
+        >
+          {/* Colunas de Fim de Semana, Exceções e Linhas de Grade */}
+          {daysList.map((d, i) => {
+            const isNonWorkingException = d.exception && !d.exception.isWorkingDay;
+            return (
+              <div
+                key={i}
+                className={`gantt-day-column ${d.isWeekend ? 'weekend-col' : ''} ${isNonWorkingException ? 'exception-off-col' : ''} ${showGridLines ? 'grid-line' : ''}`}
+                style={{ left: `${i * dayWidth}px`, width: `${dayWidth}px` }}
+              />
+            );
+          })}
 
           {/* Marcador da Data de Hoje */}
           <div className="today-marker-line" style={{ left: `${todayX}px` }} title="Hoje">
@@ -365,7 +409,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                   >
                     <div className={`milestone-diamond-shape ${isCrit ? 'critical' : ''} ${task.progress === 100 ? 'completed' : ''}`}></div>
                     <span className="bar-resource-label">
-                      {task.name} ({task.startDate})
+                      {task.name} ({formatDatePTBR(task.startDate)})
                     </span>
                   </div>
                 ) : (
@@ -400,10 +444,10 @@ export const GanttChart: React.FC<GanttChartProps> = ({
         >
           <div className="tooltip-title">{hoveredTask.name}</div>
           <div className="tooltip-row">
-            <span>Início:</span> <strong>{hoveredTask.startDate}</strong>
+            <span>Início:</span> <strong>{formatDatePTBR(hoveredTask.startDate)}</strong>
           </div>
           <div className="tooltip-row">
-            <span>Término:</span> <strong>{hoveredTask.endDate}</strong>
+            <span>Término:</span> <strong>{formatDatePTBR(hoveredTask.endDate)}</strong>
           </div>
           <div className="tooltip-row">
             <span>Duração:</span> <strong>{hoveredTask.durationDays} dias</strong>

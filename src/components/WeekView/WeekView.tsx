@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Task } from '../../types/project';
+import { Task, CalendarException } from '../../types/project';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -16,6 +16,7 @@ import { parseISODate, toISODate, isWorkDay } from '../../utils/scheduler';
 interface WeekViewProps {
   tasks: Task[];
   activeWeekDays: number[];
+  exceptions?: CalendarException[];
   selectedTaskId: string | null;
   onSelectTask: (taskId: string) => void;
   onOpenTaskDetail: (taskId: string) => void;
@@ -24,6 +25,7 @@ interface WeekViewProps {
 export const WeekView: React.FC<WeekViewProps> = ({
   tasks,
   activeWeekDays,
+  exceptions = [],
   selectedTaskId,
   onSelectTask,
   onOpenTaskDetail,
@@ -64,12 +66,12 @@ export const WeekView: React.FC<WeekViewProps> = ({
         iso,
         dayName: names[i],
         shortName: shortNames[i],
-        isWork: isWorkDay(d, activeWeekDays),
+        isWork: isWorkDay(d, activeWeekDays, exceptions),
         isToday: iso === todayIso,
       });
     }
     return days;
-  }, [mondayDate, activeWeekDays]);
+  }, [mondayDate, activeWeekDays, exceptions]);
 
   // Intervalo formatado para exibição no cabeçalho
   const formattedRange = useMemo(() => {
