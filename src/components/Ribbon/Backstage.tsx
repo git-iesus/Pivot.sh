@@ -83,6 +83,10 @@ export const Backstage: React.FC<BackstageProps> = ({
             <Info size={18} />
             <span>Informações</span>
           </button>
+          <button className="backstage-menu-item" onClick={onOpenProjectInfo}>
+            <Calendar size={18} />
+            <span>Propriedades do Projeto</span>
+          </button>
           <button className="backstage-menu-item" onClick={onNewProject}>
             <FileText size={18} />
             <span>Novo</span>
@@ -95,6 +99,10 @@ export const Backstage: React.FC<BackstageProps> = ({
             <Save size={18} />
             <span>Salvar</span>
           </button>
+          <button className="backstage-menu-item" onClick={onExportJSON}>
+            <Download size={18} />
+            <span>Exportar Backup (JSON)</span>
+          </button>
           <button className="backstage-menu-item" onClick={onExportXLSX}>
             <Download size={18} />
             <span>Exportar XLSX</span>
@@ -102,14 +110,6 @@ export const Backstage: React.FC<BackstageProps> = ({
           <button className="backstage-menu-item" onClick={onExportCSV}>
             <Download size={18} />
             <span>Exportar CSV</span>
-          </button>
-          <button className="backstage-menu-item" onClick={onExportJSON}>
-            <Download size={18} />
-            <span>Exportar Backup (JSON)</span>
-          </button>
-          <button className="backstage-menu-item" onClick={onOpenProjectInfo}>
-            <Calendar size={18} />
-            <span>Propriedades do Projeto</span>
           </button>
         </div>
       </div>
