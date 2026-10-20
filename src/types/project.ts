@@ -74,6 +74,61 @@ export interface ProjectMetadata {
   currency: 'BRL' | 'USD' | 'EUR';
 }
 
-export type ViewMode = 'gantt' | 'taskSheet' | 'networkDiagram' | 'resourceSheet' | 'week';
+export type ViewMode = 'gantt' | 'taskSheet' | 'networkDiagram' | 'resourceSheet' | 'week' | 'nexo';
 
 export type ZoomLevel = 'days' | 'weeks' | 'months';
+
+// =========================================================
+// Tipos do Plugin NEXO (Arquitetura de Projetos em 5 Fases)
+// =========================================================
+
+export interface NexoChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface NexoRetrospectiveLog {
+  id: string;
+  milestoneId: string;
+  milestoneTitle: string;
+  createdAt: string;
+  type: 'completion' | 'obstacle';
+  whatWorked: string;
+  whatBlocked: string;
+  whatToAdjust: string;
+}
+
+export interface NexoMilestone {
+  id: string;
+  title: string;
+  leadTimeDays: number; // Quantos dias úteis antes da entrega seguinte este passo precisa estar pronto
+  deadline: string; // YYYY-MM-DD
+  owner: string;
+  resources: string;
+  budget: number;
+  completed: boolean;
+  checklist: NexoChecklistItem[];
+}
+
+export interface NexoPointB {
+  deliverable: string; // Qual é o entregável final tangível?
+  successMetric: string; // Qual é a métrica de sucesso verificável?
+  targetDate: string; // Qual é a Data-Limite Final? (YYYY-MM-DD)
+  isCalibrated: boolean; // Convertido em Meta
+}
+
+export type NexoPhase = 1 | 2 | 3 | 4 | 5;
+export type NexoRoleView = 'architect' | 'executor';
+
+export interface NexoProjectState {
+  pointB: NexoPointB;
+  milestones: NexoMilestone[]; // Ordem cronológica A -> B
+  reachedPointA: boolean; // Fase 2 concluída ("Cheguei no Dia de Hoje - Ponto A")
+  logicValidated: boolean; // Gate da Fase 3 (Validação Lógica A -> B revisada)
+  ignitionApproved: boolean; // Gate da Fase 4 -> 5 aprovado
+  activePhase: NexoPhase;
+  roleView: NexoRoleView;
+  isFocusModeNewProject: boolean; // Escurece menu lateral ao clicar em "Novo Projeto" na Fase 1
+  retrospectives: NexoRetrospectiveLog[];
+}

@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Task, Resource, ProjectMetadata, ViewMode, ZoomLevel, CalendarException } from './types/project';
+import {
+  Task,
+  Resource,
+  ProjectMetadata,
+  ViewMode,
+  ZoomLevel,
+  CalendarException,
+  NexoProjectState,
+  NexoPhase,
+  NexoRoleView,
+} from './types/project';
 import { defaultTasks, defaultResources, defaultMetadata } from './data/sampleProjects';
 import {
   recalculateSchedule,
@@ -21,6 +31,7 @@ import { TaskDetailModal } from './components/TaskDetail/TaskDetailModal';
 import { CostReportModal } from './components/CostReport/CostReportModal';
 import { CalendarExceptionsModal } from './components/CalendarExceptions/CalendarExceptionsModal';
 import { WeekView } from './components/WeekView/WeekView';
+import { NexoPlugin, defaultNexoState } from './components/Nexo/NexoPlugin';
 import { CheckCircle2 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -94,6 +105,19 @@ export const App: React.FC = () => {
   const [isCostReportOpen, setIsCostReportOpen] = useState<boolean>(false);
   const [isExceptionsModalOpen, setIsExceptionsModalOpen] = useState<boolean>(false);
   const [selectedDetailTaskId, setSelectedDetailTaskId] = useState<string | null>(null);
+
+  // Estado do Plugin NEXO (persistido com Auto-Save no localStorage)
+  const [nexoState, setNexoState] = useState<NexoProjectState>(() => {
+    const saved = localStorage.getItem('ms_project_nexo');
+    if (saved) {
+      try {
+        return { ...defaultNexoState, ...JSON.parse(saved) };
+      } catch (e) {
+        // fallback
+      }
+    }
+    return defaultNexoState;
+  });
 
   // Alturas individuais das linhas estilo Excel
   const [rowHeights, setRowHeights] = useState<Record<string, number>>(() => {
@@ -476,6 +500,151 @@ export const App: React.FC = () => {
     }
   };
 
+  // Atualizador do Plugin NEXO com Auto-Save
+  const handleUpdateNexoState = useCallback(
+    (next: NexoProjectState) => {
+      setSaveStatus('saving');
+      setNexoState(next);
+      localStorage.setItem('ms_project_nexo', JSON.stringify(next));
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        setSaveStatus('saved');
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        setLastSavedTime(timeStr);
+      }, 350);
+    },
+    []
+  );
+
+  const handleStartNewNexoProject = useCallback(() => {
+    handleUpdateNexoState({
+      pointB: {
+        deliverable: '',
+        successMetric: '',
+        targetDate: '',
+        isCalibrated: false,
+      },
+      milestones: [],
+      reachedPointA: false,
+      logicValidated: false,
+      ignitionApproved: false,
+      activePhase: 1,
+      roleView: 'architect',
+      isFocusModeNewProject: true,
+      retrospectives: nexoState.retrospectives || [],
+    });
+    showToast('Calibrador de Foco ativado: defina seu Ponto B.');
+  }, [handleUpdateNexoState, nexoState.retrospectives, showToast]);
+
+  const handleSelectNexoPhase = useCallback(
+    (phase: NexoPhase) => {
+      handleUpdateNexoState({
+        ...nexoState,
+        activePhase: phase,
+        roleView: phase === 5 ? 'executor' : 'architect',
+      });
+    },
+    [handleUpdateNexoState, nexoState]
+  );
+
+  const handleToggleNexoRoleView = useCallback(
+    (role: NexoRoleView) => {
+      if (role === 'executor') {
+        const allHaveDeadlines =
+          nexoState.milestones.length > 0 && nexoState.milestones.every((m) => Boolean(m.deadline));
+        if (!nexoState.logicValidated || !allHaveDeadlines) {
+          showToast(
+            'Trava de Processo (Gate): Valide a Fase 3 e preencha todos os prazos na Fase 4 antes de entrar na Visão Executor!'
+          );
+          return;
+        }
+        handleUpdateNexoState({
+          ...nexoState,
+          roleView: 'executor',
+          activePhase: 5,
+          ignitionApproved: true,
+        });
+        return;
+      }
+      handleUpdateNexoState({
+        ...nexoState,
+        roleView: 'architect',
+        activePhase: nexoState.activePhase === 5 ? 4 : nexoState.activePhase,
+      });
+    },
+    [handleUpdateNexoState, nexoState, showToast]
+  );
+
+  // Sincroniza os Milestones da Arquitetura Nexo para a Planilha / Gráfico de Gantt
+  const handleSyncNexoToGantt = useCallback(
+    (stateToSync?: NexoProjectState) => {
+      const targetState = stateToSync || nexoState;
+      if (targetState.milestones.length === 0) {
+        showToast('Adicione pelo menos 1 Milestone no Nexo para enviar ao Gantt.');
+        return;
+      }
+      const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
+      const exceptions = metadata.exceptions || [];
+      const today = toWorkDay(new Date(), activeDays, exceptions);
+
+      // Cria uma tarefa resumo com o Ponto B + subtarefas encadeadas na ordem cronológica A → B
+      const summaryId = `nexo_sum_${Date.now()}`;
+      const summaryTask: Task = {
+        id: summaryId,
+        wbsIndex: '',
+        name: `[NEXO Ponto B] ${targetState.pointB.deliverable || 'Projeto Nexo'}`,
+        durationDays: 1,
+        startDate: toISODate(today),
+        endDate: targetState.pointB.targetDate || toISODate(today),
+        progress: 0,
+        mode: 'auto',
+        predecessorText: '',
+        resourceNames: [],
+        outlineLevel: 0,
+        isSummary: true,
+        isMilestone: false,
+        cost: 0,
+        notes: `Métrica de Sucesso: ${targetState.pointB.successMetric || '-'}`,
+      };
+
+      const baseRowNumber = scheduledTasks.length + 2; // +1 para summary, +1 para 1-based index
+      const generatedTasks: Task[] = targetState.milestones.map((m, idx) => {
+        const dur = Math.max(1, m.leadTimeDays || 1);
+        const endDt = m.deadline ? parseISODate(m.deadline) : addWorkDays(today, dur, activeDays, exceptions);
+        const startDt = addWorkDays(endDt, -(dur - 1), activeDays, exceptions);
+        const predText = idx > 0 ? String(baseRowNumber + idx - 1) : '';
+        return {
+          id: `nexo_task_${m.id}_${Date.now()}`,
+          wbsIndex: '',
+          name: m.title,
+          durationDays: dur,
+          startDate: toISODate(startDt),
+          endDate: toISODate(endDt),
+          progress: m.completed ? 100 : 0,
+          mode: 'auto',
+          predecessorText: predText,
+          resourceNames: m.owner ? [m.owner] : [],
+          outlineLevel: 1,
+          isSummary: false,
+          isMilestone: false,
+          cost: Number(m.budget) || 0,
+          notes: m.resources ? `Recursos Nexo: ${m.resources}` : undefined,
+          subTasks: m.checklist.map((c) => ({
+            id: c.id,
+            title: c.text,
+            done: c.done,
+          })),
+        };
+      });
+
+      pushTaskState([...scheduledTasks, summaryTask, ...generatedTasks]);
+      setViewMode('gantt');
+      showToast(`${generatedTasks.length} Milestones do Nexo sincronizados no Gráfico de Gantt!`);
+    },
+    [nexoState, metadata.activeWeekDays, metadata.exceptions, scheduledTasks, pushTaskState, showToast]
+  );
+
   // Redimensionamento do Splitter
   const handleMouseDownSplitter = () => {
     isDraggingSplitter.current = true;
@@ -561,11 +730,26 @@ export const App: React.FC = () => {
         onOpenResourceSheet={() => setIsResourceModalOpen(true)}
         onOpenCostReport={() => setIsCostReportOpen(true)}
         selectedTaskId={selectedTaskId}
+        nexoActivePhase={nexoState.activePhase}
+        nexoRoleView={nexoState.roleView}
+        onSelectNexoPhase={handleSelectNexoPhase}
+        onToggleNexoRoleView={handleToggleNexoRoleView}
+        onStartNewNexoProject={handleStartNewNexoProject}
+        onSyncNexoToGantt={handleSyncNexoToGantt}
       />
 
-      {/* Área Principal de Trabalho (Split Panes: Planilha de Tarefas e Gráfico de Gantt ou Minha Semana) */}
+      {/* Área Principal de Trabalho (Split Panes: Planilha de Tarefas, Gráfico de Gantt, Minha Semana ou Plugin Nexo) */}
       <div className="workspace-container">
-        {viewMode === 'gantt' ? (
+        {viewMode === 'nexo' ? (
+          <NexoPlugin
+            nexoState={nexoState}
+            onUpdateNexoState={handleUpdateNexoState}
+            resources={resources}
+            activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
+            exceptions={metadata.exceptions || []}
+            onSyncToGantt={handleSyncNexoToGantt}
+          />
+        ) : viewMode === 'gantt' ? (
           <>
             <div className="sheet-pane" style={{ width: `${splitWidth}px` }}>
               <TaskSheet

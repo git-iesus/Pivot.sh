@@ -26,9 +26,13 @@ import {
   Check,
   Loader2,
   DollarSign,
-  CalendarOff
+  CalendarOff,
+  Compass,
+  Flame,
+  Target,
+  Layers
 } from 'lucide-react';
-import { ViewMode, ZoomLevel } from '../../types/project';
+import { ViewMode, ZoomLevel, NexoPhase, NexoRoleView } from '../../types/project';
 
 interface RibbonProps {
   saveStatus?: 'saved' | 'saving';
@@ -64,6 +68,12 @@ interface RibbonProps {
   onOpenResourceSheet: () => void;
   onOpenCostReport: () => void;
   selectedTaskId: string | null;
+  nexoActivePhase?: NexoPhase;
+  nexoRoleView?: NexoRoleView;
+  onSelectNexoPhase?: (phase: NexoPhase) => void;
+  onToggleNexoRoleView?: (role: NexoRoleView) => void;
+  onStartNewNexoProject?: () => void;
+  onSyncNexoToGantt?: () => void;
 }
 
 export const Ribbon: React.FC<RibbonProps> = ({
@@ -99,8 +109,14 @@ export const Ribbon: React.FC<RibbonProps> = ({
   exceptionsCount = 0,
   onOpenResourceSheet,
   onOpenCostReport,
+  nexoActivePhase = 1,
+  nexoRoleView = 'architect',
+  onSelectNexoPhase,
+  onToggleNexoRoleView,
+  onStartNewNexoProject,
+  onSyncNexoToGantt,
 }) => {
-  const [activeTab, setActiveTab] = useState<'tarefa' | 'recursos' | 'exibir' | 'formato'>('tarefa');
+  const [activeTab, setActiveTab] = useState<'tarefa' | 'recursos' | 'exibir' | 'formato' | 'nexo'>('tarefa');
 
   return (
     <div className="ribbon-container">
@@ -147,27 +163,50 @@ export const Ribbon: React.FC<RibbonProps> = ({
         </button>
         <button
           className={`ribbon-tab ${activeTab === 'tarefa' ? 'active' : ''}`}
-          onClick={() => setActiveTab('tarefa')}
+          onClick={() => {
+            setActiveTab('tarefa');
+            if (viewMode === 'nexo') setViewMode('gantt');
+          }}
         >
           Tarefa
         </button>
         <button
           className={`ribbon-tab ${activeTab === 'recursos' ? 'active' : ''}`}
-          onClick={() => setActiveTab('recursos')}
+          onClick={() => {
+            setActiveTab('recursos');
+            if (viewMode === 'nexo') setViewMode('gantt');
+          }}
         >
           Recursos
         </button>
         <button
           className={`ribbon-tab ${activeTab === 'exibir' ? 'active' : ''}`}
-          onClick={() => setActiveTab('exibir')}
+          onClick={() => {
+            setActiveTab('exibir');
+            if (viewMode === 'nexo') setViewMode('gantt');
+          }}
         >
           Exibição
         </button>
         <button
           className={`ribbon-tab ${activeTab === 'formato' ? 'active' : ''}`}
-          onClick={() => setActiveTab('formato')}
+          onClick={() => {
+            setActiveTab('formato');
+            if (viewMode === 'nexo') setViewMode('gantt');
+          }}
         >
           Formato
+        </button>
+        <button
+          className={`ribbon-tab nexo-ribbon-tab ${activeTab === 'nexo' || viewMode === 'nexo' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('nexo');
+            setViewMode('nexo');
+          }}
+          title="Abrir Plugin NEXO — Arquitetura de Projetos em 5 Fases"
+        >
+          <Compass size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />
+          Nexo
         </button>
       </div>
 
@@ -390,6 +429,128 @@ export const Ribbon: React.FC<RibbonProps> = ({
                 </div>
               </div>
               <div className="group-label">Estilos de Barra do Gantt</div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'nexo' && (
+          <div className="ribbon-tab-content">
+            {/* Grupo: Alternância de Visão (Perfil Lobo) */}
+            <div className="ribbon-group">
+              <div className="group-content">
+                <button
+                  className={`large-tool-btn ${viewMode === 'nexo' && nexoRoleView === 'architect' ? 'selected' : ''}`}
+                  onClick={() => {
+                    setViewMode('nexo');
+                    if (onToggleNexoRoleView) onToggleNexoRoleView('architect');
+                  }}
+                  title="Visão Arquiteto: Roadmap completo, custos, dependências e prazos"
+                >
+                  <Layers size={24} className="tool-icon primary-color" />
+                  <span>Visão Arquiteto</span>
+                </button>
+                <button
+                  className={`large-tool-btn ${viewMode === 'nexo' && nexoRoleView === 'executor' ? 'selected' : ''}`}
+                  onClick={() => {
+                    setViewMode('nexo');
+                    if (onToggleNexoRoleView) onToggleNexoRoleView('executor');
+                  }}
+                  title="Visão Executor: Modo Ignição focado apenas no Milestone imediato"
+                >
+                  <Flame size={24} className="tool-icon accent-color" />
+                  <span>Visão Executor</span>
+                </button>
+              </div>
+              <div className="group-label">Alternância de Visão</div>
+            </div>
+
+            {/* Grupo: As 5 Fases da Metodologia Nexo */}
+            <div className="ribbon-group">
+              <div className="group-content">
+                <div className="small-tools-column">
+                  <button
+                    className={`small-tool-btn ${nexoActivePhase === 1 ? 'selected-small' : ''}`}
+                    onClick={() => {
+                      setViewMode('nexo');
+                      if (onSelectNexoPhase) onSelectNexoPhase(1);
+                    }}
+                  >
+                    <Target size={13} className="primary-color" />
+                    <span>Fase 1: Calibrador Ponto B</span>
+                  </button>
+                  <button
+                    className={`small-tool-btn ${nexoActivePhase === 2 ? 'selected-small' : ''}`}
+                    onClick={() => {
+                      setViewMode('nexo');
+                      if (onSelectNexoPhase) onSelectNexoPhase(2);
+                    }}
+                  >
+                    <RotateCcw size={13} className="primary-color" />
+                    <span>Fase 2: Engenharia Reversa (B → A)</span>
+                  </button>
+                  <button
+                    className={`small-tool-btn ${nexoActivePhase === 3 ? 'selected-small' : ''}`}
+                    onClick={() => {
+                      setViewMode('nexo');
+                      if (onSelectNexoPhase) onSelectNexoPhase(3);
+                    }}
+                  >
+                    <CheckCircle size={13} className="success-color" />
+                    <span>Fase 3: Validador Lógico (A → B)</span>
+                  </button>
+                </div>
+                <div className="small-tools-column">
+                  <button
+                    className={`small-tool-btn ${nexoActivePhase === 4 ? 'selected-small' : ''}`}
+                    onClick={() => {
+                      setViewMode('nexo');
+                      if (onSelectNexoPhase) onSelectNexoPhase(4);
+                    }}
+                  >
+                    <DollarSign size={13} className="primary-color" />
+                    <span>Fase 4: Matriz de Milestones</span>
+                  </button>
+                  <button
+                    className={`small-tool-btn ${nexoActivePhase === 5 ? 'selected-small' : ''}`}
+                    onClick={() => {
+                      setViewMode('nexo');
+                      if (onSelectNexoPhase) onSelectNexoPhase(5);
+                    }}
+                  >
+                    <Flame size={13} className="accent-color" />
+                    <span>Fase 5: Modo Ignição</span>
+                  </button>
+                </div>
+              </div>
+              <div className="group-label">As 5 Fases (Metodologia Nexo)</div>
+            </div>
+
+            {/* Grupo: Ações Nexo & Integração Gantt */}
+            <div className="ribbon-group">
+              <div className="group-content">
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('nexo');
+                    if (onStartNewNexoProject) onStartNewNexoProject();
+                  }}
+                  title="Novo Projeto no Calibrador de Foco (escurece menu lateral e apresenta apenas o Canvas de Ponto B)"
+                >
+                  <Plus size={24} className="tool-icon success-color" />
+                  <span>Novo Projeto</span>
+                </button>
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    if (onSyncNexoToGantt) onSyncNexoToGantt();
+                  }}
+                  title="Converter Milestones do Nexo em tarefas no Gráfico de Gantt"
+                >
+                  <BarChart3 size={24} className="tool-icon primary-color" />
+                  <span>Enviar p/ Gantt</span>
+                </button>
+              </div>
+              <div className="group-label">Arquitetura &amp; Gantt</div>
             </div>
           </div>
         )}

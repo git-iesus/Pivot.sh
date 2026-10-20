@@ -3383,3 +3383,3005 @@ input, select, button {
   color: #dc2626;
   border-color: #fca5a5;
 }
+
+/* =========================================================
+   NEXO — O Sistema Operacional de Execução (Perfil Lobo)
+   Estética "Zero Ruído" (Linear / Obsidian: Cinza-ardósia,
+   Branco Gelo, Verde Esmeralda e Azul Cobalto)
+   ========================================================= */
+
+.ribbon-tab.nexo-ribbon-tab {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ribbon-tab.nexo-ribbon-tab.active {
+  color: #059669;
+  border-top: 2px solid #10b981;
+}
+
+.small-tool-btn.selected-small {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.nexo-plugin-root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Topbar (Alternância de Visão: Arquiteto vs Executor) */
+.nexo-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 20px;
+  background: #0f172a;
+  color: #f8fafc;
+  border-bottom: 1px solid #1e293b;
+  flex-shrink: 0;
+}
+
+.nexo-brand-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nexo-logo-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #10b981 0%, #2563eb 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.nexo-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.nexo-brand-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nexo-brand-name {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #f8fafc;
+}
+
+.nexo-wolf-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.16);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.nexo-brand-subtitle {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+.nexo-role-switcher {
+  display: flex;
+  align-items: center;
+  background: #1e293b;
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  gap: 4px;
+}
+
+.nexo-role-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 13px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nexo-role-tab:hover {
+  color: #f8fafc;
+}
+
+.nexo-role-tab.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);
+}
+
+.nexo-role-tab.executor-tab.active {
+  background: #10b981;
+  color: #052e16;
+  box-shadow: 0 1px 6px rgba(16, 185, 129, 0.45);
+}
+
+.nexo-role-hint {
+  font-size: 10px;
+  opacity: 0.78;
+  font-weight: 500;
+}
+
+.nexo-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nexo-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.nexo-btn-ghost:hover {
+  background: #334155;
+  border-color: #475569;
+}
+
+.nexo-btn-sync-gantt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(37, 99, 235, 0.5);
+  background: rgba(37, 99, 235, 0.18);
+  color: #93c5fd;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.nexo-btn-sync-gantt:hover:not(:disabled) {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.nexo-btn-sync-gantt:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Alerta de Trava de Processo (Gate) */
+.nexo-gate-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #fffbeb;
+  border-bottom: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.nexo-gate-toast button {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #92400e;
+  cursor: pointer;
+}
+
+/* Corpo Principal: Sidebar de 5 Fases + Canvas */
+.nexo-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Sidebar das 5 Fases */
+.nexo-phases-sidebar {
+  width: 265px;
+  background: #0f172a;
+  border-right: 1px solid #1e293b;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  color: #cbd5e1;
+  flex-shrink: 0;
+  transition: opacity 0.35s ease, filter 0.35s ease;
+}
+
+/* Calibrador de Foco: escurece o menu lateral ao clicar em "Novo Projeto" */
+.nexo-phases-sidebar.dimmed-focus-mode {
+  opacity: 0.18;
+  filter: grayscale(85%) blur(0.5px);
+}
+
+.nexo-phases-sidebar.dimmed-focus-mode:hover {
+  opacity: 0.85;
+  filter: none;
+}
+
+.nexo-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 12px;
+  border-bottom: 1px solid #1e293b;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #64748b;
+}
+
+.nexo-focus-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9.5px;
+}
+
+.nexo-phases-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  flex: 1;
+}
+
+.nexo-phase-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #cbd5e1;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nexo-phase-step:hover:not(.locked) {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.nexo-phase-step.active {
+  background: rgba(37, 99, 235, 0.18);
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.nexo-phase-step.completed:not(.active) {
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.nexo-phase-step.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nexo-phase-step-indicator {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.nexo-phase-step.active .nexo-phase-step-indicator {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.nexo-phase-step.completed .nexo-phase-step-indicator {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.nexo-phase-step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.nexo-phase-step-title {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nexo-phase-step-sub {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+/* Resumo do Ponto B na Sidebar */
+.nexo-sidebar-pointb-summary {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nexo-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #34d399;
+  letter-spacing: 0.5px;
+}
+
+.nexo-summary-deliverable {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #f8fafc;
+  line-height: 1.35;
+}
+
+.nexo-summary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 10.5px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.nexo-summary-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Área de Canvas Principal */
+.nexo-main-canvas {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 36px 48px;
+  background: #f8fafc;
+}
+
+.nexo-main-canvas.focus-canvas-spotlight {
+  background: radial-gradient(circle at top center, #ffffff 0%, #f1f5f9 100%);
+}
+
+.nexo-phase-container {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.nexo-phase-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.nexo-phase-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #1e293b;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  width: fit-content;
+}
+
+.nexo-phase-pill.ignition-pill {
+  background: rgba(16, 185, 129, 0.15);
+  color: #065f46;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.nexo-phase-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.3px;
+  margin: 4px 0 0;
+}
+
+.nexo-phase-description {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.55;
+  max-width: 760px;
+  margin: 0;
+}
+
+/* Fase 1: Card de Ponto B */
+.nexo-pointb-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.nexo-pointb-card.meta-locked-in {
+  border-color: #10b981;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.08);
+}
+
+.nexo-pointb-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.nexo-meta-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nexo-meta-tag.dream {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.nexo-meta-tag.confirmed {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.nexo-focus-mode-indicator {
+  font-size: 11px;
+  color: #059669;
+  font-weight: 600;
+}
+
+.nexo-form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nexo-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nexo-field-row-2 {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+}
+
+.nexo-field-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.nexo-step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nexo-field-hint {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.nexo-input {
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #0f172a;
+  background: #f8fafc;
+  transition: all 0.15s;
+}
+
+.nexo-input:focus {
+  outline: none;
+  background: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.nexo-input.large-input {
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px 14px;
+}
+
+.nexo-pointb-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.nexo-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.nexo-btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.nexo-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nexo-btn-emerald {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  background: #10b981;
+  color: #052e16;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.nexo-btn-emerald:hover:not(:disabled) {
+  background: #059669;
+  color: #ffffff;
+}
+
+.nexo-btn-emerald:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nexo-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.nexo-btn-secondary:hover {
+  background: #f1f5f9;
+}
+
+/* Fase 2: Engenharia Reversa (B -> A) */
+.nexo-reverse-canvas {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.nexo-node {
+  width: 100%;
+  max-width: 680px;
+  border-radius: 10px;
+  padding: 14px 18px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+}
+
+.nexo-node.point-b-node {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
+.nexo-node.point-a-node {
+  background: #f8fafc;
+  border: 1px dashed #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.nexo-node-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  margin-bottom: 6px;
+}
+
+.nexo-node-badge.point-a-badge {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.nexo-node-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.nexo-node-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 11.5px;
+  color: #cbd5e1;
+  margin-top: 6px;
+}
+
+.nexo-reverse-chain {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 680px;
+}
+
+.nexo-reverse-step-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.nexo-connector-vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+  color: #64748b;
+}
+
+.nexo-connector-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.nexo-node.reverse-step-node {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.nexo-step-index-badge {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.nexo-inline-step-input {
+  flex: 1;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.nexo-inline-step-input:hover,
+.nexo-inline-step-input:focus {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  outline: none;
+}
+
+.nexo-icon-btn.danger {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.nexo-icon-btn.danger:hover {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+/* Prompt Flutuante Dinâmico da Engenharia Reversa */
+.nexo-reverse-prompt-box {
+  width: 100%;
+  max-width: 680px;
+  background: #eff6ff;
+  border: 1.5px solid #3b82f6;
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.08);
+}
+
+.nexo-prompt-question {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #1e3a8a;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.nexo-prompt-icon {
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.nexo-prompt-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.nexo-prompt-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.nexo-prompt-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.nexo-btn-add-reverse {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nexo-btn-add-reverse:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Fase 3: O Validador Lógico (A -> B) & Gap Finder */
+.nexo-direction-toggle-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nexo-keyboard-hint {
+  font-size: 11px;
+  color: #64748b;
+  background: #e2e8f0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.nexo-validator-flow {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nexo-flow-anchor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.nexo-flow-anchor.start-anchor {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px dashed #94a3b8;
+}
+
+.nexo-flow-anchor.end-anchor {
+  background: #0f172a;
+  color: #34d399;
+}
+
+.nexo-anchor-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #64748b;
+}
+
+.nexo-anchor-dot.target {
+  background: #10b981;
+}
+
+.nexo-validator-item-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nexo-validator-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  transition: all 0.15s;
+}
+
+.nexo-validator-card:focus-within {
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+}
+
+.nexo-validator-card-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.nexo-validator-order {
+  font-size: 11px;
+  font-weight: 800;
+  color: #2563eb;
+  background: #dbeafe;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.nexo-validator-input {
+  flex: 1;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+  padding: 5px 8px;
+  border-radius: 6px;
+}
+
+.nexo-validator-input:focus {
+  outline: none;
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+.nexo-validator-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nexo-icon-btn {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nexo-icon-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.nexo-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Gap Finder (+ Inserir Etapa Intermediária) */
+.nexo-gap-finder-zone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 2px 0;
+}
+
+.nexo-gap-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #cbd5e1;
+  z-index: 1;
+}
+
+.nexo-gap-insert-btn {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px dashed #94a3b8;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.35;
+  transition: all 0.15s ease;
+}
+
+.nexo-gap-finder-zone:hover .nexo-gap-insert-btn,
+.nexo-gap-finder-zone.hovered .nexo-gap-insert-btn {
+  opacity: 1;
+  border-style: solid;
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+  transform: scale(1.03);
+}
+
+.nexo-gate-validation-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+
+.nexo-gate-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.nexo-gate-checkbox-label input {
+  width: 17px;
+  height: 17px;
+  accent-color: #10b981;
+  cursor: pointer;
+}
+
+/* Fase 4: Matriz de Milestones e Recursos */
+.nexo-matrix-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nexo-milestone-matrix-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nexo-matrix-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 10px;
+}
+
+.nexo-matrix-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nexo-milestone-tag {
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 5px;
+  letter-spacing: 0.5px;
+}
+
+.nexo-milestone-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.nexo-deadline-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.nexo-deadline-status.ok {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.nexo-deadline-status.missing {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.nexo-matrix-grid-4 {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1.2fr 0.9fr;
+  gap: 14px;
+}
+
+.nexo-matrix-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nexo-matrix-field label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.nexo-matrix-field small {
+  font-size: 10px;
+  color: #64748b;
+}
+
+.nexo-reverse-schedule-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nexo-leadtime-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #475569;
+}
+
+.nexo-leadtime-box input {
+  width: 42px;
+  border: none;
+  background: transparent;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: center;
+}
+
+.nexo-leadtime-box input:focus {
+  outline: none;
+}
+
+/* Rodapé Fixo da Fase 4 (Custo Total e Ignição) */
+.nexo-matrix-sticky-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 16px 22px;
+  border-radius: 12px;
+  margin-top: 8px;
+}
+
+.nexo-total-cost-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nexo-cost-icon {
+  color: #34d399;
+}
+
+.nexo-cost-label {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.nexo-cost-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #34d399;
+}
+
+.nexo-matrix-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Fase 5: Modo Ignição (Colapso de Complexidade) */
+.nexo-ignition-container {
+  max-width: 820px;
+}
+
+.nexo-ignition-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.nexo-progress-overview-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.nexo-mini-progress-bar {
+  width: 90px;
+  height: 7px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.nexo-mini-progress-fill {
+  height: 100%;
+  background: #10b981;
+  transition: width 0.3s ease;
+}
+
+.nexo-spotlight-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nexo-collapsed-Notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #475569;
+  background: #e2e8f0;
+  padding: 6px 12px;
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.nexo-spotlight-card {
+  background: #ffffff;
+  border: 2px solid #0f172a;
+  border-radius: 14px;
+  padding: 26px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.nexo-spotlight-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 18px;
+}
+
+.nexo-spotlight-step-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #059669;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 3px 9px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.nexo-spotlight-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 10px;
+}
+
+.nexo-spotlight-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nexo-spot-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #334155;
+  background: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+/* Timer Pomodoro de Foco */
+.nexo-pomodoro-widget {
+  background: #0f172a;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 170px;
+}
+
+.nexo-timer-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #34d399;
+}
+
+.nexo-timer-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.nexo-timer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: none;
+  background: #10b981;
+  color: #052e16;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nexo-timer-btn.running {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+.nexo-timer-btn.secondary {
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+/* Micro-checklist do Milestone em Foco */
+.nexo-spotlight-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nexo-checklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.nexo-checklist-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nexo-checklist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.nexo-checklist-row.done {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+  text-decoration: line-through;
+}
+
+.nexo-checklist-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: #10b981;
+}
+
+.nexo-checklist-add {
+  display: flex;
+  gap: 8px;
+}
+
+.nexo-checklist-add input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+.nexo-checklist-add button {
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.nexo-spotlight-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.nexo-btn-obstacle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nexo-btn-obstacle:hover {
+  background: #fef3c7;
+}
+
+.nexo-btn-complete-milestone {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  background: #10b981;
+  color: #052e16;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+.nexo-btn-complete-milestone:hover {
+  background: #059669;
+  color: #ffffff;
+}
+
+/* Seletor Rápido de Milestones na Fase 5 */
+.nexo-milestone-Horizontal-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nexo- selector-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.nexo-mini-Selector-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+}
+
+.nexo-mini-Selector-pill.active {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
+.nexo-mini-Selector-pill.completed {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #6ee7b7;
+}
+
+/* Modal de Ciclo de Melhoria Contínua (Log de Retrospectiva) */
+.nexo-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+}
+
+.nexo-retro-modal {
+  width: 560px;
+  max-width: 94vw;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.nexo-retro-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.nexo-retro-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.nexo-retro-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nexo-retro-subtitle {
+  font-size: 12px;
+  color: #475569;
+  margin: 0;
+}
+
+.nexo-retro-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nexo-retro-field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.nexo-retro-field textarea {
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.nexo-retro-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Complemento das classes estruturais do NexoPlugin.tsx */
+.nexo-brand-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nexo-logo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #10b981 0%, #2563eb 100%);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 5px 10px;
+  border-radius: 6px;
+}
+
+.nexo-brand-divider {
+  color: #334155;
+}
+
+.nexo-meta-active-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(16, 185, 129, 0.16);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.nexo-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nexo-role-tab.locked {
+  opacity: 0.55;
+}
+
+.nexo-gate-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #fffbeb;
+  border-bottom: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.gate-alert-icon {
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.gate-alert-close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #92400e;
+  cursor: pointer;
+}
+
+.nexo-workspace-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.sidebar-kicker {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.9px;
+  color: #34d399;
+}
+
+.nexo-sidebar-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 0 8px 12px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.nexo-sidebar-header h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0;
+}
+
+.nexo-phase-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #cbd5e1;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nexo-phase-item:hover:not(.locked) {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.nexo-phase-item.active {
+  background: rgba(37, 99, 235, 0.22);
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.nexo-phase-item.completed:not(.active) {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.nexo-phase-item.locked {
+  opacity: 0.42;
+}
+
+.phase-step-indicator {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.nexo-phase-item.active .phase-step-indicator {
+  background: #2563eb;
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+
+.nexo-phase-item.completed .phase-step-indicator {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.phase-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.phase-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.phase-desc {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+.nexo-gates-box {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: auto;
+}
+
+.gates-box-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 8px;
+}
+
+.gates-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.gates-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #94a3b8;
+}
+
+.gates-checklist li.pass {
+  color: #34d399;
+  font-weight: 600;
+}
+
+.sidebar-focus-overlay-hint {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  font-size: 11px;
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nexo-btn-unfocus {
+  padding: 5px 8px;
+  border-radius: 5px;
+  border: 1px solid #34d399;
+  background: transparent;
+  color: #34d399;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nexo-stage-container {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.nexo-stage-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.stage-kicker {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #2563eb;
+  margin-bottom: 4px;
+}
+
+.nexo-stage-header h3 {
+  font-size: 21px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 6px;
+}
+
+.nexo-stage-header p {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+  max-width: 720px;
+  margin: 0;
+}
+
+.keyboard-hint-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #e2e8f0;
+  color: #334155;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.keyboard-hint-pill kbd {
+  background: #0f172a;
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+}
+
+/* Fase 1 classes */
+.pointb-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.pointb-phase-tag {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  color: #2563eb;
+}
+
+.pointb-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pointb-status-badge.calibrated {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #6ee7b7;
+}
+
+.pointb-status-badge.dream {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.pointb-title {
+  font-size: 21px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.pointb-subtitle {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.pointb-inputs-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nexo-field-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.nexo-field-group label small {
+  font-weight: 500;
+  color: #64748b;
+  font-size: 11.5px;
+}
+
+.field-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nexo-input-large {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.nexo-input-large:focus {
+  outline: none;
+  background: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.pointb-date-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.nexo-input-date {
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.meta-conversion-callout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+  font-size: 12px;
+}
+
+.pointb-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.pointb-footer-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.nexo-btn-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  transition: all 0.15s;
+}
+
+.nexo-btn-cta:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.nexo-btn-cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Fase 2 classes */
+.reverse-roadmap-timeline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.roadmap-anchor-card {
+  width: 100%;
+  max-width: 720px;
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+
+.roadmap-anchor-card.point-b-anchor {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+}
+
+.roadmap-anchor-card.point-a-anchor {
+  background: #f8fafc;
+  border: 1.5px dashed #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.roadmap-anchor-card.point-a-anchor.reached {
+  border-style: solid;
+  border-color: #10b981;
+  background: #f0fdf4;
+}
+
+.anchor-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  margin-bottom: 6px;
+}
+
+.anchor-badge.point-a {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.anchor-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.anchor-main-row h4 {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.anchor-date-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.anchor-metric {
+  font-size: 12px;
+  color: #cbd5e1;
+  margin: 6px 0 0;
+}
+
+.reverse-connector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.reverse-connector.active-prompt-connector {
+  color: #2563eb;
+}
+
+.reverse-step-card {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+}
+
+.reverse-step-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.reverse-step-badge {
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.reverse-step-inline-input {
+  flex: 1;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+  padding: 5px 8px;
+  border-radius: 6px;
+}
+
+.reverse-step-inline-input:focus {
+  outline: none;
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+.nexo-floating-prompt-card {
+  width: 100%;
+  max-width: 720px;
+  background: #eff6ff;
+  border: 1.5px solid #3b82f6;
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.08);
+}
+
+.floating-prompt-question {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #1e3a8a;
+  margin-bottom: 10px;
+}
+
+.prompt-sparkle {
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.floating-prompt-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.floating-prompt-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.point-a-info {
+  flex: 1;
+  min-width: 240px;
+}
+
+.point-a-info h4 {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 4px;
+}
+
+.point-a-info p {
+  font-size: 12px;
+  color: #475569;
+  margin: 0;
+}
+
+/* Fase 3 classes */
+.validator-flow-list {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.validator-endpoint-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.validator-endpoint-node.point-a {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px dashed #94a3b8;
+}
+
+.validator-endpoint-node.point-b {
+  background: #0f172a;
+  color: #34d399;
+}
+
+.gap-finder-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+}
+
+.gap-finder-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px dashed #94a3b8;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: all 0.15s ease;
+}
+
+.gap-finder-zone:hover .gap-finder-trigger {
+  opacity: 1;
+  border-style: solid;
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.gap-inline-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.gap-inline-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  font-size: 12.5px;
+}
+
+.validator-step-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+}
+
+.validator-step-card.selected {
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.validator-step-number {
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.validator-step-input {
+  flex: 1;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+  padding: 5px 8px;
+  border-radius: 6px;
+}
+
+.validator-step-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.validator-approval-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+
+.validator-approval-bar.validated {
+  border-color: #10b981;
+  background: #f0fdf4;
+}
+
+.validator-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+/* Fase 4 classes */
+.milestones-matrix-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nexo-milestone-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nexo-milestone-card.missing-date {
+  border-color: #f59e0b;
+}
+
+.ms-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 10px;
+}
+
+.ms-index-badge {
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.ms-title-input {
+  flex: 1;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.ms-date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.ms-date-chip.valid {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.ms-date-chip.invalid {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.ms-card-fields-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1.2fr 0.9fr;
+  gap: 14px;
+}
+
+.ms-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ms-field label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.ms-field input[type='text'] {
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12.5px;
+  background: #f8fafc;
+}
+
+.ms-reverse-date-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lead-time-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #475569;
+}
+
+.lead-time-box input {
+  width: 38px;
+  border: none;
+  background: transparent;
+  font-weight: 700;
+  text-align: center;
+}
+
+.ms-deadline-picker {
+  flex: 1;
+  padding: 7px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #f8fafc;
+}
+
+.ms-budget-input-wrapper {
+  display: flex;
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 0 8px;
+}
+
+.currency-prefix {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.ms-budget-input-wrapper input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 8px 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.nexo-matrix-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 16px 22px;
+  border-radius: 12px;
+}
+
+.matrix-footer-metrics {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.footer-metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metric-label {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.total-cost-highlight strong {
+  font-size: 18px;
+  color: #34d399;
+}
+
+/* Fase 5 classes */
+.ignition-top-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.collapse-shield-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #34d399;
+  font-weight: 600;
+}
+
+.ignition-spotlight-card {
+  background: #ffffff;
+  border: 2px solid #0f172a;
+  border-radius: 14px;
+  padding: 26px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.spotlight-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.spotlight-step-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #6ee7b7;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.spotlight-progress-pill {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.spotlight-milestone-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.spotlight-meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.spotlight-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  color: #334155;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.ignition-work-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 18px;
+}
+
+.ignition-timer-panel {
+  background: #0f172a;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.panel-mini-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  color: #94a3b8;
+}
+
+.timer-display {
+  font-size: 32px;
+  font-weight: 800;
+  color: #34d399;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.ignition-checklist-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ignition-checklist-form {
+  display: flex;
+  gap: 8px;
+}
+
+.ignition-checklist-form input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12.5px;
+}
+
+.ignition-checklist-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ignition-checklist-items li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ignition-checklist-items li.done {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+  text-decoration: line-through;
+}
+
+.spotlight-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.nexo-btn-complete-ms {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 8px;
+  border: none;
+  background: #10b981;
+  color: #052e16;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+.nexo-retro-history-section {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.retro-history-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #0f172a;
+}
+
+.retro-history-header h4 {
+  font-size: 14px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.retro-logs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.retro-log-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.retro-log-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.retro-log-badge {
+  background: #ecfdf5;
+  color: #047857;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.retro-log-date {
+  margin-left: auto;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.retro-log-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  font-size: 12px;
+}
+
+.retro-log-columns small {
+  font-weight: 700;
+  color: #334155;
+  display: block;
+  margin-bottom: 3px;
+}
+
+.retro-log-columns p {
+  margin: 0;
+  color: #475569;
+}
+
+.ignition-victory-card {
+  background: #ffffff;
+  border: 2px solid #10b981;
+  border-radius: 14px;
+  padding: 36px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.victory-icon-ring {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: #ecfdf5;
+  color: #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
