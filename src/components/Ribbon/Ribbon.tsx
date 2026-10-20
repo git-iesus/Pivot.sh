@@ -124,7 +124,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
       <div className="title-bar">
         <div className="quick-access">
           <div className="app-icon">
-            <span className="app-badge">P</span>
+            <img src="/logo-pivot.jpg" alt="" className="app-logo-img" draggable={false} />
           </div>
           <button className="qa-btn" onClick={onUndo} disabled={!canUndo} title="Desfazer (Ctrl+Z)">
             <RotateCcw size={14} />
