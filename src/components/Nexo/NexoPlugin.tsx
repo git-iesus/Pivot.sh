@@ -268,15 +268,9 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
       );
       return;
     }
-    if (phase === 5 && !canEnterExecution) {
-      const reasons: string[] = [];
-      if (!logicValidated) reasons.push('marcar a Fase 3 (Validação Lógica A → B) como revisada');
-      if (!allMilestonesHaveDeadline)
-        reasons.push(
-          `definir o prazo de todos os Milestones (${milestonesWithDeadlineCount}/${milestones.length} preenchidos)`
-        );
+    if (phase === 4 && !logicValidated) {
       showGateAlert(
-        `Trava de Processo (Gate de Execução): Não é permitido entrar no Modo Ignição sem ${reasons.join(' e ')}.`
+        'Trava de Processo (Gate 3): Marque a Fase 3 (Validação Lógica A → B) como revisada antes de avançar para a Matriz de Milestones.'
       );
       return;
     }
@@ -285,32 +279,24 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
       ...nexoState,
       activePhase: phase,
       isFocusModeNewProject: false,
-      roleView: phase === 5 ? 'executor' : nexoState.roleView,
+      roleView: 'architect',
     });
   };
 
-  const handleToggleRoleView = (targetView: NexoRoleView) => {
-    if (targetView === 'executor' && !canEnterExecution) {
+  const handleFinalizeAndSyncGantt = () => {
+    if (!canEnterExecution) {
       const reasons: string[] = [];
-      if (!isPointBComplete) reasons.push('calibrar o Ponto B (Fase 1)');
-      if (!isPhase2Complete) reasons.push('concluir o Roadmap Reverso até o Ponto A (Fase 2)');
-      if (!logicValidated) reasons.push('revisar a Validação Lógica A → B (Fase 3)');
+      if (!logicValidated) reasons.push('marcar a Fase 3 (Validação Lógica A → B) como revisada');
       if (!allMilestonesHaveDeadline)
         reasons.push(
-          `preencher os prazos de todos os Milestones na Fase 4 (${milestonesWithDeadlineCount}/${milestones.length})`
+          `definir o prazo de todos os Milestones (${milestonesWithDeadlineCount}/${milestones.length} preenchidos)`
         );
       showGateAlert(
-        `Acesso Bloqueado à Visão Executor: Para evitar executar no escuro, você precisa primeiro ${reasons.join(', ')}.`
+        `Trava de Processo (Gate): Para sincronizar os passos com o Gantt com clareza total, você precisa ${reasons.join(' e ')}.`
       );
       return;
     }
-
-    onUpdateNexoState({
-      ...nexoState,
-      roleView: targetView,
-      activePhase: targetView === 'executor' ? 5 : nexoState.activePhase === 5 ? 4 : nexoState.activePhase,
-      isFocusModeNewProject: false,
-    });
+    onSyncToGantt(nexoState);
   };
 
   // =========================================================
@@ -527,100 +513,6 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
     });
   };
 
-  const handleApproveIgnition = () => {
-    if (!canEnterExecution) {
-      handleSelectPhase(5);
-      return;
-    }
-    onUpdateNexoState({
-      ...nexoState,
-      ignitionApproved: true,
-      activePhase: 5,
-      roleView: 'executor',
-    });
-  };
-
-  // =========================================================
-  // Fase 5: Modo Ignição & Ciclo de Melhoria Contínua
-  // =========================================================
-  const activeMilestoneIndex = milestones.findIndex((m) => !m.completed);
-  const activeMilestone =
-    activeMilestoneIndex >= 0 ? milestones[activeMilestoneIndex] : milestones[milestones.length - 1];
-  const completedMilestonesCount = milestones.filter((m) => m.completed).length;
-  const allMilestonesCompleted = milestones.length > 0 && completedMilestonesCount === milestones.length;
-
-  const handleAddChecklistItem = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeMilestone || !newChecklistText.trim()) return;
-    const nextChecklist = [
-      ...(activeMilestone.checklist || []),
-      { id: `chk_${Date.now()}`, text: newChecklistText.trim(), done: false },
-    ];
-    handleUpdateMilestone(activeMilestone.id, { checklist: nextChecklist });
-    setNewChecklistText('');
-  };
-
-  const handleToggleChecklistItem = (itemId: string) => {
-    if (!activeMilestone) return;
-    const nextChecklist = (activeMilestone.checklist || []).map((item) =>
-      item.id === itemId ? { ...item, done: !item.done } : item
-    );
-    handleUpdateMilestone(activeMilestone.id, { checklist: nextChecklist });
-  };
-
-  const handleOpenRetroModal = (type: 'completion' | 'obstacle', milestone: NexoMilestone) => {
-    setRetroModal({
-      isOpen: true,
-      type,
-      milestoneId: milestone.id,
-      milestoneTitle: milestone.title,
-    });
-    setWhatWorked('');
-    setWhatBlocked('');
-    setWhatToAdjust('');
-  };
-
-  const handleSubmitRetrospective = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!retroModal) return;
-
-    const newLog: NexoRetrospectiveLog = {
-      id: `retro_${Date.now()}`,
-      milestoneId: retroModal.milestoneId,
-      milestoneTitle: retroModal.milestoneTitle,
-      createdAt: new Date().toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      type: retroModal.type,
-      whatWorked: whatWorked.trim() || 'Execução conforme planejado.',
-      whatBlocked: whatBlocked.trim() || 'Nenhum bloqueio crítico.',
-      whatToAdjust: whatToAdjust.trim() || 'Manter ritmo para o próximo Milestone.',
-    };
-
-    const nextMilestones =
-      retroModal.type === 'completion'
-        ? milestones.map((m) => (m.id === retroModal.milestoneId ? { ...m, completed: true } : m))
-        : milestones;
-
-    onUpdateNexoState({
-      ...nexoState,
-      milestones: nextMilestones,
-      retrospectives: [newLog, ...(retrospectives || [])],
-    });
-
-    setRetroModal(null);
-  };
-
-  const formatTimer = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
-
   // Referência dinâmica para a pergunta da Engenharia Reversa (Fase 2)
   const latestReverseAnchorTitle =
     milestones.length === 0 ? pointB.deliverable || 'o Ponto B' : milestones[0].title;
@@ -652,39 +544,13 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
           )}
         </div>
 
-        {/* Alternância Rápida de Visão (Pilar 2: Visão Arquiteto vs. Visão Executor) */}
-        <div className="nexo-role-switcher">
-          <button
-            type="button"
-            className={`nexo-role-tab ${roleView === 'architect' ? 'active' : ''}`}
-            onClick={() => handleToggleRoleView('architect')}
-            title="Visão Arquiteto: Mostra todo o Roadmap, custos, dependências e prazos"
-          >
-            <Layers size={14} />
-            <span>Visão Arquiteto</span>
-          </button>
-          <button
-            type="button"
-            className={`nexo-role-tab ${roleView === 'executor' ? 'active' : ''} ${!canEnterExecution ? 'locked' : ''}`}
-            onClick={() => handleToggleRoleView('executor')}
-            title={
-              canEnterExecution
-                ? 'Visão Executor: Tela limpa mostrando apenas a tarefa imediata (Colapso de Complexidade)'
-                : 'Bloqueado pelas Travas de Processo: Conclua a Validação Lógica (Fase 3) e defina todos os prazos (Fase 4)'
-            }
-          >
-            {canEnterExecution ? <Flame size={14} /> : <Lock size={13} />}
-            <span>Visão Executor</span>
-          </button>
-        </div>
-
         {/* Ações Rápidas */}
         <div className="nexo-top-actions">
           <button
             type="button"
             className="nexo-btn-ghost"
             onClick={handleLoadGuidedExample}
-            title="Carregar projeto de exemplo estruturado nas 5 fases"
+            title="Carregar projeto de exemplo estruturado nas 4 fases"
           >
             <Sparkles size={13} />
             <span>Carregar Exemplo</span>
@@ -692,7 +558,7 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
           <button
             type="button"
             className="nexo-btn-secondary"
-            onClick={() => onSyncToGantt(nexoState)}
+            onClick={handleFinalizeAndSyncGantt}
             disabled={!isPointBComplete || milestones.length === 0}
             title="Converter os Milestones e o Ponto B do Nexo em tarefas no Gráfico de Gantt"
           >
@@ -723,14 +589,13 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
       )}
 
       {/* =========================================================
-          CORPO PRINCIPAL DO NEXO (Sidebar de 5 Fases + Canvas)
+          CORPO PRINCIPAL DO NEXO (Sidebar de 4 Fases + Canvas)
           ========================================================= */}
       <div className="nexo-workspace-body">
-        {/* MENU LATERAL DAS 5 FASES SEQUENCIAIS (Escurecido no Modo Foco de Novo Projeto ou recolhido na Visão Executor) */}
-        {roleView === 'architect' && (
-          <aside className={`nexo-phases-sidebar ${isFocusModeNewProject ? 'dimmed-focus-mode' : ''}`}>
+        {/* MENU LATERAL DAS 4 FASES SEQUENCIAIS (Escurecido no Modo Foco de Novo Projeto) */}
+        <aside className={`nexo-phases-sidebar ${isFocusModeNewProject ? 'dimmed-focus-mode' : ''}`}>
             <div className="nexo-sidebar-header">
-              <span className="sidebar-kicker">METODOLOGIA EM 5 ETAPAS</span>
+              <span className="sidebar-kicker">METODOLOGIA EM 4 ETAPAS</span>
               <h4>Fluxo Sequencial Destravável</h4>
             </div>
 
@@ -795,11 +660,11 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
               {/* Fase 4 */}
               <button
                 type="button"
-                className={`nexo-phase-item ${activePhase === 4 ? 'active' : ''} ${allMilestonesHaveDeadline && isPhase4Unlocked ? 'completed' : ''} ${!isPhase4Unlocked ? 'locked' : ''}`}
+                className={`nexo-phase-item ${activePhase === 4 ? 'active' : ''} ${allMilestonesHaveDeadline && isPhase4Unlocked ? 'completed' : ''} ${!isPhase4Unlocked || !logicValidated ? 'locked' : ''}`}
                 onClick={() => handleSelectPhase(4)}
               >
                 <div className="phase-step-indicator">
-                  {!isPhase4Unlocked ? (
+                  {!isPhase4Unlocked || !logicValidated ? (
                     <Lock size={14} />
                   ) : allMilestonesHaveDeadline ? (
                     <CheckCircle2 size={16} />
@@ -809,22 +674,7 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
                 </div>
                 <div className="phase-item-text">
                   <span className="phase-title">4. Matriz de Milestones</span>
-                  <span className="phase-desc">Prazos Reversos, Owner e Custos</span>
-                </div>
-              </button>
-
-              {/* Fase 5 */}
-              <button
-                type="button"
-                className={`nexo-phase-item ${activePhase === 5 ? 'active' : ''} ${!canEnterExecution ? 'locked' : 'ignition-ready'}`}
-                onClick={() => handleSelectPhase(5)}
-              >
-                <div className="phase-step-indicator">
-                  {!canEnterExecution ? <Lock size={14} /> : <Flame size={16} />}
-                </div>
-                <div className="phase-item-text">
-                  <span className="phase-title">5. Modo Ignição</span>
-                  <span className="phase-desc">Ação &amp; Melhoria Contínua</span>
+                  <span className="phase-desc">Clareza Final &amp; Sincronia Gantt</span>
                 </div>
               </button>
             </div>
@@ -873,16 +723,15 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
               </div>
             )}
           </aside>
-        )}
 
         {/* =========================================================
-            ÁREA CENTRAL DE TRABALHO (CANVAS DA FASE ATIVA OU VISÃO EXECUTOR)
+            ÁREA CENTRAL DE TRABALHO (CANVAS DA FASE ATIVA)
             ========================================================= */}
         <main className={`nexo-main-canvas ${isFocusModeNewProject && activePhase === 1 ? 'focus-spotlight-bg' : ''}`}>
           {/* =========================================================
               FASE 1: O CALIBRADOR DE FOCO (DEFINIÇÃO DO PONTO B)
               ========================================================= */}
-          {roleView === 'architect' && activePhase === 1 && (
+          {activePhase === 1 && (
             <div className="nexo-stage-container phase-1-container">
               <div className="nexo-pointb-card">
                 <div className="pointb-card-header">
@@ -993,7 +842,7 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
           {/* =========================================================
               FASE 2: ENGENHARIA REVERSA (O CONSTRUTOR DE ROADMAP B -> A)
               ========================================================= */}
-          {roleView === 'architect' && activePhase === 2 && (
+          {activePhase === 2 && (
             <div className="nexo-stage-container">
               <div className="nexo-stage-header">
                 <div>
@@ -1126,7 +975,7 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
           {/* =========================================================
               FASE 3: O VALIDADOR LÓGICO (AUDITORIA A -> B & GAP FINDER)
               ========================================================= */}
-          {roleView === 'architect' && activePhase === 3 && (
+          {activePhase === 3 && (
             <div className="nexo-stage-container">
               <div className="nexo-stage-header">
                 <div>
@@ -1396,7 +1245,7 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
           {/* =========================================================
               FASE 4: MATRIZ DE MILESTONES E RECURSOS (CAMADA ANALÍTICA)
               ========================================================= */}
-          {roleView === 'architect' && activePhase === 4 && (
+          {activePhase === 4 && (
             <div className="nexo-stage-container phase-4-container">
               <div className="nexo-stage-header">
                 <div>
@@ -1531,7 +1380,7 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
                 ))}
               </datalist>
 
-              {/* RODAPÉ ANALÍTICO FIXO (SOMA DE CUSTOS E DISPARO DO MODO IGNIÇÃO) */}
+              {/* RODAPÉ ANALÍTICO FIXO (SOMA DE CUSTOS E SINCRONIZAÇÃO COM O GANTT) */}
               <div className="nexo-matrix-footer">
                 <div className="matrix-footer-metrics">
                   <div className="footer-metric-item">
@@ -1556,314 +1405,17 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
                   <button
                     type="button"
                     className="nexo-btn-cta ignition-btn"
-                    onClick={handleApproveIgnition}
+                    onClick={handleFinalizeAndSyncGantt}
                   >
-                    <Flame size={16} />
-                    <span>Aprovar Planejamento &amp; Ativar Modo Ignição</span>
+                    <BarChart3 size={16} />
+                    <span>Concluir Arquitetura &amp; Sincronizar com Gantt</span>
                   </button>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* =========================================================
-              FASE 5 / VISÃO EXECUTOR: MODO IGNIÇÃO (COLAPSO DE COMPLEXIDADE)
-              ========================================================= */}
-          {(roleView === 'executor' || activePhase === 5) && (
-            <div className="nexo-stage-container ignition-stage-container">
-              <div className="ignition-top-banner">
-                <div className="collapse-shield-badge">
-                  <Eye size={14} />
-                  <span>
-                    COLAPSO DE COMPLEXIDADE ATIVO: {Math.max(0, milestones.length - 1)} etapas futuras
-                    ocultadas em segundo plano para foco absoluto no passo imediato.
-                  </span>
-                </div>
-                {roleView === 'executor' && (
-                  <button
-                    type="button"
-                    className="nexo-btn-ghost small"
-                    onClick={() => handleToggleRoleView('architect')}
-                  >
-                    Voltar à Visão Arquiteto
-                  </button>
-                )}
-              </div>
-
-              {allMilestonesCompleted ? (
-                <div className="ignition-victory-card">
-                  <div className="victory-icon-ring">
-                    <CheckCircle2 size={40} />
-                  </div>
-                  <h2>Ponto B Alcançado! Todos os Milestones foram concluídos.</h2>
-                  <p className="victory-deliverable">{pointB.deliverable}</p>
-                  <div className="victory-metric-box">
-                    <strong>Métrica de Sucesso Atingida:</strong> {pointB.successMetric}
-                  </div>
-                  <button
-                    type="button"
-                    className="nexo-btn-secondary"
-                    onClick={() => {
-                      const reset = milestones.map((m) => ({ ...m, completed: false }));
-                      onUpdateNexoState({ ...nexoState, milestones: reset });
-                    }}
-                  >
-                    Reabrir Milestones
-                  </button>
-                </div>
-              ) : activeMilestone ? (
-                <div className="ignition-spotlight-card">
-                  <div className="spotlight-card-header">
-                    <div className="spotlight-step-pill">
-                      <Flame size={14} />
-                      <span>
-                        PASSO IMEDIATO • MILESTONE #{activeMilestoneIndex + 1} DE {milestones.length}
-                      </span>
-                    </div>
-                    <div className="spotlight-progress-pill">
-                      <span>Progresso Macro: {completedMilestonesCount}/{milestones.length} concluídos</span>
-                    </div>
-                  </div>
-
-                  <h1 className="spotlight-milestone-title">{activeMilestone.title}</h1>
-
-                  <div className="spotlight-meta-strip">
-                    <div className="spotlight-meta-chip">
-                      <Calendar size={14} />
-                      <span>
-                        Prazo-Limite: <strong>{formatDatePTBR(activeMilestone.deadline)}</strong>
-                      </span>
-                    </div>
-                    <div className="spotlight-meta-chip">
-                      <User size={14} />
-                      <span>
-                        Owner: <strong>{activeMilestone.owner || 'Não atribuído'}</strong>
-                      </span>
-                    </div>
-                    <div className="spotlight-meta-chip">
-                      <Wrench size={14} />
-                      <span>
-                        Recursos: <strong>{activeMilestone.resources || 'Padrão'}</strong>
-                      </span>
-                    </div>
-                    <div className="spotlight-meta-chip">
-                      <DollarSign size={14} />
-                      <span>
-                        Orçamento:{' '}
-                        <strong>
-                          {(activeMilestone.budget || 0).toLocaleString('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL',
-                          })}
-                        </strong>
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* GRID INTERNO DE EXECUÇÃO: CRONÔMETRO DE FOCO + CHECKLIST */}
-                  <div className="ignition-work-grid">
-                    {/* Timer de Foco Imersivo */}
-                    <div className="ignition-timer-panel">
-                      <span className="panel-mini-label">CRONÔMETRO DE IGNIÇÃO (SESSÃO DE FOCO)</span>
-                      <div className="timer-display">{formatTimer(timerSeconds)}</div>
-                      <div className="timer-controls">
-                        <button
-                          type="button"
-                          className="nexo-btn-primary small"
-                          onClick={() => setIsTimerRunning(!isTimerRunning)}
-                        >
-                          {isTimerRunning ? <Pause size={13} /> : <Play size={13} />}
-                          <span>{isTimerRunning ? 'Pausar' : 'Iniciar Foco'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="nexo-btn-ghost small"
-                          onClick={() => {
-                            setIsTimerRunning(false);
-                            setTimerSeconds(25 * 60);
-                          }}
-                        >
-                          <RotateCcw size={13} />
-                          <span>25 min</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Checklist de Micro-ações do Milestone #1 */}
-                    <div className="ignition-checklist-panel">
-                      <span className="panel-mini-label">MICRO-PASSOS PARA DESTRAVAR ESTE MILESTONE HOJE</span>
-                      <form className="ignition-checklist-form" onSubmit={handleAddChecklistItem}>
-                        <input
-                          type="text"
-                          placeholder="Adicionar micro-ação imediata (Enter)..."
-                          value={newChecklistText}
-                          onChange={(e) => setNewChecklistText(e.target.value)}
-                        />
-                        <button type="submit" className="nexo-btn-secondary small">
-                          <Plus size={13} />
-                        </button>
-                      </form>
-                      <ul className="ignition-checklist-items">
-                        {(activeMilestone.checklist || []).length === 0 ? (
-                          <li className="empty-chk">
-                            Quebre este Milestone em pequenas tarefas rápidas se precisar reduzir atrito.
-                          </li>
-                        ) : (
-                          activeMilestone.checklist.map((item) => (
-                            <li
-                              key={item.id}
-                              className={item.done ? 'done' : ''}
-                              onClick={() => handleToggleChecklistItem(item.id)}
-                            >
-                              {item.done ? <CheckSquare size={15} /> : <Square size={15} />}
-                              <span>{item.text}</span>
-                            </li>
-                          ))
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* RODAPÉ DE AÇÃO & MELHORIA CONTÍNUA */}
-                  <div className="spotlight-card-footer">
-                    <button
-                      type="button"
-                      className="nexo-btn-obstacle"
-                      onClick={() => handleOpenRetroModal('obstacle', activeMilestone)}
-                    >
-                      <AlertTriangle size={15} />
-                      <span>Encontrei Obstáculo / Ajustar Rota (Melhoria Contínua)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="nexo-btn-complete-ms"
-                      onClick={() => handleOpenRetroModal('completion', activeMilestone)}
-                    >
-                      <CheckCircle2 size={16} />
-                      <span>Concluir Milestone #{activeMilestoneIndex + 1} &amp; Registrar Aprendizado</span>
-                      <ChevronRight size={16} />
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* HISTÓRICO DO CICLO DE MELHORIA CONTÍNUA (LOGS DE RETROSPECTIVA) */}
-              {retrospectives && retrospectives.length > 0 && (
-                <div className="nexo-retro-history-section">
-                  <div className="retro-history-header">
-                    <History size={15} />
-                    <h4>Ciclo de Melhoria Contínua — Logs de Retrospectiva ({retrospectives.length})</h4>
-                  </div>
-                  <div className="retro-logs-list">
-                    {retrospectives.map((log) => (
-                      <div key={log.id} className={`retro-log-card ${log.type}`}>
-                        <div className="retro-log-top">
-                          <span className="retro-log-badge">
-                            {log.type === 'completion' ? '✓ Milestone Concluído' : '⚠️ Ajuste de Rota'}
-                          </span>
-                          <strong>{log.milestoneTitle}</strong>
-                          <span className="retro-log-date">{log.createdAt}</span>
-                        </div>
-                        <div className="retro-log-columns">
-                          <div>
-                            <small>🟢 O que deu certo:</small>
-                            <p>{log.whatWorked}</p>
-                          </div>
-                          <div>
-                            <small>🔴 O que travou:</small>
-                            <p>{log.whatBlocked}</p>
-                          </div>
-                          <div>
-                            <small>🔧 O que precisa de ajuste:</small>
-                            <p>{log.whatToAdjust}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </main>
       </div>
-
-      {/* =========================================================
-          MODAL DE RETROSPECTIVA (4º PASSO: MELHORIA CONTÍNUA -> RESULTADO)
-          ========================================================= */}
-      {retroModal && retroModal.isOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-window nexo-retro-modal">
-            <div className="modal-titlebar">
-              <div className="title-with-icon">
-                <RefreshCw size={16} />
-                <span>
-                  Ciclo de Melhoria Contínua —{' '}
-                  {retroModal.type === 'completion'
-                    ? 'Conclusão de Milestone'
-                    : 'Registro de Obstáculo & Correção'}
-                </span>
-              </div>
-              <button className="close-btn" onClick={() => setRetroModal(null)}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <form className="modal-form-content" onSubmit={handleSubmitRetrospective}>
-              <div className="retro-modal-Context">
-                <span>Milestone em análise:</span>
-                <strong>{retroModal.milestoneTitle}</strong>
-              </div>
-
-              <div className="form-group">
-                <label>1. O que deu certo? (Padrões e acertos para manter)</label>
-                <textarea
-                  className="office-input"
-                  rows={2}
-                  placeholder="Ex: A extração direta reduziu o tempo pela metade..."
-                  value={whatWorked}
-                  onChange={(e) => setWhatWorked(e.target.value)}
-                  autoFocus
-                />
-              </div>
-
-              <div className="form-group">
-                <label>2. O que travou? (Obstáculos ou gargalos encontrados)</label>
-                <textarea
-                  className="office-input"
-                  rows={2}
-                  placeholder="Ex: Dependência de aprovação externa demorou 1 dia a mais..."
-                  value={whatBlocked}
-                  onChange={(e) => setWhatBlocked(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>3. O que precisa de ajuste para o próximo passo? (Melhoria Contínua)</label>
-                <textarea
-                  className="office-input"
-                  rows={2}
-                  placeholder="Ex: Antecipar alinhamento com o Owner do próximo Milestone..."
-                  value={whatToAdjust}
-                  onChange={(e) => setWhatToAdjust(e.target.value)}
-                />
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="btn-office" onClick={() => setRetroModal(null)}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn-office primary">
-                  {retroModal.type === 'completion'
-                    ? 'Salvar Retrospectiva & Destravar Próximo Milestone'
-                    : 'Registrar Ajuste de Rota'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

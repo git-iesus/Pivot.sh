@@ -118,8 +118,8 @@ export interface NexoPointB {
   isCalibrated: boolean; // Convertido em Meta
 }
 
-export type NexoPhase = 1 | 2 | 3 | 4 | 5;
-export type NexoRoleView = 'architect' | 'executor';
+export type NexoPhase = 1 | 2 | 3 | 4;
+export type NexoRoleView = 'architect';
 
 export interface NexoProjectState {
   pointB: NexoPointB;

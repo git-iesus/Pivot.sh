@@ -435,36 +435,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
 
         {activeTab === 'nexo' && (
           <div className="ribbon-tab-content">
-            {/* Grupo: Alternância de Visão (Perfil Lobo) */}
-            <div className="ribbon-group">
-              <div className="group-content">
-                <button
-                  className={`large-tool-btn ${viewMode === 'nexo' && nexoRoleView === 'architect' ? 'selected' : ''}`}
-                  onClick={() => {
-                    setViewMode('nexo');
-                    if (onToggleNexoRoleView) onToggleNexoRoleView('architect');
-                  }}
-                  title="Visão Arquiteto: Roadmap completo, custos, dependências e prazos"
-                >
-                  <Layers size={24} className="tool-icon primary-color" />
-                  <span>Visão Arquiteto</span>
-                </button>
-                <button
-                  className={`large-tool-btn ${viewMode === 'nexo' && nexoRoleView === 'executor' ? 'selected' : ''}`}
-                  onClick={() => {
-                    setViewMode('nexo');
-                    if (onToggleNexoRoleView) onToggleNexoRoleView('executor');
-                  }}
-                  title="Visão Executor: Modo Ignição focado apenas no Milestone imediato"
-                >
-                  <Flame size={24} className="tool-icon accent-color" />
-                  <span>Visão Executor</span>
-                </button>
-              </div>
-              <div className="group-label">Alternância de Visão</div>
-            </div>
-
-            {/* Grupo: As 5 Fases da Metodologia Nexo */}
+            {/* Grupo: As 4 Fases da Metodologia Nexo */}
             <div className="ribbon-group">
               <div className="group-content">
                 <div className="small-tools-column">
@@ -488,6 +459,8 @@ export const Ribbon: React.FC<RibbonProps> = ({
                     <RotateCcw size={13} className="primary-color" />
                     <span>Fase 2: Engenharia Reversa (B → A)</span>
                   </button>
+                </div>
+                <div className="small-tools-column">
                   <button
                     className={`small-tool-btn ${nexoActivePhase === 3 ? 'selected-small' : ''}`}
                     onClick={() => {
@@ -498,8 +471,6 @@ export const Ribbon: React.FC<RibbonProps> = ({
                     <CheckCircle size={13} className="success-color" />
                     <span>Fase 3: Validador Lógico (A → B)</span>
                   </button>
-                </div>
-                <div className="small-tools-column">
                   <button
                     className={`small-tool-btn ${nexoActivePhase === 4 ? 'selected-small' : ''}`}
                     onClick={() => {
@@ -510,19 +481,9 @@ export const Ribbon: React.FC<RibbonProps> = ({
                     <DollarSign size={13} className="primary-color" />
                     <span>Fase 4: Matriz de Milestones</span>
                   </button>
-                  <button
-                    className={`small-tool-btn ${nexoActivePhase === 5 ? 'selected-small' : ''}`}
-                    onClick={() => {
-                      setViewMode('nexo');
-                      if (onSelectNexoPhase) onSelectNexoPhase(5);
-                    }}
-                  >
-                    <Flame size={13} className="accent-color" />
-                    <span>Fase 5: Modo Ignição</span>
-                  </button>
                 </div>
               </div>
-              <div className="group-label">As 5 Fases (Metodologia Nexo)</div>
+              <div className="group-label">As 4 Fases (Metodologia Nexo)</div>
             </div>
 
             {/* Grupo: Ações Nexo & Integração Gantt */}

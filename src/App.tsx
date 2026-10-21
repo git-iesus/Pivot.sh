@@ -111,7 +111,13 @@ export const App: React.FC = () => {
     const saved = localStorage.getItem('ms_project_nexo');
     if (saved) {
       try {
-        return { ...defaultNexoState, ...JSON.parse(saved) };
+        const parsed = JSON.parse(saved);
+        return {
+          ...defaultNexoState,
+          ...parsed,
+          activePhase: parsed.activePhase > 4 ? 4 : parsed.activePhase || 1,
+          roleView: 'architect',
+        };
       } catch (e) {
         // fallback
       }
@@ -542,7 +548,7 @@ export const App: React.FC = () => {
       handleUpdateNexoState({
         ...nexoState,
         activePhase: phase,
-        roleView: phase === 5 ? 'executor' : 'architect',
+        roleView: 'architect',
       });
     },
     [handleUpdateNexoState, nexoState]
@@ -550,30 +556,12 @@ export const App: React.FC = () => {
 
   const handleToggleNexoRoleView = useCallback(
     (role: NexoRoleView) => {
-      if (role === 'executor') {
-        const allHaveDeadlines =
-          nexoState.milestones.length > 0 && nexoState.milestones.every((m) => Boolean(m.deadline));
-        if (!nexoState.logicValidated || !allHaveDeadlines) {
-          showToast(
-            'Trava de Processo (Gate): Valide a Fase 3 e preencha todos os prazos na Fase 4 antes de entrar na Visão Executor!'
-          );
-          return;
-        }
-        handleUpdateNexoState({
-          ...nexoState,
-          roleView: 'executor',
-          activePhase: 5,
-          ignitionApproved: true,
-        });
-        return;
-      }
       handleUpdateNexoState({
         ...nexoState,
-        roleView: 'architect',
-        activePhase: nexoState.activePhase === 5 ? 4 : nexoState.activePhase,
+        roleView: role,
       });
     },
-    [handleUpdateNexoState, nexoState, showToast]
+    [handleUpdateNexoState, nexoState]
   );
 
   // Sincroniza os Milestones da Arquitetura Nexo para a Planilha / Gráfico de Gantt
