@@ -18,6 +18,7 @@ export interface SubTask {
 
 export interface Task {
   id: string;
+  rowNumber?: number; // Índice 1-based real na planilha (preservado mesmo quando tarefas estão recolhidas)
   wbsIndex: string; // Ex: "1.1", "1.2.1"
   name: string;
   durationDays: number;

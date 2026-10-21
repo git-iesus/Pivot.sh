@@ -18,6 +18,7 @@ import {
   addWorkDays,
   parseISODate,
   getWorkDaysDifference,
+  getVisibleTasks,
 } from './utils/scheduler';
 import { exportToXLSX, exportToCSV } from './utils/exportImport';
 import { Ribbon } from './components/Ribbon/Ribbon';
@@ -91,6 +92,8 @@ export const App: React.FC = () => {
 
   // Estados de Interface
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [checkedTaskIds, setCheckedTaskIds] = useState<string[]>([]);
+  const lastCheckedTaskIdRef = useRef<string | null>(null);
   const [currentTab, setCurrentTab] = useState<string>('tarefa');
   const [viewMode, setViewMode] = useState<ViewMode>('gantt');
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('days');
@@ -380,7 +383,65 @@ export const App: React.FC = () => {
     setSelectedTaskId(newTask.id);
   };
 
+  // Seleção Múltipla com suporte a Shift-Click em sequência (Intervalo)
+  const handleToggleCheckTask = useCallback(
+    (taskId: string, shiftKey: boolean) => {
+      const visible = getVisibleTasks(scheduledTasks);
+      const anchorId = lastCheckedTaskIdRef.current || selectedTaskId;
+
+      if (shiftKey && anchorId) {
+        const startIdx = visible.findIndex((t) => t.id === anchorId);
+        const endIdx = visible.findIndex((t) => t.id === taskId);
+
+        if (startIdx >= 0 && endIdx >= 0) {
+          const from = Math.min(startIdx, endIdx);
+          const to = Math.max(startIdx, endIdx);
+          const rangeIds = visible.slice(from, to + 1).map((t) => t.id);
+
+          setCheckedTaskIds((prev) => {
+            const nextSet = new Set(prev);
+            rangeIds.forEach((id) => nextSet.add(id));
+            return Array.from(nextSet);
+          });
+          lastCheckedTaskIdRef.current = taskId;
+          setSelectedTaskId(taskId);
+          return;
+        }
+      }
+
+      setCheckedTaskIds((prev) => {
+        const exists = prev.includes(taskId);
+        return exists ? prev.filter((id) => id !== taskId) : [...prev, taskId];
+      });
+      lastCheckedTaskIdRef.current = taskId;
+      setSelectedTaskId(taskId);
+    },
+    [scheduledTasks, selectedTaskId]
+  );
+
+  const handleSelectAllTasks = useCallback((taskIds: string[]) => {
+    setCheckedTaskIds(taskIds);
+  }, []);
+
+  const handleClearCheckedTasks = useCallback(() => {
+    setCheckedTaskIds([]);
+    lastCheckedTaskIdRef.current = null;
+  }, []);
+
   const handleDeleteSelected = () => {
+    if (checkedTaskIds.length > 0) {
+      const toRemove = new Set(checkedTaskIds);
+      const count = toRemove.size;
+      const newTasks = scheduledTasks.filter((t) => !toRemove.has(t.id));
+      pushTaskState(newTasks);
+      setCheckedTaskIds([]);
+      lastCheckedTaskIdRef.current = null;
+      if (selectedTaskId && toRemove.has(selectedTaskId)) {
+        setSelectedTaskId(null);
+      }
+      showToast(`${count} ${count === 1 ? 'tarefa excluída' : 'tarefas excluídas'} com sucesso!`);
+      return;
+    }
     if (!selectedTaskId) return;
     const newTasks = scheduledTasks.filter((t) => t.id !== selectedTaskId);
     pushTaskState(newTasks);
@@ -388,17 +449,31 @@ export const App: React.FC = () => {
   };
 
   const handleIndentTask = () => {
-    if (!selectedTaskId) return;
+    const targetIds =
+      checkedTaskIds.length > 0
+        ? new Set(checkedTaskIds)
+        : selectedTaskId
+          ? new Set([selectedTaskId])
+          : null;
+    if (!targetIds || targetIds.size === 0) return;
+
     const newTasks = scheduledTasks.map((t) =>
-      t.id === selectedTaskId ? { ...t, outlineLevel: Math.min(5, t.outlineLevel + 1) } : t
+      targetIds.has(t.id) ? { ...t, outlineLevel: Math.min(5, t.outlineLevel + 1) } : t
     );
     pushTaskState(newTasks);
   };
 
   const handleOutdentTask = () => {
-    if (!selectedTaskId) return;
+    const targetIds =
+      checkedTaskIds.length > 0
+        ? new Set(checkedTaskIds)
+        : selectedTaskId
+          ? new Set([selectedTaskId])
+          : null;
+    if (!targetIds || targetIds.size === 0) return;
+
     const newTasks = scheduledTasks.map((t) =>
-      t.id === selectedTaskId ? { ...t, outlineLevel: Math.max(0, t.outlineLevel - 1) } : t
+      targetIds.has(t.id) ? { ...t, outlineLevel: Math.max(0, t.outlineLevel - 1) } : t
     );
     pushTaskState(newTasks);
   };
@@ -422,12 +497,29 @@ export const App: React.FC = () => {
   };
 
   const handleSetProgress = (progress: number) => {
+    if (checkedTaskIds.length > 0) {
+      const targetIds = new Set(checkedTaskIds);
+      const updated = scheduledTasks.map((t) =>
+        targetIds.has(t.id) ? { ...t, progress } : t
+      );
+      pushTaskState(updated);
+      showToast(`Progresso atualizado (${progress}%) em ${targetIds.size} tarefa(s)!`);
+      return;
+    }
     if (!selectedTaskId) return;
     handleUpdateTask(selectedTaskId, { progress });
   };
 
   const handleSetTaskMode = (mode: 'manual' | 'auto') => {
     setDefaultTaskMode(mode);
+    if (checkedTaskIds.length > 0) {
+      const targetIds = new Set(checkedTaskIds);
+      const updated = scheduledTasks.map((t) =>
+        targetIds.has(t.id) ? { ...t, mode } : t
+      );
+      pushTaskState(updated);
+      return;
+    }
     if (selectedTaskId) {
       handleUpdateTask(selectedTaskId, { mode });
     }
@@ -744,7 +836,15 @@ export const App: React.FC = () => {
                 tasks={scheduledTasks}
                 resources={resources}
                 selectedTaskId={selectedTaskId}
+                checkedTaskIds={checkedTaskIds}
                 onSelectTask={setSelectedTaskId}
+                onToggleCheckTask={handleToggleCheckTask}
+                onSelectAllTasks={handleSelectAllTasks}
+                onClearCheckedTasks={handleClearCheckedTasks}
+                onBulkDeleteTasks={handleDeleteSelected}
+                onBulkSetProgress={handleSetProgress}
+                onBulkIndentTasks={handleIndentTask}
+                onBulkOutdentTasks={handleOutdentTask}
                 onUpdateTask={handleUpdateTask}
                 onToggleCollapse={(id) => {
                   const t = scheduledTasks.find((item) => item.id === id);
@@ -771,6 +871,7 @@ export const App: React.FC = () => {
                 showCriticalPath={showCriticalPath}
                 showGridLines={showGridLines}
                 selectedTaskId={selectedTaskId}
+                checkedTaskIds={checkedTaskIds}
                 onSelectTask={setSelectedTaskId}
                 rowHeights={rowHeights}
                 scrollTop={0}
@@ -788,7 +889,15 @@ export const App: React.FC = () => {
                 tasks={scheduledTasks}
                 resources={resources}
                 selectedTaskId={selectedTaskId}
+                checkedTaskIds={checkedTaskIds}
                 onSelectTask={setSelectedTaskId}
+                onToggleCheckTask={handleToggleCheckTask}
+                onSelectAllTasks={handleSelectAllTasks}
+                onClearCheckedTasks={handleClearCheckedTasks}
+                onBulkDeleteTasks={handleDeleteSelected}
+                onBulkSetProgress={handleSetProgress}
+                onBulkIndentTasks={handleIndentTask}
+                onBulkOutdentTasks={handleOutdentTask}
                 onUpdateTask={handleUpdateTask}
                 onToggleCollapse={(id) => {
                   const t = scheduledTasks.find((item) => item.id === id);
@@ -825,7 +934,15 @@ export const App: React.FC = () => {
               tasks={scheduledTasks}
               resources={resources}
               selectedTaskId={selectedTaskId}
+              checkedTaskIds={checkedTaskIds}
               onSelectTask={setSelectedTaskId}
+              onToggleCheckTask={handleToggleCheckTask}
+              onSelectAllTasks={handleSelectAllTasks}
+              onClearCheckedTasks={handleClearCheckedTasks}
+              onBulkDeleteTasks={handleDeleteSelected}
+              onBulkSetProgress={handleSetProgress}
+              onBulkIndentTasks={handleIndentTask}
+              onBulkOutdentTasks={handleOutdentTask}
               onUpdateTask={handleUpdateTask}
               onToggleCollapse={(id) => {
                 const t = scheduledTasks.find((item) => item.id === id);

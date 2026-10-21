@@ -430,9 +430,10 @@ export function recalculateSchedule(
     });
   }
 
-  // 6. Atualizar numeração da EAP (WBS)
+  // 6. Atualizar numeração da EAP (WBS) e o número real da linha (1-based)
   const levelCounters: number[] = [];
-  updatedTasks.forEach((task) => {
+  updatedTasks.forEach((task, idx) => {
+    task.rowNumber = idx + 1;
     const level = task.outlineLevel;
     while (levelCounters.length <= level) {
       levelCounters.push(0);
@@ -443,4 +444,49 @@ export function recalculateSchedule(
   });
 
   return updatedTasks;
+}
+
+/**
+ * Filtra as tarefas visíveis, ocultando subtarefas aninhadas abaixo de tarefas-resumo recolhidas (collapsed).
+ */
+export function getVisibleTasks(tasks: Task[]): Task[] {
+  const visible: Task[] = [];
+  let collapsedBelowLevel: number | null = null;
+
+  for (let i = 0; i < tasks.length; i++) {
+    const t = tasks[i];
+    if (collapsedBelowLevel !== null) {
+      if (t.outlineLevel > collapsedBelowLevel) {
+        continue;
+      } else {
+        collapsedBelowLevel = null;
+      }
+    }
+
+    visible.push(t);
+
+    if (t.isSummary && t.collapsed) {
+      collapsedBelowLevel = t.outlineLevel;
+    }
+  }
+
+  return visible;
+}
+
+/**
+ * Conta quantas subtarefas pertencem a uma tarefa-resumo específica.
+ */
+export function getSubtreeTaskCount(tasks: Task[], summaryTaskId: string): number {
+  const idx = tasks.findIndex((t) => t.id === summaryTaskId);
+  if (idx < 0) return 0;
+  const baseLevel = tasks[idx].outlineLevel;
+  let count = 0;
+  for (let j = idx + 1; j < tasks.length; j++) {
+    if (tasks[j].outlineLevel > baseLevel) {
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
 }

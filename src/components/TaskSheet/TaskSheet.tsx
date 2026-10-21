@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { 
   Task, 
   Resource 
@@ -11,15 +11,28 @@ import {
   Flag, 
   CheckCircle,
   Plus,
-  ListTodo
+  ListTodo,
+  Trash2,
+  Indent,
+  Outdent,
+  X,
+  CheckSquare
 } from 'lucide-react';
-import { formatDatePTBR } from '../../utils/scheduler';
+import { formatDatePTBR, getVisibleTasks, getSubtreeTaskCount } from '../../utils/scheduler';
 
 interface TaskSheetProps {
   tasks: Task[];
   resources: Resource[];
   selectedTaskId: string | null;
+  checkedTaskIds?: string[];
   onSelectTask: (taskId: string) => void;
+  onToggleCheckTask?: (taskId: string, shiftKey: boolean) => void;
+  onSelectAllTasks?: (taskIds: string[]) => void;
+  onClearCheckedTasks?: () => void;
+  onBulkDeleteTasks?: () => void;
+  onBulkSetProgress?: (progress: number) => void;
+  onBulkIndentTasks?: () => void;
+  onBulkOutdentTasks?: () => void;
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
   onToggleCollapse: (taskId: string) => void;
   onAddTask: () => void;
@@ -32,6 +45,7 @@ interface TaskSheetProps {
 }
 
 export interface ColumnWidths {
+  select: number;
   id: number;
   info: number;
   mode: number;
@@ -54,6 +68,7 @@ interface ColumnDef {
 }
 
 const COLUMNS: ColumnDef[] = [
+  { key: 'select', label: '', title: 'Selecionar tarefas (Segure Shift + Clique para selecionar um intervalo em sequência)', minWidth: 30, className: 'col-select' },
   { key: 'id', label: 'ID', minWidth: 32, className: 'col-id' },
   { key: 'info', label: 'i', title: 'Indicadores', minWidth: 22, className: 'col-info' },
   { key: 'mode', label: 'Modo', title: 'Modo da Tarefa', minWidth: 40, className: 'col-mode' },
@@ -68,6 +83,7 @@ const COLUMNS: ColumnDef[] = [
 ];
 
 const DEFAULT_COL_WIDTHS: ColumnWidths = {
+  select: 32,
   id: 38,
   info: 24,
   mode: 46,
@@ -84,7 +100,15 @@ const DEFAULT_COL_WIDTHS: ColumnWidths = {
 export const TaskSheet: React.FC<TaskSheetProps> = ({
   tasks,
   selectedTaskId,
+  checkedTaskIds = [],
   onSelectTask,
+  onToggleCheckTask,
+  onSelectAllTasks,
+  onClearCheckedTasks,
+  onBulkDeleteTasks,
+  onBulkSetProgress,
+  onBulkIndentTasks,
+  onBulkOutdentTasks,
   onUpdateTask,
   onToggleCollapse,
   onAddTask,
@@ -95,6 +119,14 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
   scrollRef
 }) => {
   const [editingCell, setEditingCell] = useState<{ taskId: string; field: keyof Task } | null>(null);
+
+  // Filtra apenas as tarefas visíveis (ocultando subtarefas abaixo de tarefas-resumo recolhidas)
+  const visibleTasks = useMemo(() => getVisibleTasks(tasks), [tasks]);
+  const checkedSet = useMemo(() => new Set(checkedTaskIds), [checkedTaskIds]);
+  const allVisibleChecked =
+    visibleTasks.length > 0 && visibleTasks.every((t) => checkedSet.has(t.id));
+  const someVisibleChecked =
+    visibleTasks.some((t) => checkedSet.has(t.id)) && !allVisibleChecked;
 
   // Larguras das colunas estilo Excel (com persistência no localStorage)
   const [colWidths, setColWidths] = useState<ColumnWidths>(() => {
@@ -199,11 +231,96 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
   };
 
   // Grid Template e Largura Total calculados dinamicamente
-  const gridTemplateColumns = `${colWidths.id}px ${colWidths.info}px ${colWidths.mode}px ${colWidths.name}px ${colWidths.duration}px ${colWidths.startDate}px ${colWidths.endDate}px ${colWidths.predecessors}px ${colWidths.resources}px ${colWidths.cost}px ${colWidths.progress}px`;
+  const gridTemplateColumns = `${colWidths.select}px ${colWidths.id}px ${colWidths.info}px ${colWidths.mode}px ${colWidths.name}px ${colWidths.duration}px ${colWidths.startDate}px ${colWidths.endDate}px ${colWidths.predecessors}px ${colWidths.resources}px ${colWidths.cost}px ${colWidths.progress}px`;
   const totalRowWidth = Object.values(colWidths).reduce((a, b) => a + b, 0);
 
   return (
     <div className="task-sheet-container">
+      {/* Barra de Ações em Massa (exibida automaticamente quando há tarefas marcadas) */}
+      {checkedTaskIds.length > 0 && (
+        <div className="bulk-actions-bar">
+          <div className="bulk-actions-info">
+            <CheckSquare size={15} className="bulk-check-icon" />
+            <span className="bulk-count-text">
+              <strong>{checkedTaskIds.length}</strong>{' '}
+              {checkedTaskIds.length === 1 ? 'tarefa selecionada' : 'tarefas selecionadas'}
+            </span>
+            <span className="bulk-shift-hint">(Dica: Segure Shift + Clique para selecionar intervalo)</span>
+          </div>
+
+          <div className="bulk-actions-buttons">
+            {onBulkSetProgress && (
+              <>
+                <button
+                  type="button"
+                  className="bulk-action-btn success"
+                  onClick={() => onBulkSetProgress(100)}
+                  title="Marcar todas as tarefas selecionadas como 100% concluídas"
+                >
+                  <CheckCircle size={13} />
+                  <span>Concluir (100%)</span>
+                </button>
+                <button
+                  type="button"
+                  className="bulk-action-btn"
+                  onClick={() => onBulkSetProgress(0)}
+                  title="Zerar progresso (0%) das tarefas selecionadas"
+                >
+                  <span>0%</span>
+                </button>
+              </>
+            )}
+
+            {onBulkIndentTasks && (
+              <button
+                type="button"
+                className="bulk-action-btn"
+                onClick={onBulkIndentTasks}
+                title="Recuar tarefas selecionadas (transformar em subtarefas)"
+              >
+                <Indent size={13} />
+                <span>Recuar</span>
+              </button>
+            )}
+
+            {onBulkOutdentTasks && (
+              <button
+                type="button"
+                className="bulk-action-btn"
+                onClick={onBulkOutdentTasks}
+                title="Diminuir recuo das tarefas selecionadas"
+              >
+                <Outdent size={13} />
+                <span>Diminuir Recuo</span>
+              </button>
+            )}
+
+            {onBulkDeleteTasks && (
+              <button
+                type="button"
+                className="bulk-action-btn danger"
+                onClick={onBulkDeleteTasks}
+                title="Excluir todas as tarefas selecionadas simultaneamente"
+              >
+                <Trash2 size={13} />
+                <span>Excluir selecionadas ({checkedTaskIds.length})</span>
+              </button>
+            )}
+
+            {onClearCheckedTasks && (
+              <button
+                type="button"
+                className="bulk-action-btn ghost"
+                onClick={onClearCheckedTasks}
+                title="Desmarcar todas as tarefas"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Container Rolável Único: o cabeçalho e as linhas compartilham o mesmo scroll horizontal, eliminando qualquer desalinhamento */}
       <div 
         className="task-sheet-body" 
@@ -221,35 +338,86 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
               className={`sheet-col ${col.className}`}
               title={col.title}
             >
-              <span className="col-header-text">{col.label}</span>
+              {col.key === 'select' ? (
+                <input
+                  type="checkbox"
+                  className="task-header-checkbox"
+                  checked={allVisibleChecked}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someVisibleChecked;
+                  }}
+                  onChange={() => {
+                    if (!onSelectAllTasks || !onClearCheckedTasks) return;
+                    if (allVisibleChecked) {
+                      onClearCheckedTasks();
+                    } else {
+                      onSelectAllTasks(visibleTasks.map((t) => t.id));
+                    }
+                  }}
+                  title={allVisibleChecked ? 'Desmarcar todas as tarefas visíveis' : 'Selecionar todas as tarefas visíveis'}
+                />
+              ) : (
+                <span className="col-header-text">{col.label}</span>
+              )}
               {/* Alça de redimensionamento estilo Excel */}
-              <div 
-                className="col-resizer" 
-                onMouseDown={(e) => handleMouseDownResize(col.key, e)}
-                title="Arraste para redimensionar a coluna (como no Excel)"
-              />
+              {col.key !== 'select' && (
+                <div 
+                  className="col-resizer" 
+                  onMouseDown={(e) => handleMouseDownResize(col.key, e)}
+                  title="Arraste para redimensionar a coluna (como no Excel)"
+                />
+              )}
             </div>
           ))}
         </div>
 
-        {/* Linhas de Tarefas */}
-        {tasks.map((task, index) => {
+        {/* Linhas de Tarefas Visíveis (respeitando tarefas-resumo recolhidas) */}
+        {visibleTasks.map((task, index) => {
           const isSelected = selectedTaskId === task.id;
+          const isChecked = checkedSet.has(task.id);
           const isEditing = (field: keyof Task) =>
             editingCell?.taskId === task.id && editingCell?.field === field;
 
           const rowHeight = (rowHeights && rowHeights[task.id]) || 40;
+          const displayRowNum = task.rowNumber ?? index + 1;
+          const hiddenSubtaskCount =
+            task.isSummary && task.collapsed ? getSubtreeTaskCount(tasks, task.id) : 0;
 
           return (
             <div
               key={task.id}
-              className={`sheet-row ${isSelected ? 'selected' : ''} ${task.isSummary ? 'summary-row' : ''} ${task.isCritical ? 'critical-row' : ''} ${task.progress === 100 ? 'completed-row' : ''}`}
+              className={`sheet-row ${isSelected ? 'selected' : ''} ${isChecked ? 'multi-selected' : ''} ${task.isSummary ? 'summary-row' : ''} ${task.isCritical ? 'critical-row' : ''} ${task.progress === 100 ? 'completed-row' : ''}`}
               style={{ width: `${totalRowWidth}px`, gridTemplateColumns, height: `${rowHeight}px`, minHeight: `${rowHeight}px` }}
-              onClick={() => onSelectTask(task.id)}
+              onClick={(e) => {
+                if (e.shiftKey && onToggleCheckTask) {
+                  onToggleCheckTask(task.id, true);
+                } else {
+                  onSelectTask(task.id);
+                }
+              }}
             >
+              {/* Caixa de Seleção (Checkbox com suporte a Shift-Click em sequência) */}
+              <div
+                className="sheet-cell col-select"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onToggleCheckTask) {
+                    onToggleCheckTask(task.id, e.shiftKey);
+                  }
+                }}
+                title="Clique para selecionar. Segure Shift + Clique para selecionar todas as tarefas no intervalo."
+              >
+                <input
+                  type="checkbox"
+                  className="task-row-checkbox"
+                  checked={isChecked}
+                  readOnly
+                />
+              </div>
+
               {/* ID com alça de redimensionamento estilo Excel */}
               <div className="sheet-cell col-id">
-                <span>{index + 1}</span>
+                <span>{displayRowNum}</span>
                 <div 
                   className="row-resizer"
                   onMouseDown={(e) => handleMouseDownRowResize(task.id, e)}
@@ -280,7 +448,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                 )}
               </div>
 
-              {/* Nome da Tarefa com recuo EAP e Badge de sub-tarefas elegante */}
+              {/* Nome da Tarefa com recuo EAP, Botão Collapse/Expand e Badge de sub-tarefas */}
               <div 
                 className="sheet-cell col-name"
                 style={{ paddingLeft: `${8 + task.outlineLevel * 18}px` }}
@@ -288,7 +456,10 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
               >
                 {task.isSummary && (
                   <button 
-                    className="collapse-btn" 
+                    type="button"
+                    className={`collapse-btn ${task.collapsed ? 'is-collapsed' : 'is-expanded'}`}
+                    aria-expanded={!task.collapsed}
+                    title={task.collapsed ? 'Expandir subtarefas ocultas' : 'Recolher (ocultar) subtarefas abaixo'}
                     onClick={(e) => {
                       e.stopPropagation();
                       onToggleCollapse(task.id);
@@ -323,6 +494,18 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     <span className={`task-name-text ${task.isSummary ? 'font-bold' : ''} ${task.progress === 100 ? 'completed-text' : ''}`}>
                       {task.name}
                     </span>
+                    {hiddenSubtaskCount > 0 && (
+                      <span
+                        className="collapsed-subtasks-pill"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleCollapse(task.id);
+                        }}
+                        title={`${hiddenSubtaskCount} ${hiddenSubtaskCount === 1 ? 'subtarefa oculta' : 'subtarefas ocultas'} — clique para expandir`}
+                      >
+                        +{hiddenSubtaskCount} {hiddenSubtaskCount === 1 ? 'oculta' : 'ocultas'}
+                      </span>
+                    )}
                     {task.subTasks && task.subTasks.length > 0 && (
                       <span 
                         className="subtask-pill-badge" 
@@ -547,6 +730,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
           style={{ width: `${totalRowWidth}px`, gridTemplateColumns }}
           onClick={onAddTask}
         >
+          <div className="sheet-cell col-select"></div>
           <div className="sheet-cell col-id">+</div>
           <div className="sheet-cell add-cell-prompt" style={{ gridColumn: 'span 10' }}>
             <Plus size={14} /> <span>Clique para adicionar uma nova tarefa...</span>

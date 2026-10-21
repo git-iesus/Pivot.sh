@@ -7,6 +7,7 @@ import {
   parsePredecessors,
   getExceptionForDate,
   formatDatePTBR,
+  getVisibleTasks,
 } from '../../utils/scheduler';
 
 interface GanttChartProps {
@@ -15,6 +16,7 @@ interface GanttChartProps {
   showCriticalPath: boolean;
   showGridLines: boolean;
   selectedTaskId: string | null;
+  checkedTaskIds?: string[];
   onSelectTask: (taskId: string) => void;
   scrollTop: number;
   onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
@@ -30,6 +32,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   showCriticalPath,
   showGridLines,
   selectedTaskId,
+  checkedTaskIds = [],
   onSelectTask,
   onScroll,
   scrollRef,
@@ -39,6 +42,10 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 }) => {
   const [hoveredTask, setHoveredTask] = useState<Task | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Apenas tarefas visíveis (sincronizado 1:1 com a planilha quando tarefas-resumo estão recolhidas)
+  const visibleTasks = useMemo(() => getVisibleTasks(tasks), [tasks]);
+  const checkedSet = useMemo(() => new Set(checkedTaskIds), [checkedTaskIds]);
 
   // Determinar extensão de datas do projeto
   const { startDate, totalDays, dayWidth } = useMemo(() => {
@@ -165,29 +172,30 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const todayStr = toISODate(new Date());
   const todayX = getXForDate(todayStr) + dayWidth / 2;
 
-  // Layout vertical acumulado com suporte a alturas de linhas dinâmicas estilo Excel
+  // Layout vertical acumulado com suporte a alturas de linhas dinâmicas estilo Excel (apenas tarefas visíveis)
   const taskLayout = useMemo(() => {
     const positions: { y: number; height: number; centerY: number }[] = [];
     let currentY = 0;
-    tasks.forEach((t) => {
+    visibleTasks.forEach((t) => {
       const h = (rowHeights && rowHeights[t.id]) || 40;
       positions.push({ y: currentY, height: h, centerY: currentY + h / 2 });
       currentY += h;
     });
     return { positions, totalHeight: currentY };
-  }, [tasks, rowHeights]);
+  }, [visibleTasks, rowHeights]);
 
-  // Mapa de índice para coordenadas de tarefas (para desenhar as setas de dependência)
+  // Mapa de índice real (rowNumber) para coordenadas de tarefas visíveis (para desenhar as setas de dependência)
   const taskCoordinates = useMemo(() => {
     const coords = new Map<number, { startX: number; endX: number; y: number }>();
-    tasks.forEach((task, index) => {
+    visibleTasks.forEach((task, index) => {
       const startX = getXForDate(task.startDate);
       const endX = getXForDate(task.endDate) + dayWidth;
       const layout = taskLayout.positions[index] || { y: index * 40, height: 40, centerY: index * 40 + 20 };
-      coords.set(index + 1, { startX, endX, y: layout.centerY });
+      const rowNum = task.rowNumber ?? index + 1;
+      coords.set(rowNum, { startX, endX, y: layout.centerY });
     });
     return coords;
-  }, [tasks, startDate, dayWidth, taskLayout]);
+  }, [visibleTasks, startDate, dayWidth, taskLayout]);
 
   const totalCanvasWidth = totalDays * dayWidth;
 
@@ -289,10 +297,11 @@ export const GanttChart: React.FC<GanttChartProps> = ({
               </marker>
             </defs>
 
-            {tasks.map((task, index) => {
+            {visibleTasks.map((task, index) => {
               if (!task.predecessorText) return null;
               const preds = parsePredecessors(task.predecessorText);
-              const toCoord = taskCoordinates.get(index + 1);
+              const rowNum = task.rowNumber ?? index + 1;
+              const toCoord = taskCoordinates.get(rowNum);
               if (!toCoord) return null;
 
               return preds.map(({ predId, type }) => {
@@ -338,7 +347,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
                 return (
                   <path
-                    key={`${predId}-${type}->${index + 1}`}
+                    key={`${predId}-${type}->${rowNum}`}
                     d={pathData}
                     fill="none"
                     stroke={isCrit ? '#c00000' : '#555'}
@@ -350,13 +359,13 @@ export const GanttChart: React.FC<GanttChartProps> = ({
             })}
           </svg>
 
-          {/* Barras das Tarefas */}
-          {tasks.map((task, index) => {
+          {/* Barras das Tarefas Visíveis */}
+          {visibleTasks.map((task, index) => {
             const startX = getXForDate(task.startDate);
             const endX = getXForDate(task.endDate) + dayWidth;
             const width = Math.max(dayWidth, endX - startX);
             const layout = taskLayout.positions[index] || { y: index * 40, height: 40, centerY: index * 40 + 20 };
-            const isSelected = selectedTaskId === task.id;
+            const isSelected = selectedTaskId === task.id || checkedSet.has(task.id);
             const isCrit = showCriticalPath && task.isCritical;
 
             return (
