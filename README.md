@@ -1,4 +1,5 @@
 # Introdução
+https://pivot-sh.vercel.app/
 Projetado com base em princípios de Design Thinking e estratégias de diferenciação, o Pivot.sh é um sistema avançado de gestão de projetos que sintetiza as funcionalidades essenciais de ferramentas consagradas da indústria, como MS Project, Trello e TickTick. 
 
 Desenvolvido a partir da análise arquitetural de binários nativos utilizando a abordagem REA (Reverse Engineer Anything), o projeto extrai o "padrão ouro" de performance e estruturação de software para entregar uma réplica funcional altamente otimizada e de nível corporativo.
