@@ -27,6 +27,8 @@ import {
   CalendarOff,
   Compass,
   Target,
+  LogOut,
+  UserCheck,
 } from 'lucide-react';
 import { ViewMode, ZoomLevel, NexoPhase, NexoRoleView } from '../../types/project';
 
@@ -70,6 +72,8 @@ interface RibbonProps {
   onToggleNexoRoleView?: (role: NexoRoleView) => void;
   onStartNewNexoProject?: () => void;
   onSyncNexoToGantt?: () => void;
+  userEmail?: string;
+  onLogout?: () => void;
 }
 
 export const Ribbon: React.FC<RibbonProps> = ({
@@ -104,6 +108,8 @@ export const Ribbon: React.FC<RibbonProps> = ({
   onSelectNexoPhase,
   onStartNewNexoProject,
   onSyncNexoToGantt,
+  userEmail,
+  onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<'tarefa' | 'recursos' | 'exibir' | 'formato' | 'nexo'>('tarefa');
 
@@ -139,6 +145,25 @@ export const Ribbon: React.FC<RibbonProps> = ({
               </>
             )}
           </div>
+        <div className="title-user-actions">
+          {userEmail && (
+            <span className="title-user-email" title={`Conectado como ${userEmail}`}>
+              <UserCheck size={12} />
+              <span>{userEmail}</span>
+            </span>
+          )}
+          {onLogout && (
+            <button
+              type="button"
+              className="title-logout-btn"
+              onClick={onLogout}
+              title="Encerrar sessão (Sair)"
+            >
+              <LogOut size={12} />
+              <span>Sair</span>
+            </button>
+          )}
+        </div>
         </div>
       </div>
 

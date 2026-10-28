@@ -34,9 +34,22 @@ import { CostReportModal } from './components/CostReport/CostReportModal';
 import { CalendarExceptionsModal } from './components/CalendarExceptions/CalendarExceptionsModal';
 import { WeekView } from './components/WeekView/WeekView';
 import { NexoPlugin, defaultNexoState } from './components/Nexo/NexoPlugin';
-import { CheckCircle2 } from 'lucide-react';
+import { AuthScreen } from './components/Auth/AuthScreen';
+import {
+  AuthUser,
+  getActiveSessionUser,
+  loadOrMigrateUserProject,
+  saveUserProjectToCloud,
+  signOutUser,
+} from './services/cloudSync';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 
 export const App: React.FC = () => {
+  // Estados de Autenticação e Sincronização em Nuvem
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+  const [isCloudLoading, setIsCloudLoading] = useState<boolean>(false);
+  const currentUserRef = useRef<AuthUser | null>(null);
   // Metadados e Calendário Global (carregado primeiro para alimentar o motor de agendamento)
   const [metadata, setMetadata] = useState<ProjectMetadata>(() => {
     const saved = localStorage.getItem('ms_project_metadata');
@@ -145,7 +158,15 @@ export const App: React.FC = () => {
   const handleUpdateRowHeight = useCallback((taskId: string, height: number) => {
     setRowHeights((prev) => {
       const next = { ...prev, [taskId]: height };
-      localStorage.setItem('ms_project_row_heights', JSON.stringify(next));
+      if (currentUserRef.current) {
+        saveUserProjectToCloud(currentUserRef.current, {
+          tasks: latestProjectRef.current.tasks,
+          resources: latestProjectRef.current.resources,
+          metadata: latestProjectRef.current.metadata,
+          nexoState: latestProjectRef.current.nexoState,
+          rowHeights: next,
+        }).catch(() => {});
+      }
       return next;
     });
   }, []);
@@ -195,15 +216,110 @@ export const App: React.FC = () => {
     }, 2800);
   }, []);
 
-  // Salvar no localStorage com indicador em tempo real (Auto-save)
+  // Salvar na nuvem (vinculado ao user_id) com indicador em tempo real (Auto-save)
+  const latestProjectRef = useRef({
+    tasks: scheduledTasks,
+    resources,
+    metadata,
+    nexoState,
+    rowHeights,
+  });
+  useEffect(() => {
+    latestProjectRef.current = {
+      tasks: scheduledTasks,
+      resources,
+      metadata,
+      nexoState,
+      rowHeights,
+    };
+  }, [scheduledTasks, resources, metadata, nexoState, rowHeights]);
+
+  const handleAuthenticated = useCallback(
+    async (user: AuthUser) => {
+      setCurrentUser(user);
+      currentUserRef.current = user;
+      setIsCloudLoading(true);
+      try {
+        const result = await loadOrMigrateUserProject(user);
+        const { payload, migratedFromLocal } = result;
+        const activeDays = payload.metadata.activeWeekDays || [1, 2, 3, 4, 5];
+        const exceptions = payload.metadata.exceptions || [];
+        const recalculated = recalculateSchedule(payload.tasks, activeDays, exceptions);
+
+        setMetadata(payload.metadata);
+        setTasks(recalculated);
+        setResources(payload.resources);
+        setNexoState(payload.nexoState);
+        setRowHeights(payload.rowHeights || {});
+        setHistory([]);
+        setFuture([]);
+
+        if (migratedFromLocal) {
+          showToast('Progresso local migrado automaticamente para sua conta na nuvem!');
+        }
+      } catch (e) {
+        showToast('Conectado! Usando cache sincronizado.');
+      } finally {
+        setIsCloudLoading(false);
+      }
+    },
+    [showToast]
+  );
+
+  // Restaura a sessão ativa via JWT/Token ao carregar ou atualizar a página (F5)
+  useEffect(() => {
+    let mounted = true;
+    getActiveSessionUser()
+      .then((user) => {
+        if (!mounted) return;
+        if (user) {
+          handleAuthenticated(user).finally(() => {
+            if (mounted) setIsAuthChecking(false);
+          });
+        } else {
+          setIsAuthChecking(false);
+        }
+      })
+      .catch(() => {
+        if (mounted) setIsAuthChecking(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [handleAuthenticated]);
+
+  const handleLogout = useCallback(async () => {
+    if (saveTimeoutRef.current && currentUserRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      try {
+        await saveUserProjectToCloud(currentUserRef.current, latestProjectRef.current);
+      } catch {
+        // ignore
+      }
+    }
+    await signOutUser();
+    currentUserRef.current = null;
+    setCurrentUser(null);
+    setIsBackstageOpen(false);
+  }, []);
+
   const saveToStorage = useCallback((newTasks: Task[], newRes: Resource[], newMeta: ProjectMetadata) => {
     setSaveStatus('saving');
-    localStorage.setItem('ms_project_tasks', JSON.stringify(newTasks));
-    localStorage.setItem('ms_project_resources', JSON.stringify(newRes));
-    localStorage.setItem('ms_project_metadata', JSON.stringify(newMeta));
-
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => {
+    saveTimeoutRef.current = setTimeout(async () => {
+      if (currentUserRef.current) {
+        try {
+          await saveUserProjectToCloud(currentUserRef.current, {
+            tasks: newTasks,
+            resources: newRes,
+            metadata: newMeta,
+            nexoState: latestProjectRef.current.nexoState,
+            rowHeights: latestProjectRef.current.rowHeights,
+          });
+        } catch {
+          // fallback silencioso
+        }
+      }
       setSaveStatus('saved');
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -634,7 +750,15 @@ export const App: React.FC = () => {
   const handleUpdateNexoState = useCallback((next: NexoProjectState) => {
     setSaveStatus('saving');
     setNexoState(next);
-    localStorage.setItem('ms_project_nexo', JSON.stringify(next));
+    if ( currentUserRef.current ) {
+      saveUserProjectToCloud(currentUserRef.current, {
+        tasks: latestProjectRef.current.tasks,
+        resources: latestProjectRef.current.resources,
+        metadata: latestProjectRef.current.metadata,
+        nexoState: next,
+        rowHeights: latestProjectRef.current.rowHeights,
+      }).catch(() => {});
+    }
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       setSaveStatus('saved');
@@ -802,6 +926,19 @@ export const App: React.FC = () => {
 
   const selectedTaskObj = scheduledTasks.find((t) => t.id === selectedTaskId);
 
+  if (isAuthChecking || isCloudLoading) {
+    return (
+      <div className="auth-loading-screen">
+        <Loader2 size={28} className="spin-icon" />
+        <span>Sincronizando seu ambiente na nuvem...</span>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <AuthScreen onAuthenticated={handleAuthenticated} />;
+  }
+
   return (
     <div className="ms-project-app">
       {/* Faixa de Opções (Ribbon) Estilo Office 2010 */}
@@ -845,6 +982,8 @@ export const App: React.FC = () => {
         onToggleNexoRoleView={handleToggleNexoRoleView}
         onStartNewNexoProject={handleStartNewNexoProject}
         onSyncNexoToGantt={handleSyncNexoToGantt}
+        userEmail={currentUser.email}
+        onLogout={handleLogout}
       />
 
       {/* Área Principal de Trabalho (Split Panes: Planilha de Tarefas, Gráfico de Gantt, Minha Semana ou Plugin Nexo) */}

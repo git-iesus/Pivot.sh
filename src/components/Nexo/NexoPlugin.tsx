@@ -71,7 +71,7 @@ export const defaultNexoState: NexoProjectState = {
     {
       id: 'nx_1',
       title: 'Extrair e auditar a nova base de dados bruta com a equipe responsável',
-      leadTimeDays: 3,
+      leadTimeDays: 1,
       deadline: '2026-10-21',
       owner: 'Gerente de Projeto',
       resources: 'Acesso ao banco SQL, Planilha de Validação',
@@ -85,7 +85,7 @@ export const defaultNexoState: NexoProjectState = {
     {
       id: 'nx_2',
       title: 'Tratar dados e garantir que a base esteja no nível correto de granularidade',
-      leadTimeDays: 4,
+      leadTimeDays: 1,
       deadline: '2026-10-27',
       owner: 'Arquiteto de Software',
       resources: 'Scripts Python/ETL, Ambiente de Staging',
@@ -96,7 +96,7 @@ export const defaultNexoState: NexoProjectState = {
     {
       id: 'nx_3',
       title: 'Entregar análise consolidada da Expedição + Lista de investigação validada',
-      leadTimeDays: 5,
+      leadTimeDays: 1,
       deadline: '2026-11-03',
       owner: 'Desenvolvedor Backend',
       resources: 'Dashboard BI, Relatório de Anomalias',
@@ -107,7 +107,7 @@ export const defaultNexoState: NexoProjectState = {
     {
       id: 'nx_4',
       title: 'Replicar análise da Expedição para o Transporte e homologar indicadores finais',
-      leadTimeDays: 6,
+      leadTimeDays: 1,
       deadline: '2026-11-11',
       owner: 'Especialista de QA',
       resources: 'Ambiente de Homologação, Checklist de QA',
@@ -359,13 +359,13 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
 
     const anchorDate = parseISODate(anchorDateStr);
     const suggestedDeadline = toISODate(
-      subtractWorkDays(anchorDate, 3, activeWeekDays, exceptions)
+      subtractWorkDays(anchorDate, 1, activeWeekDays, exceptions)
     );
 
     const newMilestone: NexoMilestone = {
       id: `nx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       title: trimmed,
-      leadTimeDays: 3,
+      leadTimeDays: 1,
       deadline: suggestedDeadline,
       owner: '',
       resources: '',
@@ -418,7 +418,7 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
     const newStep: NexoMilestone = {
       id: `nx_gap_${Date.now()}`,
       title: trimmed,
-      leadTimeDays: 2,
+      leadTimeDays: 1,
       deadline: refDateStr,
       owner: '',
       resources: '',
@@ -1309,7 +1309,7 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
                                   })
                                 }
                               />
-                              <span>dias úteis</span>
+                              <span>{ms.leadTimeDays === 1 ? 'dia útil' : 'dias úteis'}</span>
                             </div>
                             <input
                               type="date"
