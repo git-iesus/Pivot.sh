@@ -213,7 +213,7 @@ export const App: React.FC = () => {
 
   const handleManualSave = useCallback(() => {
     saveToStorage(scheduledTasks, resources, metadata);
-    showToast('Todas as alterações já foram salvas automaticamente!');
+    showToast('Todas as alterações foram salvas!');
   }, [scheduledTasks, resources, metadata, saveToStorage, showToast]);
 
   // Atualizador com histórico de Undo (garantindo sincronia total via recalculateSchedule)
