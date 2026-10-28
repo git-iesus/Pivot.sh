@@ -109,7 +109,7 @@ export const App: React.FC = () => {
   const [checkedTaskIds, setCheckedTaskIds] = useState<string[]>([]);
   const lastCheckedTaskIdRef = useRef<string | null>(null);
   const [currentTab, setCurrentTab] = useState<string>('tarefa');
-  const [viewMode, setViewMode] = useState<ViewMode>('gantt');
+  const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('days');
   const [showCriticalPath, setShowCriticalPath] = useState<boolean>(true);
   const [showGridLines, setShowGridLines] = useState<boolean>(true);
