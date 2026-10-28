@@ -6566,3 +6566,232 @@ input, select, button {
 
 
 
+
+/* =========================================================
+   Subprojetos (Hierarquia EAP/WBS) & Calendários Individuais
+   ========================================================= */
+.sheet-row.subproject-row {
+  background-color: #f1f5f9;
+  font-weight: 600;
+}
+
+.sheet-row.subproject-row:hover {
+  background-color: #e2e8f0;
+}
+
+.subproject-indicator-icon,
+.mode-icon.subproject {
+  color: #1e40af;
+}
+
+.subproject-classification-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  color: #1e40af;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.subproject-calendar-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.subproject-calendar-pill:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+  color: #0369a1;
+}
+
+.subproject-calendar-pill.custom {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.subproject-calendar-pill.custom:hover {
+  background: #bbf7d0;
+  border-color: #4ade80;
+}
+
+.subproject-modal-kicker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.subproject-modal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  color: #1e3a8a;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.subproject-modal-subtitle {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.cost-badge-readonly {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #166534;
+  padding: 2px 4px;
+}
+
+.subproject-parent-chip {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1e40af !important;
+}
+
+.subproject-calendar-config-box {
+  margin-top: 12px;
+  margin-bottom: 14px;
+}
+
+.subproject-global-exceptions-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.subprojects-calendars-section {
+  margin-top: 14px;
+}
+
+.subprojects-calendar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.subproject-calendar-row-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.subproject-cal-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.subproject-cal-name-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #0f172a;
+}
+
+.subproject-cal-summary-pill {
+  font-size: 11px;
+  font-weight: 600;
+  color: #166534;
+  background: #dcfce7;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.subproject-cal-presets {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.subproject-mini-days-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.subproject-mini-day-btn {
+  padding: 5px 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+  transition: all 0.15s ease;
+}
+
+.subproject-mini-day-btn.active {
+  background: #dcfce7;
+  border-color: #22c55e;
+  color: #15803d;
+}
+
+.subproject-mini-day-btn.inactive {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+  opacity: 0.75;
+}
+
+.task-card-subproject-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-bottom: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

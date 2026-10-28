@@ -8,6 +8,8 @@ import {
   getExceptionForDate,
   formatDatePTBR,
   getVisibleTasks,
+  getEffectiveActiveWeekDays,
+  formatActiveWeekDaysShort,
 } from '../../utils/scheduler';
 
 interface GanttChartProps {
@@ -43,9 +45,21 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const [hoveredTask, setHoveredTask] = useState<Task | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
 
-  // Apenas tarefas visíveis (sincronizado 1:1 com a planilha quando tarefas-resumo estão recolhidas)
+  // Apenas tarefas visíveis (sincronizado 1:1 com a planilha quando Subprojetos estão recolhidos)
   const visibleTasks = useMemo(() => getVisibleTasks(tasks), [tasks]);
   const checkedSet = useMemo(() => new Set(checkedTaskIds), [checkedTaskIds]);
+
+  // Calendário de dias ativos exibido nas colunas de fundo do Gantt:
+  // Se houver um Subprojeto ou subtarefa selecionada, reflete o calendário efetivo daquele Subprojeto
+  const effectiveChartActiveDays = useMemo(() => {
+    if (selectedTaskId) {
+      const idx = tasks.findIndex((t) => t.id === selectedTaskId);
+      if (idx >= 0) {
+        return getEffectiveActiveWeekDays(tasks, idx, activeWeekDays);
+      }
+    }
+    return activeWeekDays;
+  }, [tasks, selectedTaskId, activeWeekDays]);
 
   // Determinar extensão de datas do projeto
   const { startDate, totalDays, dayWidth } = useMemo(() => {
@@ -90,7 +104,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     };
   }, [tasks, zoomLevel]);
 
-  // Lista de dias gerados (sincronizada com Calendário Base e Datas de Exceção)
+  // Lista de dias gerados (sincronizada com Calendário do Subprojeto/Projeto e Datas de Exceção Globais)
   const daysList = useMemo(() => {
     const list: {
       date: Date;
@@ -112,13 +126,13 @@ export const GanttChart: React.FC<GanttChartProps> = ({
         iso,
         dayNum: cur.getDate(),
         dayOfWeek: daysNames[cur.getDay()],
-        isWeekend: isWeekend(cur, activeWeekDays, exceptions),
+        isWeekend: isWeekend(cur, effectiveChartActiveDays, exceptions),
         exception: ex,
       });
       cur.setDate(cur.getDate() + 1);
     }
     return list;
-  }, [startDate, totalDays, activeWeekDays, exceptions]);
+  }, [startDate, totalDays, effectiveChartActiveDays, exceptions]);
 
   // Agrupamento por Meses para o Cabeçalho Superior
   const monthGroups = useMemo(() => {
@@ -128,8 +142,18 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     let currentYear = 0;
 
     const monthNames = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
     ];
 
     daysList.forEach((d) => {
@@ -190,7 +214,11 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     visibleTasks.forEach((task, index) => {
       const startX = getXForDate(task.startDate);
       const endX = getXForDate(task.endDate) + dayWidth;
-      const layout = taskLayout.positions[index] || { y: index * 40, height: 40, centerY: index * 40 + 20 };
+      const layout = taskLayout.positions[index] || {
+        y: index * 40,
+        height: 40,
+        centerY: index * 40 + 20,
+      };
       const rowNum = task.rowNumber ?? index + 1;
       coords.set(rowNum, { startX, endX, y: layout.centerY });
     });
@@ -199,14 +227,17 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
   const totalCanvasWidth = totalDays * dayWidth;
 
+  const hoveredTaskActiveDays = useMemo(() => {
+    if (!hoveredTask) return activeWeekDays;
+    const idx = tasks.findIndex((t) => t.id === hoveredTask.id);
+    if (idx >= 0) return getEffectiveActiveWeekDays(tasks, idx, activeWeekDays);
+    return activeWeekDays;
+  }, [hoveredTask, tasks, activeWeekDays]);
+
   return (
     <div className="gantt-chart-container">
       {/* Container Rolável Único: Cabeçalho e Canvas compartilham o mesmo scroll e largura exata */}
-      <div
-        className="gantt-chart-body"
-        ref={scrollRef}
-        onScroll={onScroll}
-      >
+      <div className="gantt-chart-body" ref={scrollRef} onScroll={onScroll}>
         {/* Cabeçalho da Escala de Tempo Dupla (Fixo no topo durante scroll vertical) */}
         <div
           className="gantt-timeline-header"
@@ -231,7 +262,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
               const isNonWorkingException = d.exception && !d.exception.isWorkingDay;
               const isWorkingException = d.exception && d.exception.isWorkingDay;
               const tooltipTitle = d.exception
-                ? `${formatDatePTBR(d.iso)} — ${d.exception.type}: ${d.exception.name} (${d.exception.isWorkingDay ? 'Dia Útil Atípico' : 'Dia Não Útil'})`
+                ? `${formatDatePTBR(d.iso)} — ${d.exception.type}: ${d.exception.name} (${d.exception.isWorkingDay ? 'Dia Útil Atípico' : 'Dia Não Útil Global'})`
                 : formatDatePTBR(d.iso);
 
               return (
@@ -251,7 +282,11 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
         <div
           className="gantt-canvas"
-          style={{ width: `${totalCanvasWidth}px`, minWidth: `${totalCanvasWidth}px`, height: `${taskLayout.totalHeight}px` }}
+          style={{
+            width: `${totalCanvasWidth}px`,
+            minWidth: `${totalCanvasWidth}px`,
+            height: `${taskLayout.totalHeight}px`,
+          }}
         >
           {/* Colunas de Fim de Semana, Exceções e Linhas de Grade */}
           {daysList.map((d, i) => {
@@ -271,7 +306,11 @@ export const GanttChart: React.FC<GanttChartProps> = ({
           </div>
 
           {/* Camada SVG para Conectores de Dependência (Setas) */}
-          <svg className="gantt-dependency-svg" width={totalDays * dayWidth} height={taskLayout.totalHeight}>
+          <svg
+            className="gantt-dependency-svg"
+            width={totalDays * dayWidth}
+            height={taskLayout.totalHeight}
+          >
             <defs>
               <marker
                 id="arrowhead"
@@ -312,8 +351,6 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                 let pathData = '';
 
                 if (type === 'II') {
-                  // Início para Início (Start-to-Start):
-                  // Sai do início (startX) da predecessora e conecta no início (startX) da tarefa
                   const p1x = fromCoord.startX;
                   const p1y = fromCoord.y;
                   const p2x = toCoord.startX;
@@ -321,8 +358,6 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                   const leftX = Math.min(p1x, p2x) - 12;
                   pathData = `M ${p1x} ${p1y} L ${leftX} ${p1y} L ${leftX} ${p2y} L ${p2x} ${p2y}`;
                 } else if (type === 'TT') {
-                  // Término para Término (Finish-to-Finish):
-                  // Sai do término (endX) da predecessora e conecta no término (endX) da tarefa
                   const p1x = fromCoord.endX;
                   const p1y = fromCoord.y;
                   const p2x = toCoord.endX;
@@ -330,8 +365,6 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                   const rightX = Math.max(p1x, p2x) + 12;
                   pathData = `M ${p1x} ${p1y} L ${rightX} ${p1y} L ${rightX} ${p2y} L ${p2x} ${p2y}`;
                 } else {
-                  // Padrão TI (Término para Início - Finish-to-Start):
-                  // Sai do término (endX) da predecessora e conecta no início (startX) da tarefa
                   const p1x = fromCoord.endX;
                   const p1y = fromCoord.y;
                   const p2x = toCoord.startX;
@@ -359,12 +392,16 @@ export const GanttChart: React.FC<GanttChartProps> = ({
             })}
           </svg>
 
-          {/* Barras das Tarefas Visíveis */}
+          {/* Barras das Tarefas e Subprojetos Visíveis */}
           {visibleTasks.map((task, index) => {
             const startX = getXForDate(task.startDate);
             const endX = getXForDate(task.endDate) + dayWidth;
             const width = Math.max(dayWidth, endX - startX);
-            const layout = taskLayout.positions[index] || { y: index * 40, height: 40, centerY: index * 40 + 20 };
+            const layout = taskLayout.positions[index] || {
+              y: index * 40,
+              height: 40,
+              centerY: index * 40 + 20,
+            };
             const isSelected = selectedTaskId === task.id || checkedSet.has(task.id);
             const isCrit = showCriticalPath && task.isCritical;
 
@@ -387,7 +424,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                   />
                 )}
 
-                {/* 1. Tarefa de Resumo */}
+                {/* 1. Subprojeto (Agrupador EAP) */}
                 {task.isSummary ? (
                   <div
                     className="summary-bar-wrapper"
@@ -398,9 +435,14 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                     }}
                     onMouseLeave={() => setHoveredTask(null)}
                   >
-                    <div className={`summary-bracket-bar ${task.progress === 100 ? 'completed' : ''}`}>
+                    <div
+                      className={`summary-bracket-bar ${task.progress === 100 ? 'completed' : ''}`}
+                    >
                       <div className="summary-bracket-left"></div>
-                      <div className="summary-bracket-center" style={{ width: `${task.progress}%` }}></div>
+                      <div
+                        className="summary-bracket-center"
+                        style={{ width: `${task.progress}%` }}
+                      ></div>
                       <div className="summary-bracket-right"></div>
                     </div>
                     <span className="bar-resource-label">{task.resourceNames.join(', ')}</span>
@@ -416,7 +458,9 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                     }}
                     onMouseLeave={() => setHoveredTask(null)}
                   >
-                    <div className={`milestone-diamond-shape ${isCrit ? 'critical' : ''} ${task.progress === 100 ? 'completed' : ''}`}></div>
+                    <div
+                      className={`milestone-diamond-shape ${isCrit ? 'critical' : ''} ${task.progress === 100 ? 'completed' : ''}`}
+                    ></div>
                     <span className="bar-resource-label">
                       {task.name} ({formatDatePTBR(task.startDate)})
                     </span>
@@ -432,7 +476,10 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                     }}
                     onMouseLeave={() => setHoveredTask(null)}
                   >
-                    <div className="task-progress-fill" style={{ width: `${task.progress}%` }}></div>
+                    <div
+                      className="task-progress-fill"
+                      style={{ width: `${task.progress}%` }}
+                    ></div>
                     <span className="task-bar-text">
                       {task.progress > 0 ? `${task.progress}%` : ''}
                     </span>
@@ -445,13 +492,22 @@ export const GanttChart: React.FC<GanttChartProps> = ({
         </div>
       </div>
 
-      {/* Tooltip Flutuante de Detalhes da Tarefa */}
+      {/* Tooltip Flutuante de Detalhes da Tarefa / Subprojeto */}
       {hoveredTask && tooltipPos && (
         <div
           className="gantt-tooltip"
           style={{ left: `${tooltipPos.x + 15}px`, top: `${tooltipPos.y + 15}px` }}
         >
           <div className="tooltip-title">{hoveredTask.name}</div>
+          {hoveredTask.isSummary && (
+            <div className="tooltip-row">
+              <span>Classificação:</span> <strong>Subprojeto (Agrupador EAP)</strong>
+            </div>
+          )}
+          <div className="tooltip-row">
+            <span>Dias Ativos:</span>{' '}
+            <strong>{formatActiveWeekDaysShort(hoveredTaskActiveDays)}</strong>
+          </div>
           <div className="tooltip-row">
             <span>Início:</span> <strong>{formatDatePTBR(hoveredTask.startDate)}</strong>
           </div>
@@ -459,7 +515,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
             <span>Término:</span> <strong>{formatDatePTBR(hoveredTask.endDate)}</strong>
           </div>
           <div className="tooltip-row">
-            <span>Duração:</span> <strong>{hoveredTask.durationDays} dias</strong>
+            <span>Duração:</span> <strong>{hoveredTask.durationDays} dias úteis</strong>
           </div>
           <div className="tooltip-row">
             <span>Progresso:</span> <strong>{hoveredTask.progress}%</strong>

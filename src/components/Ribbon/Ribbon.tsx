@@ -11,9 +11,7 @@ import {
   Calendar,
   ZoomIn,
   ZoomOut,
-  Maximize2,
   Users,
-  Info,
   CheckCircle,
   Flag,
   FolderPlus,
@@ -28,9 +26,7 @@ import {
   DollarSign,
   CalendarOff,
   Compass,
-  Flame,
   Target,
-  Layers
 } from 'lucide-react';
 import { ViewMode, ZoomLevel, NexoPhase, NexoRoleView } from '../../types/project';
 
@@ -79,18 +75,14 @@ interface RibbonProps {
 export const Ribbon: React.FC<RibbonProps> = ({
   saveStatus = 'saved',
   lastSavedTime = 'agora',
-  currentTab,
-  setCurrentTab,
   viewMode,
   setViewMode,
-  zoomLevel,
   setZoomLevel,
   showCriticalPath,
   setShowCriticalPath,
   showGridLines,
   setShowGridLines,
   onOpenBackstage,
-  onSave,
   onUndo,
   onRedo,
   canUndo,
@@ -103,16 +95,13 @@ export const Ribbon: React.FC<RibbonProps> = ({
   onOutdentTask,
   onLinkTasks,
   onUnlinkTasks,
-  onSetProgress,
   onSetTaskMode,
   onOpenExceptionsModal,
   exceptionsCount = 0,
   onOpenResourceSheet,
   onOpenCostReport,
   nexoActivePhase = 1,
-  nexoRoleView = 'architect',
   onSelectNexoPhase,
-  onToggleNexoRoleView,
   onStartNewNexoProject,
   onSyncNexoToGantt,
 }) => {
@@ -123,9 +112,6 @@ export const Ribbon: React.FC<RibbonProps> = ({
       {/* Barra de Título Superior / Quick Access Toolbar */}
       <div className="title-bar">
         <div className="quick-access">
-          <div className="app-icon">
-            <img src="/logo-pivot.jpg" alt="" className="app-logo-img" draggable={false} />
-          </div>
           <button className="qa-btn" onClick={onUndo} disabled={!canUndo} title="Desfazer (Ctrl+Z)">
             <RotateCcw size={14} />
           </button>
@@ -149,7 +135,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
               <>
                 <Cloud size={13} className="cloud-icon" />
                 <Check size={10} className="check-badge-icon" />
-                <span>Salvo automaticamente</span>
+                <span>Salvo</span>
               </>
             )}
           </div>
@@ -249,9 +235,9 @@ export const Ribbon: React.FC<RibbonProps> = ({
                     <Flag size={14} className="accent-color" />
                     <span>Inserir Marco</span>
                   </button>
-                  <button className="small-tool-btn" onClick={onAddSummaryTask} title="Adicionar Tarefa Resumo">
+                  <button className="small-tool-btn" onClick={onAddSummaryTask} title="Adicionar Subprojeto (Agrupador EAP com subtarefas vinculadas)">
                     <FolderPlus size={14} className="primary-color" />
-                    <span>Tarefa Resumo</span>
+                    <span>Subprojeto</span>
                   </button>
                   <button className="small-tool-btn danger" onClick={onDeleteSelected} title="Excluir Tarefa Selecionada">
                     <Trash2 size={14} />
@@ -277,7 +263,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
                   <button
                     className="small-tool-btn"
                     onClick={onOpenExceptionsModal}
-                    title="Gerenciar Datas de Exceção (Feriados, Recessos, Emendas e Expedientes Atípicos)"
+                    title="Gerenciar Datas de Exceção Globais (Feriados, Recessos, Emendas e Expedientes Atípicos)"
                   >
                     <CalendarOff size={14} className="accent-color" />
                     <span>Datas de Exceção</span>
@@ -293,7 +279,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
             {/* Grupo: Hierarquia (EAP / WBS) */}
             <div className="ribbon-group">
               <div className="group-content">
-                <button className="large-tool-btn" onClick={onIndentTask} title="Recuar Tarefa (Subtarefa)">
+                <button className="large-tool-btn" onClick={onIndentTask} title="Recuar Tarefa (Vincular a um Subprojeto acima)">
                   <Indent size={26} className="tool-icon primary-color" />
                   <span>Recuar Tarefa</span>
                 </button>
@@ -381,7 +367,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
                   <span>Escala em Meses</span>
                 </button>
               </div>
-              <div className="group-label">Zoom & Escala</div>
+              <div className="group-label">Zoom &amp; Escala</div>
             </div>
 
             {/* Grupo Destaques */}
@@ -421,7 +407,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
                 </div>
                 <div className="legend-item">
                   <div className="legend-swatch summary-bar"></div>
-                  <span>Tarefa Resumo</span>
+                  <span>Subprojeto</span>
                 </div>
                 <div className="legend-item">
                   <div className="legend-swatch milestone-diamond"></div>

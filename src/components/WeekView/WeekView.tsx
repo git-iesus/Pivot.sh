@@ -1,17 +1,24 @@
 import React, { useState, useMemo } from 'react';
 import { Task, CalendarException } from '../../types/project';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Calendar as CalendarIcon, 
-  CheckCircle2, 
-  Clock, 
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarIcon,
+  CheckCircle2,
+  Clock,
   AlertTriangle,
   Flag,
   User,
-  ListTodo
+  ListTodo,
+  Layers,
 } from 'lucide-react';
-import { parseISODate, toISODate, isWorkDay } from '../../utils/scheduler';
+import {
+  parseISODate,
+  toISODate,
+  isWorkDay,
+  getEffectiveActiveWeekDays,
+  getParentSubproject,
+} from '../../utils/scheduler';
 
 interface WeekViewProps {
   tasks: Task[];
@@ -20,6 +27,12 @@ interface WeekViewProps {
   selectedTaskId: string | null;
   onSelectTask: (taskId: string) => void;
   onOpenTaskDetail: (taskId: string) => void;
+}
+
+interface ExecutableTaskEntry {
+  task: Task;
+  effectiveActiveDays: number[];
+  parentSubproject?: Task;
 }
 
 export const WeekView: React.FC<WeekViewProps> = ({
@@ -32,11 +45,37 @@ export const WeekView: React.FC<WeekViewProps> = ({
 }) => {
   // Data de referência da semana exibida (inicia com hoje ou início do projeto)
   const [currentWeekDate, setCurrentWeekDate] = useState<Date>(() => {
+    const firstExec = tasks.find((t) => !t.isSummary);
+    if (firstExec && firstExec.startDate) {
+      return parseISODate(firstExec.startDate);
+    }
     if (tasks.length > 0 && tasks[0].startDate) {
       return parseISODate(tasks[0].startDate);
     }
     return new Date();
   });
+
+  // Filtra apenas tarefas executáveis (Subprojetos / isSummary nunca aparecem como blocos de tarefas na Semana)
+  const executableEntries = useMemo<ExecutableTaskEntry[]>(() => {
+    return tasks
+      .map((task, idx) => ({
+        task,
+        effectiveActiveDays: getEffectiveActiveWeekDays(tasks, idx, activeWeekDays),
+        parentSubproject: getParentSubproject(tasks, idx),
+      }))
+      .filter((entry) => !entry.task.isSummary);
+  }, [tasks, activeWeekDays]);
+
+  // Coleta todos os dias da semana ativos (Projeto Macro + Subprojetos) para saber se o dia na coluna possui expediente
+  const unionActiveWeekDays = useMemo(() => {
+    const set = new Set<number>(activeWeekDays && activeWeekDays.length > 0 ? activeWeekDays : [1, 2, 3, 4, 5]);
+    tasks.forEach((t) => {
+      if (t.isSummary && t.activeWeekDays && t.activeWeekDays.length > 0) {
+        t.activeWeekDays.forEach((d) => set.add(d));
+      }
+    });
+    return Array.from(set);
+  }, [tasks, activeWeekDays]);
 
   // Obter o primeiro dia da semana (Segunda-feira)
   const mondayDate = useMemo(() => {
@@ -51,7 +90,14 @@ export const WeekView: React.FC<WeekViewProps> = ({
 
   // Lista dos 7 dias da semana (Segunda a Domingo)
   const weekDays = useMemo(() => {
-    const days: { date: Date; iso: string; dayName: string; shortName: string; isWork: boolean; isToday: boolean }[] = [];
+    const days: {
+      date: Date;
+      iso: string;
+      dayName: string;
+      shortName: string;
+      isWork: boolean;
+      isToday: boolean;
+    }[] = [];
     const names = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
     const shortNames = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
@@ -66,20 +112,30 @@ export const WeekView: React.FC<WeekViewProps> = ({
         iso,
         dayName: names[i],
         shortName: shortNames[i],
-        isWork: isWorkDay(d, activeWeekDays, exceptions),
+        isWork: isWorkDay(d, unionActiveWeekDays, exceptions),
         isToday: iso === todayIso,
       });
     }
     return days;
-  }, [mondayDate, activeWeekDays, exceptions]);
+  }, [mondayDate, unionActiveWeekDays, exceptions]);
 
   // Intervalo formatado para exibição no cabeçalho
   const formattedRange = useMemo(() => {
     const start = weekDays[0].date;
     const end = weekDays[6].date;
     const monthNames = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
     ];
 
     if (start.getMonth() === end.getMonth()) {
@@ -88,24 +144,30 @@ export const WeekView: React.FC<WeekViewProps> = ({
     return `${start.getDate()} de ${monthNames[start.getMonth()]} a ${end.getDate()} de ${monthNames[end.getMonth()]} de ${end.getFullYear()}`;
   }, [weekDays]);
 
-  // Tarefas presentes em cada dia da semana
+  // Tarefas executáveis presentes em cada dia da semana (respeitando o calendário do respectivo Subprojeto e Exceções Globais)
   const tasksByDay = useMemo(() => {
-    const map = new Map<string, Task[]>();
+    const map = new Map<string, ExecutableTaskEntry[]>();
     weekDays.forEach((day) => {
-      const dayTasks = tasks.filter((t) => {
-        // Tarefas ativas naquele dia: startDate <= iso e endDate >= iso
-        return t.startDate <= day.iso && t.endDate >= day.iso;
+      const dayTasks = executableEntries.filter(({ task, effectiveActiveDays }) => {
+        if (task.startDate > day.iso || task.endDate < day.iso) return false;
+        // Só renderiza no dia se for dia útil para o Subprojeto/Tarefa (e não for feriado/exceção global)
+        return isWorkDay(day.date, effectiveActiveDays, exceptions);
       });
       map.set(day.iso, dayTasks);
     });
     return map;
-  }, [weekDays, tasks]);
+  }, [weekDays, executableEntries, exceptions]);
 
-  // Total de tarefas únicas nesta semana
+  // Total de tarefas executáveis únicas nesta semana (excluindo Subprojetos)
   const weekSummary = useMemo(() => {
-    const mondayIso = weekDays[0].iso;
-    const sundayIso = weekDays[6].iso;
-    const activeTasks = tasks.filter((t) => t.startDate <= sundayIso && t.endDate >= mondayIso);
+    const uniqueTaskMap = new Map<string, Task>();
+    weekDays.forEach((day) => {
+      const list = tasksByDay.get(day.iso) || [];
+      list.forEach(({ task }) => {
+        uniqueTaskMap.set(task.id, task);
+      });
+    });
+    const activeTasks = Array.from(uniqueTaskMap.values());
     const completed = activeTasks.filter((t) => t.progress === 100).length;
     const critical = activeTasks.filter((t) => t.isCritical).length;
 
@@ -114,7 +176,7 @@ export const WeekView: React.FC<WeekViewProps> = ({
       completed,
       critical,
     };
-  }, [weekDays, tasks]);
+  }, [weekDays, tasksByDay]);
 
   const handlePrevWeek = () => {
     const d = new Date(currentWeekDate);
@@ -154,7 +216,10 @@ export const WeekView: React.FC<WeekViewProps> = ({
         <div className="week-range-title">
           <h3>{formattedRange}</h3>
           <span className="week-badge-summary">
-            {weekSummary.total} {weekSummary.total === 1 ? 'tarefa na semana' : 'tarefas na semana'} · {weekSummary.completed} concluídas {weekSummary.critical > 0 && `· ${weekSummary.critical} críticas`}
+            {weekSummary.total} {weekSummary.total === 1 ? 'tarefa na semana' : 'tarefas na semana'} ·{' '}
+            {weekSummary.completed} {weekSummary.completed === 1 ? 'concluída' : 'concluídas'}
+            {weekSummary.critical > 0 &&
+              ` · ${weekSummary.critical} ${weekSummary.critical === 1 ? 'crítica' : 'críticas'}`}
           </span>
         </div>
       </div>
@@ -162,11 +227,12 @@ export const WeekView: React.FC<WeekViewProps> = ({
       {/* Grade dos 7 Dias da Semana */}
       <div className="week-grid">
         {weekDays.map((day) => {
-          const dayTasks = tasksByDay.get(day.iso) || [];
+          const dayEntries = tasksByDay.get(day.iso) || [];
+          const isDayActive = day.isWork || dayEntries.length > 0;
           return (
             <div
               key={day.iso}
-              className={`week-day-column ${!day.isWork ? 'day-off' : ''} ${day.isToday ? 'day-today' : ''}`}
+              className={`week-day-column ${!isDayActive ? 'day-off' : ''} ${day.isToday ? 'day-today' : ''}`}
             >
               {/* Cabeçalho do Dia */}
               <div className="week-day-header">
@@ -176,24 +242,24 @@ export const WeekView: React.FC<WeekViewProps> = ({
                 </div>
                 <div className="day-status-tags">
                   {day.isToday && <span className="tag-today">Hoje</span>}
-                  {!day.isWork ? (
+                  {!isDayActive ? (
                     <span className="tag-inactive">Inativo / Folga</span>
                   ) : (
                     <span className="tag-task-count">
-                      {dayTasks.length} {dayTasks.length === 1 ? 'tarefa' : 'tarefas'}
+                      {dayEntries.length} {dayEntries.length === 1 ? 'tarefa' : 'tarefas'}
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Lista de Cartões de Tarefas do Dia */}
+              {/* Lista de Cartões de Tarefas Executáveis do Dia */}
               <div className="week-day-tasks-list">
-                {dayTasks.length === 0 ? (
+                {dayEntries.length === 0 ? (
                   <div className="empty-day-state">
                     <span>Sem tarefas</span>
                   </div>
                 ) : (
-                  dayTasks.map((task) => {
+                  dayEntries.map(({ task, parentSubproject }) => {
                     const isSelected = selectedTaskId === task.id;
                     const isStartDay = task.startDate === day.iso;
                     const isEndDay = task.endDate === day.iso;
@@ -218,13 +284,21 @@ export const WeekView: React.FC<WeekViewProps> = ({
                         <div className="task-card-top">
                           <div className="task-card-type-indicator">
                             {task.isMilestone ? (
-                              <span className="badge-milestone"><Flag size={11} /> Marco</span>
+                              <span className="badge-milestone">
+                                <Flag size={11} /> Marco
+                              </span>
                             ) : task.isCritical ? (
-                              <span className="badge-critical"><AlertTriangle size={11} /> Crítica</span>
+                              <span className="badge-critical">
+                                <AlertTriangle size={11} /> Crítica
+                              </span>
                             ) : task.progress === 100 ? (
-                              <span className="badge-done"><CheckCircle2 size={11} /> 100%</span>
+                              <span className="badge-done">
+                                <CheckCircle2 size={11} /> 100%
+                              </span>
                             ) : (
-                              <span className="badge-progress"><Clock size={11} /> {task.progress}%</span>
+                              <span className="badge-progress">
+                                <Clock size={11} /> {task.progress}%
+                              </span>
                             )}
                           </div>
 
@@ -238,8 +312,22 @@ export const WeekView: React.FC<WeekViewProps> = ({
                           ) : null}
                         </div>
 
+                        {/* Referência sutil ao Subprojeto pai (se houver) */}
+                        {parentSubproject && (
+                          <div className="task-card-subproject-tag" title={`Subprojeto: ${parentSubproject.name}`}>
+                            <Layers size={10} />
+                            <span>{parentSubproject.name}</span>
+                          </div>
+                        )}
+
                         {/* Nome da Tarefa */}
-                        <h4 className="task-card-name" onClick={(e) => { e.stopPropagation(); onOpenTaskDetail(task.id); }}>
+                        <h4
+                          className="task-card-name"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenTaskDetail(task.id);
+                          }}
+                        >
                           {task.name}
                         </h4>
 
@@ -247,7 +335,9 @@ export const WeekView: React.FC<WeekViewProps> = ({
                         {hasSubtasks && (
                           <div className="task-card-subtasks-preview">
                             <ListTodo size={12} />
-                            <span>{subtasksDone}/{totalSubtasks} sub-tarefas</span>
+                            <span>
+                              {subtasksDone}/{totalSubtasks} sub-tarefas
+                            </span>
                           </div>
                         )}
 
@@ -257,7 +347,12 @@ export const WeekView: React.FC<WeekViewProps> = ({
                             className="task-card-progress-fill"
                             style={{
                               width: `${task.progress}%`,
-                              backgroundColor: task.progress === 100 ? '#16a34a' : task.isCritical ? '#dc2626' : '#2563eb'
+                              backgroundColor:
+                                task.progress === 100
+                                  ? '#16a34a'
+                                  : task.isCritical
+                                    ? '#dc2626'
+                                    : '#2563eb',
                             }}
                           />
                         </div>

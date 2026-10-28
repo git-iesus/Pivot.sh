@@ -2,9 +2,91 @@ import { Task, CalendarException } from '../types/project';
 
 /**
  * Utilitários de data e cálculo de cronograma do MS Project com suporte
- * a personalização do Calendário Base de Trabalho (dias de atividade e inatividade)
- * e Motor de Datas de Exceção (feriados, recessos, emendas e expedientes atípicos).
+ * a personalização do Calendário Base de Trabalho (dias de atividade e inatividade),
+ * Calendário Individual por Subprojeto (tarefas agrupadoras da EAP/WBS)
+ * e Motor Global de Datas de Exceção (feriados, recessos, emendas e expedientes atípicos).
  */
+
+const SHORT_WEEKDAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+/**
+ * Formata de forma compacta uma lista de dias úteis da semana (ex: "Seg–Sex", "Ter–Sáb", "Seg–Sáb").
+ */
+export function formatActiveWeekDaysShort(activeWeekDays: number[] = [1, 2, 3, 4, 5]): string {
+  if (!activeWeekDays || activeWeekDays.length === 0) return 'Seg–Sex';
+  const sorted = Array.from(new Set(activeWeekDays)).sort((a, b) => a - b);
+  if (sorted.length === 7) return 'Dom–Sáb (7d)';
+  if (sorted.length === 1) return SHORT_WEEKDAY_NAMES[sorted[0]] || '';
+
+  // Verifica se forma uma sequência contínua (ex: [1,2,3,4,5] -> Seg–Sex ou [2,3,4,5,6] -> Ter–Sáb)
+  let isContiguous = true;
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] !== sorted[i - 1] + 1) {
+      isContiguous = false;
+      break;
+    }
+  }
+
+  if (isContiguous) {
+    return `${SHORT_WEEKDAY_NAMES[sorted[0]]}–${SHORT_WEEKDAY_NAMES[sorted[sorted.length - 1]]}`;
+  }
+
+  return sorted.map((d) => SHORT_WEEKDAY_NAMES[d]).join(', ');
+}
+
+/**
+ * Encontra o Subprojeto (tarefa-resumo pai mais próxima na EAP) ao qual uma tarefa pertence.
+ */
+export function getParentSubproject(tasks: Task[], taskIndex: number): Task | undefined {
+  const target = tasks[taskIndex];
+  if (!target || target.outlineLevel <= 0) return undefined;
+
+  for (let i = taskIndex - 1; i >= 0; i--) {
+    const candidate = tasks[i];
+    if (candidate.outlineLevel < target.outlineLevel && candidate.isSummary) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Retorna os dias ativos da semana efetivos para uma tarefa (por índice na lista):
+ * - Se a própria tarefa for um Subprojeto com calendário próprio (`activeWeekDays`), utiliza-o;
+ * - Caso contrário, herda do Subprojeto ancestral mais próximo na hierarquia EAP que possua calendário próprio;
+ * - Caso nenhum ancestral defina calendário próprio, utiliza o calendário global do Projeto Macro.
+ */
+export function getEffectiveActiveWeekDays(
+  tasks: Task[],
+  taskIndex: number,
+  projectActiveWeekDays: number[] = [1, 2, 3, 4, 5]
+): number[] {
+  const fallback =
+    projectActiveWeekDays && projectActiveWeekDays.length > 0
+      ? projectActiveWeekDays
+      : [1, 2, 3, 4, 5];
+
+  const target = tasks[taskIndex];
+  if (!target) return fallback;
+
+  if (target.isSummary && target.activeWeekDays && target.activeWeekDays.length > 0) {
+    return target.activeWeekDays;
+  }
+
+  let requiredMaxLevel = target.outlineLevel;
+  for (let i = taskIndex - 1; i >= 0; i--) {
+    const candidate = tasks[i];
+    if (candidate.outlineLevel < requiredMaxLevel) {
+      if (candidate.isSummary && candidate.activeWeekDays && candidate.activeWeekDays.length > 0) {
+        return candidate.activeWeekDays;
+      }
+      requiredMaxLevel = candidate.outlineLevel;
+      if (requiredMaxLevel === 0) break;
+    }
+  }
+
+  return fallback;
+}
 
 // Busca se existe uma Data de Exceção cadastrada para uma determinada data
 export function getExceptionForDate(
@@ -24,7 +106,7 @@ export function getExceptionForDate(
   return undefined;
 }
 
-// Verifica se uma data é dia útil de atividade com base nos dias da semana ativos e nas Datas de Exceção
+// Verifica se uma data é dia útil de atividade com base nos dias da semana ativos e nas Datas de Exceção Globais
 export function isWorkDay(
   date: Date,
   activeWeekDays: number[] = [1, 2, 3, 4, 5],
@@ -209,8 +291,9 @@ export function parsePredecessors(predText?: string): ParsedPredecessor[] {
 }
 
 /**
- * Recalcula o cronograma completo (Predecessoras, Datas de Exceção, Resumo e Caminho Crítico)
- * atuando como Fonte Única da Verdade (Single Source of Truth) para o Grid e para o Gantt.
+ * Recalcula o cronograma completo (Classificação Automática de Subprojetos, Calendários por Subprojeto,
+ * Predecessoras, Datas de Exceção Globais e Caminho Crítico) atuando como Fonte Única da Verdade
+ * (Single Source of Truth) para o Grid, Minha Semana e Gráfico de Gantt.
  */
 export function recalculateSchedule(
   tasks: Task[],
@@ -221,7 +304,7 @@ export function recalculateSchedule(
 
   const updatedTasks: Task[] = tasks.map((t) => ({ ...t }));
 
-  // 1. Identificar Tarefas de Resumo com base nos níveis de recuo (outlineLevel)
+  // 1. Classificar automaticamente como Subprojeto (isSummary = true) toda tarefa que possuir subtarefas abaixo na EAP
   for (let i = 0; i < updatedTasks.length; i++) {
     const current = updatedTasks[i];
     const next = updatedTasks[i + 1];
@@ -239,7 +322,7 @@ export function recalculateSchedule(
     taskMap.set(idx + 1, t); // 1-based index conforme tabela do MS Project
   });
 
-  // 3. Propagação de Agendamento via Predecessoras e Calendário/Exceções
+  // 3. Propagação de Agendamento via Predecessoras, Calendário do Subprojeto e Exceções Globais
   const maxPasses = Math.max(15, updatedTasks.length + 2);
   let scheduleChanged = true;
   let pass = 0;
@@ -249,6 +332,7 @@ export function recalculateSchedule(
 
     updatedTasks.forEach((task, idx) => {
       const currentTaskNum = idx + 1;
+      const taskActiveDays = getEffectiveActiveWeekDays(updatedTasks, idx, activeWeekDays);
 
       if (!task.isSummary && task.predecessorText && task.predecessorText.trim() !== '') {
         const parsedPreds = parsePredecessors(task.predecessorText);
@@ -264,21 +348,21 @@ export function recalculateSchedule(
             if (type === 'II') {
               // Início-Início: a tarefa deve iniciar junto com o início da tarefa referenciada
               const predStart = parseISODate(predTask.startDate);
-              const reqStart = toWorkDay(predStart, activeWeekDays, exceptions);
+              const reqStart = toWorkDay(predStart, taskActiveDays, exceptions);
               if (!maxReqStart || reqStart > maxReqStart) {
                 maxReqStart = reqStart;
               }
             } else if (type === 'TT') {
               // Término-Término: a tarefa deve finalizar junto com o término da tarefa referenciada
               const predEnd = parseISODate(predTask.endDate);
-              const reqEnd = toPrevWorkDay(predEnd, activeWeekDays, exceptions);
+              const reqEnd = toPrevWorkDay(predEnd, taskActiveDays, exceptions);
               if (!maxReqEnd || reqEnd > maxReqEnd) {
                 maxReqEnd = reqEnd;
               }
             } else if (type === 'IT') {
               // Início-Término: a tarefa finaliza no início da predecessora
               const predStart = parseISODate(predTask.startDate);
-              const reqEnd = toPrevWorkDay(predStart, activeWeekDays, exceptions);
+              const reqEnd = toPrevWorkDay(predStart, taskActiveDays, exceptions);
               if (!maxReqEnd || reqEnd > maxReqEnd) {
                 maxReqEnd = reqEnd;
               }
@@ -287,7 +371,7 @@ export function recalculateSchedule(
               const predEnd = parseISODate(predTask.endDate);
               const nextDay = new Date(predEnd);
               nextDay.setDate(nextDay.getDate() + 1);
-              const reqStart = toWorkDay(nextDay, activeWeekDays, exceptions);
+              const reqStart = toWorkDay(nextDay, taskActiveDays, exceptions);
               if (!maxReqStart || reqStart > maxReqStart) {
                 maxReqStart = reqStart;
               }
@@ -302,7 +386,7 @@ export function recalculateSchedule(
             const finalEnd = maxReqEnd;
             const finalStart = task.durationDays === 0
               ? finalEnd
-              : subtractWorkDays(finalEnd, task.durationDays, activeWeekDays, exceptions);
+              : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, exceptions);
             newStartDate = toISODate(finalStart);
             newEndDate = toISODate(finalEnd);
           } else if (maxReqStart && !maxReqEnd) {
@@ -310,7 +394,7 @@ export function recalculateSchedule(
             const finalStart = maxReqStart;
             const finalEnd = task.durationDays === 0
               ? finalStart
-              : addWorkDays(finalStart, task.durationDays, activeWeekDays, exceptions);
+              : addWorkDays(finalStart, task.durationDays, taskActiveDays, exceptions);
             newStartDate = toISODate(finalStart);
             newEndDate = toISODate(finalEnd);
           } else if (maxReqStart && maxReqEnd) {
@@ -318,12 +402,12 @@ export function recalculateSchedule(
             const tentativeStart = maxReqStart;
             const tentativeEnd = task.durationDays === 0
               ? tentativeStart
-              : addWorkDays(tentativeStart, task.durationDays, activeWeekDays, exceptions);
+              : addWorkDays(tentativeStart, task.durationDays, taskActiveDays, exceptions);
             if (tentativeEnd < maxReqEnd) {
               const finalEnd = maxReqEnd;
               const finalStart = task.durationDays === 0
                 ? finalEnd
-                : subtractWorkDays(finalEnd, task.durationDays, activeWeekDays, exceptions);
+                : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, exceptions);
               newStartDate = toISODate(finalStart);
               newEndDate = toISODate(finalEnd);
             } else {
@@ -342,12 +426,12 @@ export function recalculateSchedule(
       }
 
       if (!task.isSummary) {
-        // Tarefas sem predecessoras (manuais ou automáticas): valida início em dia útil e recalcula término conforme duração e exceções
-        const start = toWorkDay(parseISODate(task.startDate), activeWeekDays, exceptions);
+        // Tarefas sem predecessoras (manuais ou automáticas): valida início em dia útil do seu Subprojeto e recalcula término conforme duração e exceções globais
+        const start = toWorkDay(parseISODate(task.startDate), taskActiveDays, exceptions);
         const newStartDate = toISODate(start);
         const newEndDate = task.durationDays === 0
           ? newStartDate
-          : toISODate(addWorkDays(start, task.durationDays, activeWeekDays, exceptions));
+          : toISODate(addWorkDays(start, task.durationDays, taskActiveDays, exceptions));
         if (newStartDate !== task.startDate || newEndDate !== task.endDate) {
           task.startDate = newStartDate;
           task.endDate = newEndDate;
@@ -357,18 +441,20 @@ export function recalculateSchedule(
     });
   }
 
-  // 4. Calcular Tarefas de Resumo (De baixo para cima)
+  // 4. Calcular Subprojetos / Tarefas Agrupadoras (De baixo para cima)
   for (let i = updatedTasks.length - 1; i >= 0; i--) {
     const task = updatedTasks[i];
     if (task.isSummary) {
+      const summaryActiveDays = getEffectiveActiveWeekDays(updatedTasks, i, activeWeekDays);
       let minStart: Date | null = null;
       let maxEnd: Date | null = null;
       let totalDuration = 0;
       let weightedProgress = 0;
+      let totalChildCost = 0;
 
       for (let j = i + 1; j < updatedTasks.length; j++) {
         const child = updatedTasks[j];
-        if (child.outlineLevel <= task.outlineLevel) break; // Saiu da sub-árvore
+        if (child.outlineLevel <= task.outlineLevel) break; // Saiu da sub-árvore do Subprojeto
 
         const cStart = parseISODate(child.startDate);
         const cEnd = parseISODate(child.endDate);
@@ -376,20 +462,26 @@ export function recalculateSchedule(
         if (!minStart || cStart < minStart) minStart = cStart;
         if (!maxEnd || cEnd > maxEnd) maxEnd = cEnd;
 
-        totalDuration += Math.max(1, child.durationDays);
-        weightedProgress += child.progress * Math.max(1, child.durationDays);
+        if (!child.isSummary) {
+          totalDuration += Math.max(1, child.durationDays);
+          weightedProgress += child.progress * Math.max(1, child.durationDays);
+          totalChildCost += child.cost || 0;
+        }
       }
 
       if (minStart && maxEnd) {
         task.startDate = toISODate(minStart);
         task.endDate = toISODate(maxEnd);
-        task.durationDays = getWorkDaysDifference(minStart, maxEnd, activeWeekDays, exceptions);
+        task.durationDays = getWorkDaysDifference(minStart, maxEnd, summaryActiveDays, exceptions);
         task.progress = totalDuration > 0 ? Math.round(weightedProgress / totalDuration) : 0;
+        if (totalChildCost > 0) {
+          task.cost = totalChildCost;
+        }
       }
     }
   }
 
-  // 5. Determinar Caminho Crítico (CPM)
+  // 5. Determinar Caminho Crítico (CPM) — apenas para tarefas executáveis (!isSummary)
   let projectEndDate: Date | null = null;
   updatedTasks.forEach((t) => {
     const end = parseISODate(t.endDate);
@@ -426,7 +518,7 @@ export function recalculateSchedule(
     }
 
     updatedTasks.forEach((t, idx) => {
-      t.isCritical = criticalIndices.has(idx + 1);
+      t.isCritical = !t.isSummary && criticalIndices.has(idx + 1);
     });
   }
 
@@ -447,7 +539,7 @@ export function recalculateSchedule(
 }
 
 /**
- * Filtra as tarefas visíveis, ocultando subtarefas aninhadas abaixo de tarefas-resumo recolhidas (collapsed).
+ * Filtra as tarefas visíveis, ocultando subtarefas aninhadas abaixo de Subprojetos recolhidos (collapsed).
  */
 export function getVisibleTasks(tasks: Task[]): Task[] {
   const visible: Task[] = [];
@@ -474,7 +566,7 @@ export function getVisibleTasks(tasks: Task[]): Task[] {
 }
 
 /**
- * Conta quantas subtarefas pertencem a uma tarefa-resumo específica.
+ * Conta quantas subtarefas pertencem a um Subprojeto específico.
  */
 export function getSubtreeTaskCount(tasks: Task[], summaryTaskId: string): number {
   const idx = tasks.findIndex((t) => t.id === summaryTaskId);

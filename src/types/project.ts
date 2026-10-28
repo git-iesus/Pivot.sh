@@ -29,7 +29,8 @@ export interface Task {
   predecessorText: string; // Ex: "1", "2TI", "3+2d"
   resourceNames: string[];
   outlineLevel: number; // 0 = raiz/projeto, 1 = fase, 2 = tarefa, 3 = subtarefa
-  isSummary: boolean;
+  isSummary: boolean; // true = classificado automaticamente como Subprojeto (possui subtarefas abaixo na EAP)
+  activeWeekDays?: number[]; // Calendário de dias ativos exclusivo do Subprojeto (0=Dom..6=Sáb)
   isMilestone: boolean;
   collapsed?: boolean;
   notes?: string;

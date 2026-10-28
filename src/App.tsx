@@ -19,6 +19,7 @@ import {
   parseISODate,
   getWorkDaysDifference,
   getVisibleTasks,
+  getEffectiveActiveWeekDays,
 } from './utils/scheduler';
 import { exportToXLSX, exportToCSV } from './utils/exportImport';
 import { Ribbon } from './components/Ribbon/Ribbon';
@@ -79,7 +80,7 @@ export const App: React.FC = () => {
     return saved ? JSON.parse(saved) : defaultResources;
   });
 
-  // Fonte Única da Verdade (Single Source of Truth) compartilhada entre Planilha e Gantt
+  // Fonte Única da Verdade (Single Source of Truth) compartilhada entre Planilha, Minha Semana e Gantt
   const scheduledTasks = useMemo(() => {
     const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
     const exceptions = metadata.exceptions || [];
@@ -253,21 +254,22 @@ export const App: React.FC = () => {
     saveToStorage(calculatedNext, resources, metadata);
   };
 
-  // Ações de Tarefas (centralizadas no motor de agendamento)
+  // Ações de Tarefas e Subprojetos (centralizadas no motor de agendamento)
   const handleUpdateTask = (taskId: string, updates: Partial<Task>) => {
     const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
     const exceptions = metadata.exceptions || [];
 
-    const updated = scheduledTasks.map((t) => {
+    const updated = scheduledTasks.map((t, idx) => {
       if (t.id !== taskId) return t;
       const merged = { ...t, ...updates };
 
-      // Se o usuário editou a Data de Término diretamente na planilha, sincroniza a Duração em dias úteis
+      // Se o usuário editou a Data de Término diretamente na planilha, sincroniza a Duração em dias úteis do respectivo Subprojeto
       if (updates.endDate && updates.durationDays === undefined && !t.isSummary) {
+        const taskActiveDays = getEffectiveActiveWeekDays(scheduledTasks, idx, activeDays);
         const start = parseISODate(merged.startDate);
         const end = parseISODate(updates.endDate);
         if (end >= start) {
-          const diffDays = getWorkDaysDifference(start, end, activeDays, exceptions);
+          const diffDays = getWorkDaysDifference(start, end, taskActiveDays, exceptions);
           merged.durationDays = t.isMilestone ? 0 : Math.max(1, diffDays);
         }
       }
@@ -286,18 +288,29 @@ export const App: React.FC = () => {
     const recalculated = recalculateSchedule(scheduledTasks, activeDays, newExceptions);
     setTasks(recalculated);
     saveToStorage(recalculated, resources, updatedMeta);
-    showToast('Cronograma atualizado com as Datas de Exceção!');
+    showToast('Cronograma atualizado com as Datas de Exceção Globais!');
   };
 
   const handleAddTask = () => {
     const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
     const exceptions = metadata.exceptions || [];
-    const now = toWorkDay(new Date(), activeDays, exceptions);
-    const startStr = toISODate(now);
-    const endStr = toISODate(addWorkDays(now, 1, activeDays, exceptions));
-
     const selectedIndex = scheduledTasks.findIndex((t) => t.id === selectedTaskId);
-    const parentLevel = selectedIndex >= 0 ? scheduledTasks[selectedIndex].outlineLevel : 0;
+
+    const effectiveDays =
+      selectedIndex >= 0
+        ? getEffectiveActiveWeekDays(scheduledTasks, selectedIndex, activeDays)
+        : activeDays;
+
+    const now = toWorkDay(new Date(), effectiveDays, exceptions);
+    const startStr = toISODate(now);
+    const endStr = toISODate(addWorkDays(now, 1, effectiveDays, exceptions));
+
+    const parentLevel =
+      selectedIndex >= 0
+        ? scheduledTasks[selectedIndex].isSummary
+          ? Math.min(5, scheduledTasks[selectedIndex].outlineLevel + 1)
+          : scheduledTasks[selectedIndex].outlineLevel
+        : 0;
 
     const newTask: Task = {
       id: `task_${Date.now()}`,
@@ -362,14 +375,15 @@ export const App: React.FC = () => {
     const exceptions = metadata.exceptions || [];
     const today = toWorkDay(new Date(), activeDays, exceptions);
     const dateStr = toISODate(today);
+    const nowTs = Date.now();
 
-    const newTask: Task = {
-      id: `sum_${Date.now()}`,
+    const subprojectTask: Task = {
+      id: `subproj_${nowTs}`,
       wbsIndex: '',
-      name: 'Nova Fase / Tarefa Resumo',
-      durationDays: 5,
+      name: 'Novo Subprojeto',
+      durationDays: 1,
       startDate: dateStr,
-      endDate: toISODate(addWorkDays(today, 5, activeDays, exceptions)),
+      endDate: dateStr,
       progress: 0,
       mode: 'auto',
       predecessorText: '',
@@ -379,8 +393,26 @@ export const App: React.FC = () => {
       isMilestone: false,
       cost: 0,
     };
-    pushTaskState([...scheduledTasks, newTask]);
-    setSelectedTaskId(newTask.id);
+
+    const initialChildTask: Task = {
+      id: `task_${nowTs + 1}`,
+      wbsIndex: '',
+      name: 'Primeira Tarefa do Subprojeto',
+      durationDays: 2,
+      startDate: dateStr,
+      endDate: toISODate(addWorkDays(today, 2, activeDays, exceptions)),
+      progress: 0,
+      mode: defaultTaskMode,
+      predecessorText: '',
+      resourceNames: [],
+      outlineLevel: 1,
+      isSummary: false,
+      isMilestone: false,
+      cost: 0,
+    };
+
+    pushTaskState([...scheduledTasks, subprojectTask, initialChildTask]);
+    setSelectedTaskId(subprojectTask.id);
   };
 
   // Seleção Múltipla com suporte a Shift-Click em sequência (Intervalo)
@@ -439,7 +471,7 @@ export const App: React.FC = () => {
       if (selectedTaskId && toRemove.has(selectedTaskId)) {
         setSelectedTaskId(null);
       }
-      showToast(`${count} ${count === 1 ? 'tarefa excluída' : 'tarefas excluídas'} com sucesso!`);
+      showToast(`${count} ${count === 1 ? 'item excluído' : 'itens excluídos'} com sucesso!`);
       return;
     }
     if (!selectedTaskId) return;
@@ -500,10 +532,10 @@ export const App: React.FC = () => {
     if (checkedTaskIds.length > 0) {
       const targetIds = new Set(checkedTaskIds);
       const updated = scheduledTasks.map((t) =>
-        targetIds.has(t.id) ? { ...t, progress } : t
+        targetIds.has(t.id) && !t.isSummary ? { ...t, progress } : t
       );
       pushTaskState(updated);
-      showToast(`Progresso atualizado (${progress}%) em ${targetIds.size} tarefa(s)!`);
+      showToast(`Progresso atualizado (${progress}%) nas tarefas selecionadas!`);
       return;
     }
     if (!selectedTaskId) return;
@@ -599,21 +631,18 @@ export const App: React.FC = () => {
   };
 
   // Atualizador do Plugin NEXO com Auto-Save
-  const handleUpdateNexoState = useCallback(
-    (next: NexoProjectState) => {
-      setSaveStatus('saving');
-      setNexoState(next);
-      localStorage.setItem('ms_project_nexo', JSON.stringify(next));
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(() => {
-        setSaveStatus('saved');
-        const now = new Date();
-        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        setLastSavedTime(timeStr);
-      }, 350);
-    },
-    []
-  );
+  const handleUpdateNexoState = useCallback((next: NexoProjectState) => {
+    setSaveStatus('saving');
+    setNexoState(next);
+    localStorage.setItem('ms_project_nexo', JSON.stringify(next));
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setSaveStatus('saved');
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      setLastSavedTime(timeStr);
+    }, 350);
+  }, []);
 
   const handleStartNewNexoProject = useCallback(() => {
     handleUpdateNexoState({
@@ -656,7 +685,7 @@ export const App: React.FC = () => {
     [handleUpdateNexoState, nexoState]
   );
 
-  // Sincroniza os Milestones da Arquitetura Nexo para a Planilha / Gráfico de Gantt
+  // Sincroniza os Milestones da Arquitetura Nexo para a Planilha / Gráfico de Gantt como um Subprojeto
   const handleSyncNexoToGantt = useCallback(
     (stateToSync?: NexoProjectState) => {
       const targetState = stateToSync || nexoState;
@@ -668,7 +697,7 @@ export const App: React.FC = () => {
       const exceptions = metadata.exceptions || [];
       const today = toWorkDay(new Date(), activeDays, exceptions);
 
-      // Cria uma tarefa resumo com o Ponto B + subtarefas encadeadas na ordem cronológica A → B
+      // Cria um Subprojeto com o Ponto B + subtarefas encadeadas na ordem cronológica A → B
       const summaryId = `nexo_sum_${Date.now()}`;
       const summaryTask: Task = {
         id: summaryId,
@@ -835,6 +864,7 @@ export const App: React.FC = () => {
               <TaskSheet
                 tasks={scheduledTasks}
                 resources={resources}
+                activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
                 selectedTaskId={selectedTaskId}
                 checkedTaskIds={checkedTaskIds}
                 onSelectTask={setSelectedTaskId}
@@ -888,6 +918,7 @@ export const App: React.FC = () => {
               <TaskSheet
                 tasks={scheduledTasks}
                 resources={resources}
+                activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
                 selectedTaskId={selectedTaskId}
                 checkedTaskIds={checkedTaskIds}
                 onSelectTask={setSelectedTaskId}
@@ -933,6 +964,7 @@ export const App: React.FC = () => {
             <TaskSheet
               tasks={scheduledTasks}
               resources={resources}
+              activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
               selectedTaskId={selectedTaskId}
               checkedTaskIds={checkedTaskIds}
               onSelectTask={setSelectedTaskId}
@@ -1012,6 +1044,7 @@ export const App: React.FC = () => {
         isOpen={isProjectInfoModalOpen}
         onClose={() => setIsProjectInfoModalOpen(false)}
         metadata={metadata}
+        tasks={scheduledTasks}
         onUpdateMetadata={(updated) => {
           const mergedMeta: ProjectMetadata = {
             ...updated,
@@ -1019,9 +1052,23 @@ export const App: React.FC = () => {
           };
           setMetadata(mergedMeta);
           const activeDays = mergedMeta.activeWeekDays || [1, 2, 3, 4, 5];
-          const recalculated = recalculateSchedule(scheduledTasks, activeDays, mergedMeta.exceptions || []);
+          const recalculated = recalculateSchedule(
+            scheduledTasks,
+            activeDays,
+            mergedMeta.exceptions || []
+          );
           setTasks(recalculated);
           saveToStorage(recalculated, resources, mergedMeta);
+        }}
+        onUpdateSubprojectCalendars={(subCalendars) => {
+          const updatedTasks = scheduledTasks.map((t) => {
+            if (!t.isSummary) return t;
+            if (Object.prototype.hasOwnProperty.call(subCalendars, t.id)) {
+              return { ...t, activeWeekDays: subCalendars[t.id] };
+            }
+            return t;
+          });
+          pushTaskState(updatedTasks);
         }}
       />
 
@@ -1035,6 +1082,8 @@ export const App: React.FC = () => {
 
       <TaskDetailModal
         task={scheduledTasks.find((t) => t.id === selectedDetailTaskId) || null}
+        tasks={scheduledTasks}
+        projectActiveWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
         isOpen={selectedDetailTaskId !== null}
         onClose={() => setSelectedDetailTaskId(null)}
         onUpdateTask={handleUpdateTask}

@@ -1,15 +1,15 @@
 import React from 'react';
-import { 
-  FileText, 
-  FolderOpen, 
-  Save, 
-  Download, 
-  Info, 
+import {
+  FileText,
+  FolderOpen,
+  Save,
+  Download,
+  Info,
   ArrowLeft,
   Calendar,
   CheckCircle2,
   Users,
-  DollarSign
+  DollarSign,
 } from 'lucide-react';
 import { ProjectMetadata, Task, Resource } from '../../types/project';
 
@@ -51,24 +51,25 @@ export const Backstage: React.FC<BackstageProps> = ({
   onExportCSV,
   onExportJSON,
   onImportJSON,
-  onOpenProjectInfo
+  onOpenProjectInfo,
 }) => {
   if (!isOpen) return null;
 
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.progress === 100).length;
-  const criticalTasks = tasks.filter(t => t.isCritical).length;
+  const subprojectsCount = tasks.filter((t) => t.isSummary).length;
+  const executableTasks = tasks.filter((t) => !t.isSummary);
+  const totalTasks = executableTasks.length;
+  const completedTasks = executableTasks.filter((t) => t.progress === 100).length;
+  const criticalTasks = executableTasks.filter((t) => t.isCritical).length;
 
   // Calcular data de término previsto (max endDate de todas as tarefas)
-  const projectEndDate = tasks.length > 0
-    ? tasks.reduce((max, t) => (t.endDate > max ? t.endDate : max), tasks[0].endDate)
-    : '—';
+  const projectEndDate =
+    tasks.length > 0
+      ? tasks.reduce((max, t) => (t.endDate > max ? t.endDate : max), tasks[0].endDate)
+      : '—';
 
-  // Soma total de custos simples (tarefas não-resumo para evitar dupla contagem)
-  const totalProjectCost = tasks
-    .filter((t) => !t.isSummary)
-    .reduce((sum, t) => sum + (t.cost || 0), 0);
-  const tasksWithCost = tasks.filter((t) => !t.isSummary && (t.cost || 0) > 0).length;
+  // Soma total de custos simples (apenas tarefas executáveis para evitar dupla contagem com Subprojetos)
+  const totalProjectCost = executableTasks.reduce((sum, t) => sum + (t.cost || 0), 0);
+  const tasksWithCost = executableTasks.filter((t) => (t.cost || 0) > 0).length;
 
   return (
     <div className="backstage-overlay">
@@ -149,16 +150,22 @@ export const Backstage: React.FC<BackstageProps> = ({
           <div className="backstage-card">
             <div className="card-header">
               <CheckCircle2 size={20} className="card-icon" />
-              <h3>Status das Tarefas</h3>
+              <h3>Subprojetos &amp; Tarefas</h3>
             </div>
             <div className="card-body">
               <div className="info-row">
-                <span className="label">Total de Tarefas:</span>
+                <span className="label">Subprojetos (EAP):</span>
+                <span className="value">{subprojectsCount}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">Tarefas Executáveis:</span>
                 <span className="value">{totalTasks}</span>
               </div>
               <div className="info-row">
                 <span className="label">Tarefas Concluídas:</span>
-                <span className="value">{completedTasks} ({totalTasks ? Math.round((completedTasks/totalTasks)*100) : 0}%)</span>
+                <span className="value">
+                  {completedTasks} ({totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0}%)
+                </span>
               </div>
               <div className="info-row">
                 <span className="label">Tarefas no Caminho Crítico:</span>
@@ -179,7 +186,9 @@ export const Backstage: React.FC<BackstageProps> = ({
               </div>
               <div className="info-row">
                 <span className="label">Moeda Padrão:</span>
-                <span className="value">{metadata.currency === 'BRL' ? 'R$ (Real Brasileiro)' : metadata.currency}</span>
+                <span className="value">
+                  {metadata.currency === 'BRL' ? 'R$ (Real Brasileiro)' : metadata.currency}
+                </span>
               </div>
             </div>
           </div>
@@ -198,7 +207,9 @@ export const Backstage: React.FC<BackstageProps> = ({
               </div>
               <div className="info-row">
                 <span className="label">Tarefas com Custo:</span>
-                <span className="value">{tasksWithCost} de {totalTasks}</span>
+                <span className="value">
+                  {tasksWithCost} de {totalTasks}
+                </span>
               </div>
             </div>
           </div>

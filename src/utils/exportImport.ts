@@ -33,7 +33,7 @@ function getTaskRows(tasks: Task[]): (string | number)[][] {
     t.resourceNames.join('; '),
     t.cost || 0,
     `${t.progress}%`,
-    t.isMilestone ? 'Marco' : t.isSummary ? 'Resumo' : 'Tarefa',
+    t.isMilestone ? 'Marco' : t.isSummary ? 'Subprojeto' : 'Tarefa',
     t.isCritical ? 'Sim' : 'Não',
   ]);
 }

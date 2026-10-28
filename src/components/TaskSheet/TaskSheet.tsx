@@ -1,14 +1,11 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { 
-  Task, 
-  Resource 
-} from '../../types/project';
-import { 
-  ChevronRight, 
-  ChevronDown, 
-  Clock, 
-  Calendar, 
-  Flag, 
+import { Task, Resource } from '../../types/project';
+import {
+  ChevronRight,
+  ChevronDown,
+  Clock,
+  Calendar,
+  Flag,
   CheckCircle,
   Plus,
   ListTodo,
@@ -16,13 +13,21 @@ import {
   Indent,
   Outdent,
   X,
-  CheckSquare
+  CheckSquare,
+  Layers,
 } from 'lucide-react';
-import { formatDatePTBR, getVisibleTasks, getSubtreeTaskCount } from '../../utils/scheduler';
+import {
+  formatDatePTBR,
+  getVisibleTasks,
+  getSubtreeTaskCount,
+  getEffectiveActiveWeekDays,
+  formatActiveWeekDaysShort,
+} from '../../utils/scheduler';
 
 interface TaskSheetProps {
   tasks: Task[];
   resources: Resource[];
+  activeWeekDays?: number[];
   selectedTaskId: string | null;
   checkedTaskIds?: string[];
   onSelectTask: (taskId: string) => void;
@@ -68,11 +73,17 @@ interface ColumnDef {
 }
 
 const COLUMNS: ColumnDef[] = [
-  { key: 'select', label: '', title: 'Selecionar tarefas (Segure Shift + Clique para selecionar um intervalo em sequência)', minWidth: 30, className: 'col-select' },
+  {
+    key: 'select',
+    label: '',
+    title: 'Selecionar tarefas (Segure Shift + Clique para selecionar um intervalo em sequência)',
+    minWidth: 30,
+    className: 'col-select',
+  },
   { key: 'id', label: 'ID', minWidth: 32, className: 'col-id' },
   { key: 'info', label: 'i', title: 'Indicadores', minWidth: 22, className: 'col-info' },
-  { key: 'mode', label: 'Modo', title: 'Modo da Tarefa', minWidth: 40, className: 'col-mode' },
-  { key: 'name', label: 'Nome da Tarefa', minWidth: 160, className: 'col-name' },
+  { key: 'mode', label: 'Modo', title: 'Modo da Tarefa / Subprojeto', minWidth: 40, className: 'col-mode' },
+  { key: 'name', label: 'Nome da Tarefa / Subprojeto', minWidth: 160, className: 'col-name' },
   { key: 'duration', label: 'Duração', minWidth: 65, className: 'col-duration' },
   { key: 'startDate', label: 'Início', minWidth: 80, className: 'col-date' },
   { key: 'endDate', label: 'Término', minWidth: 80, className: 'col-date' },
@@ -87,7 +98,7 @@ const DEFAULT_COL_WIDTHS: ColumnWidths = {
   id: 38,
   info: 24,
   mode: 46,
-  name: 330,
+  name: 350,
   duration: 75,
   startDate: 92,
   endDate: 92,
@@ -99,6 +110,7 @@ const DEFAULT_COL_WIDTHS: ColumnWidths = {
 
 export const TaskSheet: React.FC<TaskSheetProps> = ({
   tasks,
+  activeWeekDays = [1, 2, 3, 4, 5],
   selectedTaskId,
   checkedTaskIds = [],
   onSelectTask,
@@ -116,11 +128,18 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
   rowHeights,
   onUpdateRowHeight,
   onScroll,
-  scrollRef
+  scrollRef,
 }) => {
   const [editingCell, setEditingCell] = useState<{ taskId: string; field: keyof Task } | null>(null);
 
-  // Filtra apenas as tarefas visíveis (ocultando subtarefas abaixo de tarefas-resumo recolhidas)
+  // Mapa rápido de ID -> índice na lista completa de tasks
+  const taskIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    tasks.forEach((t, idx) => map.set(t.id, idx));
+    return map;
+  }, [tasks]);
+
+  // Filtra apenas as tarefas visíveis (ocultando subtarefas abaixo de Subprojetos recolhidos)
   const visibleTasks = useMemo(() => getVisibleTasks(tasks), [tasks]);
   const checkedSet = useMemo(() => new Set(checkedTaskIds), [checkedTaskIds]);
   const allVisibleChecked =
@@ -276,7 +295,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                 type="button"
                 className="bulk-action-btn"
                 onClick={onBulkIndentTasks}
-                title="Recuar tarefas selecionadas (transformar em subtarefas)"
+                title="Recuar tarefas selecionadas (transformar em subtarefas de um Subprojeto)"
               >
                 <Indent size={13} />
                 <span>Recuar</span>
@@ -321,23 +340,15 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
         </div>
       )}
 
-      {/* Container Rolável Único: o cabeçalho e as linhas compartilham o mesmo scroll horizontal, eliminando qualquer desalinhamento */}
-      <div 
-        className="task-sheet-body" 
-        ref={scrollRef} 
-        onScroll={onScroll}
-      >
+      {/* Container Rolável Único: o cabeçalho e as linhas compartilham o mesmo scroll horizontal */}
+      <div className="task-sheet-body" ref={scrollRef} onScroll={onScroll}>
         {/* Cabeçalho da Tabela - Fixo no topo e redimensionável por coluna */}
-        <div 
+        <div
           className="task-sheet-header"
           style={{ width: `${totalRowWidth}px`, gridTemplateColumns }}
         >
           {COLUMNS.map((col) => (
-            <div 
-              key={col.key} 
-              className={`sheet-col ${col.className}`}
-              title={col.title}
-            >
+            <div key={col.key} className={`sheet-col ${col.className}`} title={col.title}>
               {col.key === 'select' ? (
                 <input
                   type="checkbox"
@@ -354,15 +365,19 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                       onSelectAllTasks(visibleTasks.map((t) => t.id));
                     }
                   }}
-                  title={allVisibleChecked ? 'Desmarcar todas as tarefas visíveis' : 'Selecionar todas as tarefas visíveis'}
+                  title={
+                    allVisibleChecked
+                      ? 'Desmarcar todas as tarefas visíveis'
+                      : 'Selecionar todas as tarefas visíveis'
+                  }
                 />
               ) : (
                 <span className="col-header-text">{col.label}</span>
               )}
               {/* Alça de redimensionamento estilo Excel */}
               {col.key !== 'select' && (
-                <div 
-                  className="col-resizer" 
+                <div
+                  className="col-resizer"
                   onMouseDown={(e) => handleMouseDownResize(col.key, e)}
                   title="Arraste para redimensionar a coluna (como no Excel)"
                 />
@@ -371,7 +386,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
           ))}
         </div>
 
-        {/* Linhas de Tarefas Visíveis (respeitando tarefas-resumo recolhidas) */}
+        {/* Linhas de Tarefas e Subprojetos Visíveis */}
         {visibleTasks.map((task, index) => {
           const isSelected = selectedTaskId === task.id;
           const isChecked = checkedSet.has(task.id);
@@ -383,11 +398,24 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
           const hiddenSubtaskCount =
             task.isSummary && task.collapsed ? getSubtreeTaskCount(tasks, task.id) : 0;
 
+          const fullTaskIdx = taskIndexMap.get(task.id) ?? index;
+          const effectiveActiveDays = task.isSummary
+            ? getEffectiveActiveWeekDays(tasks, fullTaskIdx, activeWeekDays)
+            : activeWeekDays;
+          const hasCustomSubprojectCalendar = Boolean(
+            task.isSummary && task.activeWeekDays && task.activeWeekDays.length > 0
+          );
+
           return (
             <div
               key={task.id}
-              className={`sheet-row ${isSelected ? 'selected' : ''} ${isChecked ? 'multi-selected' : ''} ${task.isSummary ? 'summary-row' : ''} ${task.isCritical ? 'critical-row' : ''} ${task.progress === 100 ? 'completed-row' : ''}`}
-              style={{ width: `${totalRowWidth}px`, gridTemplateColumns, height: `${rowHeight}px`, minHeight: `${rowHeight}px` }}
+              className={`sheet-row ${isSelected ? 'selected' : ''} ${isChecked ? 'multi-selected' : ''} ${task.isSummary ? 'summary-row subproject-row' : ''} ${task.isCritical ? 'critical-row' : ''} ${task.progress === 100 ? 'completed-row' : ''}`}
+              style={{
+                width: `${totalRowWidth}px`,
+                gridTemplateColumns,
+                height: `${rowHeight}px`,
+                minHeight: `${rowHeight}px`,
+              }}
               onClick={(e) => {
                 if (e.shiftKey && onToggleCheckTask) {
                   onToggleCheckTask(task.id, true);
@@ -418,7 +446,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
               {/* ID com alça de redimensionamento estilo Excel */}
               <div className="sheet-cell col-id">
                 <span>{displayRowNum}</span>
-                <div 
+                <div
                   className="row-resizer"
                   onMouseDown={(e) => handleMouseDownRowResize(task.id, e)}
                   onDoubleClick={(e) => {
@@ -431,35 +459,57 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
 
               {/* Indicadores */}
               <div className="sheet-cell col-info">
-                {task.progress === 100 && (
+                {task.progress === 100 ? (
                   <span title="Concluída (100%)" style={{ display: 'inline-flex' }}>
                     <CheckCircle size={14} className="task-indicator-done" />
                   </span>
-                )}
+                ) : task.isSummary ? (
+                  <span
+                    title="Classificado automaticamente como Subprojeto (possui subtarefas vinculadas)"
+                    style={{ display: 'inline-flex' }}
+                  >
+                    <Layers size={13} className="subproject-indicator-icon" />
+                  </span>
+                ) : null}
                 {task.isMilestone && <Flag size={13} className="text-accent" />}
               </div>
 
               {/* Modo */}
-              <div className="sheet-cell col-mode" title={task.mode === 'auto' ? 'Agendamento Automático' : 'Agendado Manualmente'}>
-                {task.mode === 'auto' ? (
+              <div
+                className="sheet-cell col-mode"
+                title={
+                  task.isSummary
+                    ? `Subprojeto — Dias ativos: ${formatActiveWeekDaysShort(effectiveActiveDays)}`
+                    : task.mode === 'auto'
+                      ? 'Agendamento Automático'
+                      : 'Agendado Manualmente'
+                }
+              >
+                {task.isSummary ? (
+                  <Layers size={14} className="mode-icon subproject" />
+                ) : task.mode === 'auto' ? (
                   <Clock size={14} className="mode-icon auto" />
                 ) : (
                   <Calendar size={14} className="mode-icon manual" />
                 )}
               </div>
 
-              {/* Nome da Tarefa com recuo EAP, Botão Collapse/Expand e Badge de sub-tarefas */}
-              <div 
+              {/* Nome da Tarefa / Subprojeto com recuo EAP, Botão Collapse/Expand, Tag Subprojeto e Calendário */}
+              <div
                 className="sheet-cell col-name"
                 style={{ paddingLeft: `${8 + task.outlineLevel * 18}px` }}
                 onDoubleClick={() => setEditingCell({ taskId: task.id, field: 'name' })}
               >
                 {task.isSummary && (
-                  <button 
+                  <button
                     type="button"
                     className={`collapse-btn ${task.collapsed ? 'is-collapsed' : 'is-expanded'}`}
                     aria-expanded={!task.collapsed}
-                    title={task.collapsed ? 'Expandir subtarefas ocultas' : 'Recolher (ocultar) subtarefas abaixo'}
+                    title={
+                      task.collapsed
+                        ? 'Expandir subtarefas do Subprojeto'
+                        : 'Recolher (ocultar) subtarefas do Subprojeto'
+                    }
                     onClick={(e) => {
                       e.stopPropagation();
                       onToggleCollapse(task.id);
@@ -486,14 +536,45 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     }}
                   />
                 ) : (
-                  <div 
+                  <div
                     className="task-name-content"
-                    onClick={(e) => { e.stopPropagation(); onOpenTaskDetail(task.id); }}
-                    title="Clique para abrir detalhes e checklist"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenTaskDetail(task.id);
+                    }}
+                    title={
+                      task.isSummary
+                        ? 'Clique para configurar os dias úteis/ativos e detalhes deste Subprojeto'
+                        : 'Clique para abrir detalhes e checklist'
+                    }
                   >
-                    <span className={`task-name-text ${task.isSummary ? 'font-bold' : ''} ${task.progress === 100 ? 'completed-text' : ''}`}>
+                    {task.isSummary && (
+                      <span
+                        className="subproject-classification-badge"
+                        title="Classificado automaticamente como Subprojeto por possuir subtarefas vinculadas na EAP"
+                      >
+                        Subprojeto
+                      </span>
+                    )}
+                    <span
+                      className={`task-name-text ${task.isSummary ? 'font-bold subproject-title-text' : ''} ${task.progress === 100 ? 'completed-text' : ''}`}
+                    >
                       {task.name}
                     </span>
+                    {task.isSummary && (
+                      <button
+                        type="button"
+                        className={`subproject-calendar-pill ${hasCustomSubprojectCalendar ? 'custom' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenTaskDetail(task.id);
+                        }}
+                        title={`Dias ativos deste Subprojeto: ${formatActiveWeekDaysShort(effectiveActiveDays)} — Clique para configurar o calendário individual`}
+                      >
+                        <Calendar size={10} />
+                        <span>{formatActiveWeekDaysShort(effectiveActiveDays)}</span>
+                      </button>
+                    )}
                     {hiddenSubtaskCount > 0 && (
                       <span
                         className="collapsed-subtasks-pill"
@@ -506,13 +587,15 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                         +{hiddenSubtaskCount} {hiddenSubtaskCount === 1 ? 'oculta' : 'ocultas'}
                       </span>
                     )}
-                    {task.subTasks && task.subTasks.length > 0 && (
-                      <span 
-                        className="subtask-pill-badge" 
-                        title={`${task.subTasks.filter(s => s.done).length} de ${task.subTasks.length} sub-tarefas concluídas`}
+                    {!task.isSummary && task.subTasks && task.subTasks.length > 0 && (
+                      <span
+                        className="subtask-pill-badge"
+                        title={`${task.subTasks.filter((s) => s.done).length} de ${task.subTasks.length} sub-tarefas concluídas`}
                       >
                         <ListTodo size={11} className="subtask-pill-icon" />
-                        <span>{task.subTasks.filter(s => s.done).length}/{task.subTasks.length}</span>
+                        <span>
+                          {task.subTasks.filter((s) => s.done).length}/{task.subTasks.length}
+                        </span>
                       </span>
                     )}
                   </div>
@@ -520,9 +603,11 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
               </div>
 
               {/* Duração */}
-              <div 
+              <div
                 className="sheet-cell col-duration text-right"
-                onDoubleClick={() => !task.isSummary && setEditingCell({ taskId: task.id, field: 'durationDays' })}
+                onDoubleClick={() =>
+                  !task.isSummary && setEditingCell({ taskId: task.id, field: 'durationDays' })
+                }
               >
                 {isEditing('durationDays') ? (
                   <input
@@ -543,15 +628,19 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                   />
                 ) : (
                   <span>
-                    {task.isMilestone ? '0 dias' : `${task.durationDays} ${task.durationDays === 1 ? 'dia' : 'dias'}`}
+                    {task.isMilestone
+                      ? '0 dias'
+                      : `${task.durationDays} ${task.durationDays === 1 ? 'dia' : 'dias'}`}
                   </span>
                 )}
               </div>
 
               {/* Data Início */}
-              <div 
+              <div
                 className="sheet-cell col-date"
-                onDoubleClick={() => !task.isSummary && setEditingCell({ taskId: task.id, field: 'startDate' })}
+                onDoubleClick={() =>
+                  !task.isSummary && setEditingCell({ taskId: task.id, field: 'startDate' })
+                }
               >
                 {isEditing('startDate') ? (
                   <input
@@ -579,9 +668,11 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
               </div>
 
               {/* Data Término */}
-              <div 
+              <div
                 className="sheet-cell col-date"
-                onDoubleClick={() => !task.isSummary && setEditingCell({ taskId: task.id, field: 'endDate' })}
+                onDoubleClick={() =>
+                  !task.isSummary && setEditingCell({ taskId: task.id, field: 'endDate' })
+                }
               >
                 {isEditing('endDate') ? (
                   <input
@@ -609,9 +700,11 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
               </div>
 
               {/* Predecessoras */}
-              <div 
+              <div
                 className="sheet-cell col-pred"
-                onDoubleClick={() => !task.isSummary && setEditingCell({ taskId: task.id, field: 'predecessorText' })}
+                onDoubleClick={() =>
+                  !task.isSummary && setEditingCell({ taskId: task.id, field: 'predecessorText' })
+                }
               >
                 {isEditing('predecessorText') ? (
                   <input
@@ -626,7 +719,9 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                        onUpdateTask(task.id, { predecessorText: (e.target as HTMLInputElement).value });
+                        onUpdateTask(task.id, {
+                          predecessorText: (e.target as HTMLInputElement).value,
+                        });
                         handleCellBlur();
                       }
                     }}
@@ -637,9 +732,11 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
               </div>
 
               {/* Recursos */}
-              <div 
+              <div
                 className="sheet-cell col-res"
-                onDoubleClick={() => !task.isSummary && setEditingCell({ taskId: task.id, field: 'resourceNames' })}
+                onDoubleClick={() =>
+                  !task.isSummary && setEditingCell({ taskId: task.id, field: 'resourceNames' })
+                }
               >
                 {isEditing('resourceNames') ? (
                   <input
@@ -649,7 +746,10 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     placeholder="Recursos separados por ;"
                     autoFocus
                     onBlur={(e) => {
-                      const resList = e.target.value.split(';').map(s => s.trim()).filter(Boolean);
+                      const resList = e.target.value
+                        .split(';')
+                        .map((s) => s.trim())
+                        .filter(Boolean);
                       onUpdateTask(task.id, { resourceNames: resList });
                       handleCellBlur();
                     }}
@@ -662,9 +762,11 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
               </div>
 
               {/* Custo */}
-              <div 
+              <div
                 className="sheet-cell col-cost text-right"
-                onDoubleClick={() => !task.isSummary && setEditingCell({ taskId: task.id, field: 'cost' })}
+                onDoubleClick={() =>
+                  !task.isSummary && setEditingCell({ taskId: task.id, field: 'cost' })
+                }
               >
                 {isEditing('cost') ? (
                   <input
@@ -681,7 +783,10 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                        const val = Math.max(0, parseFloat((e.target as HTMLInputElement).value) || 0);
+                        const val = Math.max(
+                          0,
+                          parseFloat((e.target as HTMLInputElement).value) || 0
+                        );
                         onUpdateTask(task.id, { cost: val });
                         handleCellBlur();
                       }
@@ -689,15 +794,20 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                   />
                 ) : (
                   <span>
-                    {(task.cost ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    {(task.cost ?? 0).toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })}
                   </span>
                 )}
               </div>
 
               {/* % Concluída */}
-              <div 
+              <div
                 className="sheet-cell col-progress"
-                onDoubleClick={() => setEditingCell({ taskId: task.id, field: 'progress' })}
+                onDoubleClick={() =>
+                  !task.isSummary && setEditingCell({ taskId: task.id, field: 'progress' })
+                }
               >
                 {isEditing('progress') ? (
                   <input
@@ -708,14 +818,20 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     defaultValue={task.progress}
                     autoFocus
                     onBlur={(e) => {
-                      const val = Math.min(100, Math.max(0, parseInt(e.target.value, 10) || 0));
+                      const val = Math.min(
+                        100,
+                        Math.max(0, parseInt(e.target.value, 10) || 0)
+                      );
                       onUpdateTask(task.id, { progress: val });
                       handleCellBlur();
                     }}
                   />
                 ) : (
                   <div className="progress-cell-wrapper">
-                    <div className="progress-mini-bar" style={{ width: `${task.progress}%` }}></div>
+                    <div
+                      className="progress-mini-bar"
+                      style={{ width: `${task.progress}%` }}
+                    ></div>
                     <span className="progress-text">{task.progress}%</span>
                   </div>
                 )}
@@ -725,8 +841,8 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
         })}
 
         {/* Linha para Adicionar Nova Tarefa */}
-        <div 
-          className="sheet-row add-row" 
+        <div
+          className="sheet-row add-row"
           style={{ width: `${totalRowWidth}px`, gridTemplateColumns }}
           onClick={onAddTask}
         >

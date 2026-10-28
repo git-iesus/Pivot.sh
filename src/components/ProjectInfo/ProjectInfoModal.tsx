@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { ProjectMetadata } from '../../types/project';
-import { X, Calendar, Check, Ban, Clock, RotateCcw } from 'lucide-react';
+import { ProjectMetadata, Task } from '../../types/project';
+import { X, Calendar, Check, Ban, Clock, Layers } from 'lucide-react';
+import { formatActiveWeekDaysShort } from '../../utils/scheduler';
 
 interface ProjectInfoModalProps {
   isOpen: boolean;
   onClose: () => void;
   metadata: ProjectMetadata;
+  tasks?: Task[];
   onUpdateMetadata: (metadata: ProjectMetadata) => void;
+  onUpdateSubprojectCalendars?: (subprojectCalendars: Record<string, number[] | undefined>) => void;
 }
 
 const WEEK_DAYS = [
@@ -23,16 +26,28 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
   isOpen,
   onClose,
   metadata,
+  tasks = [],
   onUpdateMetadata,
+  onUpdateSubprojectCalendars,
 }) => {
   const [data, setData] = useState<ProjectMetadata>(metadata);
+  const [subCalendars, setSubCalendars] = useState<Record<string, number[] | undefined>>({});
+
+  const subprojects = tasks.filter((t) => t.isSummary);
 
   useEffect(() => {
     setData({
       ...metadata,
       activeWeekDays: metadata.activeWeekDays || [1, 2, 3, 4, 5],
     });
-  }, [metadata, isOpen]);
+    const map: Record<string, number[] | undefined> = {};
+    tasks.forEach((t) => {
+      if (t.isSummary) {
+        map[t.id] = t.activeWeekDays && t.activeWeekDays.length > 0 ? [...t.activeWeekDays] : undefined;
+      }
+    });
+    setSubCalendars(map);
+  }, [metadata, tasks, isOpen]);
 
   if (!isOpen) return null;
 
@@ -66,12 +81,18 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
     });
   };
 
-  const handleApplyPreset = (preset: 'standard' | 'commercial' | 'continuous') => {
+  const handleApplyPreset = (preset: 'standard' | 'tue-sat' | 'commercial' | 'continuous') => {
     if (preset === 'standard') {
       setData({
         ...data,
         calendar: 'Padrão (Seg-Sex)',
         activeWeekDays: [1, 2, 3, 4, 5],
+      });
+    } else if (preset === 'tue-sat') {
+      setData({
+        ...data,
+        calendar: 'Terça a Sábado (Ter-Sáb)',
+        activeWeekDays: [2, 3, 4, 5, 6],
       });
     } else if (preset === 'commercial') {
       setData({
@@ -88,8 +109,43 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
     }
   };
 
+  const handleToggleSubprojectDay = (subId: string, dayIndex: number) => {
+    const current = subCalendars[subId] || currentActive;
+    let nextActive: number[];
+    if (current.includes(dayIndex)) {
+      if (current.length === 1) {
+        alert('O Subprojeto precisa ter pelo menos 1 dia de atividade na semana.');
+        return;
+      }
+      nextActive = current.filter((d) => d !== dayIndex);
+    } else {
+      nextActive = [...current, dayIndex].sort((a, b) => a - b);
+    }
+    setSubCalendars((prev) => ({ ...prev, [subId]: nextActive }));
+  };
+
+  const handleSubprojectPreset = (
+    subId: string,
+    preset: 'inherit' | 'mon-fri' | 'tue-sat' | 'mon-sat' | 'all-7'
+  ) => {
+    if (preset === 'inherit') {
+      setSubCalendars((prev) => ({ ...prev, [subId]: undefined }));
+    } else if (preset === 'mon-fri') {
+      setSubCalendars((prev) => ({ ...prev, [subId]: [1, 2, 3, 4, 5] }));
+    } else if (preset === 'tue-sat') {
+      setSubCalendars((prev) => ({ ...prev, [subId]: [2, 3, 4, 5, 6] }));
+    } else if (preset === 'mon-sat') {
+      setSubCalendars((prev) => ({ ...prev, [subId]: [1, 2, 3, 4, 5, 6] }));
+    } else if (preset === 'all-7') {
+      setSubCalendars((prev) => ({ ...prev, [subId]: [0, 1, 2, 3, 4, 5, 6] }));
+    }
+  };
+
   const handleSave = () => {
     onUpdateMetadata(data);
+    if (onUpdateSubprojectCalendars) {
+      onUpdateSubprojectCalendars(subCalendars);
+    }
     onClose();
   };
 
@@ -102,7 +158,7 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
         <div className="modal-titlebar">
           <div className="title-with-icon">
             <Calendar size={18} />
-            <span>Informações sobre o Projeto & Calendário Base</span>
+            <span>Informações sobre o Projeto &amp; Calendários de Subprojetos</span>
           </div>
           <button className="close-btn" onClick={onClose} title="Fechar">
             <X size={16} />
@@ -112,7 +168,7 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
         <div className="modal-form-content">
           {/* Dados Gerais do Projeto */}
           <div className="form-group">
-            <label>Título do Projeto:</label>
+            <label>Título do Projeto (Nível Macro):</label>
             <input
               type="text"
               className="office-input"
@@ -120,7 +176,6 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
               onChange={(e) => setData({ ...data, title: e.target.value })}
             />
           </div>
-
 
           <div className="form-group">
             <label>Gerente do Projeto:</label>
@@ -131,7 +186,6 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
               onChange={(e) => setData({ ...data, manager: e.target.value })}
             />
           </div>
-
 
           <div className="form-row-2">
             <div className="form-group">
@@ -154,12 +208,12 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
             </div>
           </div>
 
-          {/* Seção Expandida do Calendário Base de Trabalho */}
+          {/* Seção Expandida do Calendário Base de Trabalho (Projeto Macro) */}
           <div className="calendar-config-box">
             <div className="calendar-header-row">
               <div className="calendar-title">
                 <Clock size={16} className="text-primary" />
-                <strong>Calendário Base de Trabalho (Dias de Atividade e Inatividade)</strong>
+                <strong>Calendário Base do Projeto Macro (Padrão Geral)</strong>
               </div>
               <div className="calendar-preset-buttons">
                 <button
@@ -169,6 +223,14 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
                   title="Segunda a Sexta-feira úteis"
                 >
                   Padrão (Seg-Sex)
+                </button>
+                <button
+                  type="button"
+                  className={`btn-preset ${data.calendar === 'Terça a Sábado (Ter-Sáb)' ? 'active' : ''}`}
+                  onClick={() => handleApplyPreset('tue-sat')}
+                  title="Terça a Sábado úteis"
+                >
+                  Ter-Sáb (5d)
                 </button>
                 <button
                   type="button"
@@ -190,7 +252,9 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
             </div>
 
             <p className="calendar-description">
-              Clique sobre os dias da semana para alternar entre <strong>Dia de Atividade</strong> (trabalho) e <strong>Dia de Inatividade</strong> (folga). O cronograma e o gráfico de Gantt se adaptarão a essa escala.
+              Clique sobre os dias da semana para alternar entre <strong>Dia de Atividade</strong> (trabalho) e{' '}
+              <strong>Dia de Inatividade</strong> (folga) no projeto macro. As Datas de Exceção (feriados e
+              folgas) são globais para todo o projeto e seus subprojetos.
             </p>
 
             {/* Grid dos 7 dias da semana */}
@@ -213,9 +277,7 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
                       )}
                     </div>
                     <span className="weekday-full">{day.name}</span>
-                    <span className="weekday-badge">
-                      {isActive ? 'Atividade' : 'Inativo'}
-                    </span>
+                    <span className="weekday-badge">{isActive ? 'Atividade' : 'Inativo'}</span>
                   </button>
                 );
               })}
@@ -225,18 +287,105 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
             <div className="calendar-summary">
               <div className="summary-item">
                 <span className="summary-label">🟢 Dias de Atividade ({activeDaysList.length}):</span>
-                <span className="summary-value active">
-                  {activeDaysList.join(', ')}
-                </span>
+                <span className="summary-value active">{activeDaysList.join(', ')}</span>
               </div>
               <div className="summary-item">
                 <span className="summary-label">⚪ Dias de Inatividade ({inactiveDaysList.length}):</span>
                 <span className="summary-value inactive">
-                  {inactiveDaysList.length > 0 ? inactiveDaysList.join(', ') : 'Nenhum (Trabalho todos os dias)'}
+                  {inactiveDaysList.length > 0
+                    ? inactiveDaysList.join(', ')
+                    : 'Nenhum (Trabalho todos os dias)'}
                 </span>
               </div>
             </div>
           </div>
+
+          {/* Seção de Calendários Individuais por Subprojeto */}
+          {subprojects.length > 0 && (
+            <div className="calendar-config-box subprojects-calendars-section">
+              <div className="calendar-header-row">
+                <div className="calendar-title">
+                  <Layers size={16} className="text-primary" />
+                  <strong>Calendário de Dias Ativos por Subprojeto ({subprojects.length})</strong>
+                </div>
+              </div>
+              <p className="calendar-description">
+                Cada <strong>Subprojeto</strong> (tarefa com subtarefas vinculadas na EAP) pode operar com seu
+                próprio calendário de dias úteis (ex.: <em>Subprojeto A</em> de Seg–Sex e{' '}
+                <em>Subprojeto B</em> de Ter–Sáb).
+              </p>
+
+              <div className="subprojects-calendar-list">
+                {subprojects.map((sub) => {
+                  const customDays = subCalendars[sub.id];
+                  const effectiveDays =
+                    customDays && customDays.length > 0 ? customDays : currentActive;
+
+                  return (
+                    <div key={sub.id} className="subproject-calendar-row-card">
+                      <div className="subproject-cal-top">
+                        <div className="subproject-cal-name-group">
+                          <span className="subproject-classification-badge">Subprojeto</span>
+                          <strong>{sub.name}</strong>
+                          <span className="subproject-cal-summary-pill">
+                            {formatActiveWeekDaysShort(effectiveDays)}
+                            {customDays === undefined ? ' (Padrão)' : ' (Personalizado)'}
+                          </span>
+                        </div>
+                        <div className="subproject-cal-presets">
+                          <button
+                            type="button"
+                            className={`btn-preset ${customDays === undefined ? 'active' : ''}`}
+                            onClick={() => handleSubprojectPreset(sub.id, 'inherit')}
+                          >
+                            Padrão
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-preset"
+                            onClick={() => handleSubprojectPreset(sub.id, 'mon-fri')}
+                          >
+                            Seg–Sex
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-preset"
+                            onClick={() => handleSubprojectPreset(sub.id, 'tue-sat')}
+                          >
+                            Ter–Sáb
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-preset"
+                            onClick={() => handleSubprojectPreset(sub.id, 'mon-sat')}
+                          >
+                            Seg–Sáb
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="subproject-mini-days-row">
+                        {WEEK_DAYS.map((day) => {
+                          const isDayOn = effectiveDays.includes(day.index);
+                          return (
+                            <button
+                              key={day.index}
+                              type="button"
+                              className={`subproject-mini-day-btn ${isDayOn ? 'active' : 'inactive'}`}
+                              onClick={() => handleToggleSubprojectDay(sub.id, day.index)}
+                              title={`${day.name}: ${isDayOn ? 'Dia Útil Ativo' : 'Inativo'} neste Subprojeto`}
+                            >
+                              <span>{day.short}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="form-group">
             <label>Moeda do Projeto:</label>
@@ -257,7 +406,7 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
             Cancelar
           </button>
           <button className="btn-office primary" onClick={handleSave}>
-            Salvar e Aplicar Calendário
+            Salvar e Aplicar Calendários
           </button>
         </div>
       </div>

@@ -113,7 +113,7 @@ export const CostReportModal: React.FC<CostReportModalProps> = ({
       const executed = planned * (t.progress / 100);
       const balance = Math.max(0, planned - executed);
       const statusStr = t.progress === 100 ? 'Concluída' : t.progress > 0 ? 'Em Andamento' : 'Não Iniciada';
-      const typeStr = t.isSummary ? 'Resumo' : t.isMilestone ? 'Marco' : 'Tarefa';
+      const typeStr = t.isSummary ? 'Subprojeto' : t.isMilestone ? 'Marco' : 'Tarefa';
 
       return [
         idx + 1,
@@ -194,7 +194,7 @@ export const CostReportModal: React.FC<CostReportModalProps> = ({
       const executed = ((t.cost || 0) * (t.progress / 100)).toFixed(2);
       const balance = Math.max(0, (t.cost || 0) - (t.cost || 0) * (t.progress / 100)).toFixed(2);
       const statusStr = t.progress === 100 ? 'Concluída' : t.progress > 0 ? 'Em Andamento' : 'Não Iniciada';
-      const typeStr = t.isSummary ? 'Resumo' : t.isMilestone ? 'Marco' : 'Tarefa';
+      const typeStr = t.isSummary ? 'Subprojeto' : t.isMilestone ? 'Marco' : 'Tarefa';
 
       return [
         idx + 1,
