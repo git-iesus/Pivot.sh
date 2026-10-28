@@ -3,8 +3,6 @@ import {
   AuthUser,
   signInWithEmail,
   signUpWithEmail,
-  getSupabaseCredentials,
-  saveRuntimeSupabaseCredentials,
   extractLegacyLocalData,
 } from '../../services/cloudSync';
 import {
@@ -12,14 +10,10 @@ import {
   Lock,
   Mail,
   AlertCircle,
-  CheckCircle2,
   Eye,
   EyeOff,
   ArrowRight,
   Loader2,
-  Database,
-  Settings,
-  X,
   ShieldCheck,
 } from 'lucide-react';
 
@@ -35,14 +29,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Modal opcional para colar chaves Supabase diretamente pela interface caso o .env ainda não esteja preenchido
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
-  const initialCreds = getSupabaseCredentials();
-  const [supabaseUrlInput, setSupabaseUrlInput] = useState(initialCreds.url);
-  const [supabaseKeyInput, setSupabaseKeyInput] = useState(initialCreds.anonKey);
-  const [isCloudConfigured, setIsCloudConfigured] = useState(initialCreds.isConfigured);
-  const [configSavedNotice, setConfigSavedNotice] = useState(false);
 
   // Detecta se existem dados locais no navegador que serão migrados automaticamente
   const hasLocalDataToMigrate = useMemo(() => {
@@ -88,18 +74,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
     }
   };
 
-  const handleSaveCloudConfig = (e: React.FormEvent) => {
-    e.preventDefault();
-    saveRuntimeSupabaseCredentials(supabaseUrlInput, supabaseKeyInput);
-    const updated = getSupabaseCredentials();
-    setIsCloudConfigured(updated.isConfigured);
-    setConfigSavedNotice(true);
-    setTimeout(() => {
-      setConfigSavedNotice(false);
-      setIsConfigOpen(false);
-    }, 900);
-  };
-
   return (
     <div className="auth-screen-backdrop">
       <div className="auth-card-container">
@@ -113,70 +87,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
                 <span>Cloud Sync</span>
               </span>
             </div>
-
-            <button
-              type="button"
-              className={`auth-config-trigger ${isCloudConfigured ? 'connected' : 'pending'}`}
-              onClick={() => setIsConfigOpen(!isConfigOpen)}
-              title="Configurar conexão com o banco de dados Supabase"
-            >
-              <Settings size={13} />
-              <span>{isCloudConfigured ? 'Supabase Conectado' : 'Configurar Nuvem'}</span>
-            </button>
           </div>
           <p className="auth-brand-subtitle">
             Sincronização multi-dispositivo em tempo real para seus cronogramas, EAP e arquitetura Nexo.
           </p>
         </div>
-
-        {/* Painel Expansível para Configurar Chaves Supabase via UI (além do .env) */}
-        {isConfigOpen && (
-          <div className="auth-supabase-config-box">
-            <div className="config-box-header">
-              <div className="config-box-title">
-                <Database size={14} />
-                <span>Conexão Banco em Nuvem (Supabase)</span>
-              </div>
-              <button
-                type="button"
-                className="config-close-btn"
-                onClick={() => setIsConfigOpen(false)}
-              >
-                <X size={14} />
-              </button>
-            </div>
-            <p className="config-box-desc">
-              Você pode definir <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> no
-              arquivo <code>.env</code> (ou na Vercel) ou colar diretamente abaixo:
-            </p>
-            <form onSubmit={handleSaveCloudConfig} className="config-box-form">
-              <input
-                type="url"
-                placeholder="Project URL (ex: https://xyz.supabase.co)"
-                value={supabaseUrlInput}
-                onChange={(e) => setSupabaseUrlInput(e.target.value)}
-                className="auth-input compact"
-              />
-              <input
-                type="password"
-                placeholder="Anon Public Key (eyJhbGci...)"
-                value={supabaseKeyInput}
-                onChange={(e) => setSupabaseKeyInput(e.target.value)}
-                className="auth-input compact"
-              />
-              <div className="config-box-actions">
-                {configSavedNotice && (
-                  <span className="config-saved-pill">
-                    <CheckCircle2 size={13} /> Chaves salvas!
-                  </span>
-                )}
-                <button type="submit" className="auth-submit-btn small">
-                  Salvar Conexão
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
 
         {/* Abas Login / Criar Conta */}
         <div className="auth-tabs-switcher">

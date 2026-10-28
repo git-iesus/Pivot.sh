@@ -47,36 +47,18 @@ const LEGACY_KEYS = {
 let supabaseInstance: SupabaseClient | null = null;
 let cachedConfigSignature = '';
 
+const DEFAULT_SUPABASE_URL = 'https://plmouzpxmqzcptuluzru.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsbW91enB4bXF6Y3B0dWx1enJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxOTU2MTIsImV4cCI6MjEwODc3MTYxMn0.lgEqd652hsJmuQtmFxSUNmPHiXlh1RqbWGuLaf7MRCM';
+
 export function getSupabaseCredentials(): { url: string; anonKey: string; isConfigured: boolean } {
   const envUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
   const envKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
-  if (
-    envUrl &&
-    envKey &&
-    !envUrl.includes('SEU-PROJETO') &&
-    !envKey.includes('SUA-ANON-PUBLIC-KEY')
-  ) {
-    return { url: envUrl, anonKey: envKey, isConfigured: true };
-  }
+  const url = envUrl || DEFAULT_SUPABASE_URL;
+  const anonKey = envKey || DEFAULT_SUPABASE_ANON_KEY;
 
-  try {
-    const saved = localStorage.getItem(RUNTIME_CONFIG_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.url && parsed.anonKey) {
-        return {
-          url: String(parsed.url).trim(),
-          anonKey: String(parsed.anonKey).trim(),
-          isConfigured: true,
-        };
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  return { url: '', anonKey: '', isConfigured: false };
+  return { url, anonKey, isConfigured: true };
 }
 
 export function saveRuntimeSupabaseCredentials(url: string, anonKey: string): void {
