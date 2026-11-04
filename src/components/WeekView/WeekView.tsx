@@ -13,7 +13,6 @@ import {
   Layers,
 } from 'lucide-react';
 import {
-  parseISODate,
   toISODate,
   isWorkDay,
   getEffectiveActiveWeekDays,
@@ -43,17 +42,8 @@ export const WeekView: React.FC<WeekViewProps> = ({
   onSelectTask,
   onOpenTaskDetail,
 }) => {
-  // Data de referência da semana exibida (inicia com hoje ou início do projeto)
-  const [currentWeekDate, setCurrentWeekDate] = useState<Date>(() => {
-    const firstExec = tasks.find((t) => !t.isSummary);
-    if (firstExec && firstExec.startDate) {
-      return parseISODate(firstExec.startDate);
-    }
-    if (tasks.length > 0 && tasks[0].startDate) {
-      return parseISODate(tasks[0].startDate);
-    }
-    return new Date();
-  });
+  // Data de referência da semana exibida (inicia diretamente na Semana Atual do usuário)
+  const [currentWeekDate, setCurrentWeekDate] = useState<Date>(() => new Date());
 
   // Filtra apenas tarefas executáveis (Subprojetos / isSummary nunca aparecem como blocos de tarefas na Semana)
   const executableEntries = useMemo<ExecutableTaskEntry[]>(() => {
