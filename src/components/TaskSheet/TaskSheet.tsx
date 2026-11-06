@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Task, Resource, CalendarException } from '../../types/project';
 import {
   ChevronRight,
@@ -15,6 +15,7 @@ import {
   X,
   CheckSquare,
   Layers,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   formatDatePTBR,
@@ -134,6 +135,20 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
   scrollRef,
 }) => {
   const [editingCell, setEditingCell] = useState<{ taskId: string; field: keyof Task } | null>(null);
+
+  // Atalho F2 para renomear a tarefa selecionada inline (padrão Excel / MS Project)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2' && selectedTaskId && !editingCell) {
+        const activeTag = document.activeElement?.tagName;
+        if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
+        e.preventDefault();
+        setEditingCell({ taskId: selectedTaskId, field: 'name' });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedTaskId, editingCell]);
 
   // Mapa rápido de ID -> índice na lista completa de tasks
   const taskIndexMap = useMemo(() => {
@@ -460,15 +475,23 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                 />
               </div>
 
-              {/* Indicadores */}
-              <div className="sheet-cell col-info">
+              {/* Indicadores (Clique abre os detalhes completos da tarefa/subprojeto) */}
+              <div
+                className="sheet-cell col-info"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectTask(task.id);
+                  onOpenTaskDetail(task.id);
+                }}
+                title="Clique para abrir detalhes, checklist e notas desta tarefa"
+              >
                 {task.progress === 100 ? (
-                  <span title="Concluída (100%)" style={{ display: 'inline-flex' }}>
+                  <span title="Concluída (100%) — Clique para abrir detalhes" style={{ display: 'inline-flex' }}>
                     <CheckCircle size={14} className="task-indicator-done" />
                   </span>
                 ) : task.isSummary ? (
                   <span
-                    title="Classificado automaticamente como Subprojeto (possui subtarefas vinculadas)"
+                    title="Subprojeto (possui subtarefas vinculadas) — Clique para configurar calendário"
                     style={{ display: 'inline-flex' }}
                   >
                     <Layers size={13} className="subproject-indicator-icon" />
@@ -497,11 +520,14 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                 )}
               </div>
 
-              {/* Nome da Tarefa / Subprojeto com recuo EAP, Botão Collapse/Expand, Tag Subprojeto e Calendário */}
+              {/* Nome da Tarefa / Subprojeto: 1 clique seleciona a linha | Duplo clique (ou F2) edita o nome inline | Botão lateral abre o modal de detalhes */}
               <div
                 className="sheet-cell col-name"
                 style={{ paddingLeft: `${8 + task.outlineLevel * 18}px` }}
-                onDoubleClick={() => setEditingCell({ taskId: task.id, field: 'name' })}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setEditingCell({ taskId: task.id, field: 'name' });
+                }}
               >
                 {task.isSummary && (
                   <button
@@ -527,13 +553,19 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     className="cell-input"
                     defaultValue={task.name}
                     autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                    onDoubleClick={(e) => e.stopPropagation()}
                     onBlur={(e) => {
-                      onUpdateTask(task.id, { name: e.target.value });
+                      const nextName = e.target.value.trim();
+                      if (nextName) onUpdateTask(task.id, { name: nextName });
                       handleCellBlur();
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                        onUpdateTask(task.id, { name: (e.target as HTMLInputElement).value });
+                        const nextName = (e.target as HTMLInputElement).value.trim();
+                        if (nextName) onUpdateTask(task.id, { name: nextName });
+                        handleCellBlur();
+                      } else if (e.key === 'Escape') {
                         handleCellBlur();
                       }
                     }}
@@ -541,20 +573,17 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                 ) : (
                   <div
                     className="task-name-content"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenTaskDetail(task.id);
-                    }}
-                    title={
-                      task.isSummary
-                        ? 'Clique para configurar os dias úteis/ativos e detalhes deste Subprojeto'
-                        : 'Clique para abrir detalhes e checklist'
-                    }
+                    title="1 clique para selecionar • Duplo clique (ou F2) para renomear inline"
                   >
                     {task.isSummary && (
                       <span
                         className="subproject-classification-badge"
-                        title="Classificado automaticamente como Subprojeto por possuir subtarefas vinculadas na EAP"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectTask(task.id);
+                          onOpenTaskDetail(task.id);
+                        }}
+                        title="Classificado automaticamente como Subprojeto — Clique para configurar"
                       >
                         Subprojeto
                       </span>
@@ -570,6 +599,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                         className={`subproject-calendar-pill ${hasCustomSubprojectCalendar ? 'custom' : ''}`}
                         onClick={(e) => {
                           e.stopPropagation();
+                          onSelectTask(task.id);
                           onOpenTaskDetail(task.id);
                         }}
                         title={`Dias ativos deste Subprojeto: ${formatActiveWeekDaysShort(effectiveActiveDays)} — Clique para configurar o calendário individual`}
@@ -593,7 +623,12 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     {!task.isSummary && task.subTasks && task.subTasks.length > 0 && (
                       <span
                         className="subtask-pill-badge"
-                        title={`${task.subTasks.filter((s) => s.done).length} de ${task.subTasks.length} sub-tarefas concluídas`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectTask(task.id);
+                          onOpenTaskDetail(task.id);
+                        }}
+                        title={`${task.subTasks.filter((s) => s.done).length} de ${task.subTasks.length} sub-tarefas concluídas — Clique para abrir checklist`}
                       >
                         <ListTodo size={11} className="subtask-pill-icon" />
                         <span>
@@ -601,6 +636,24 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                         </span>
                       </span>
                     )}
+                    <button
+                      type="button"
+                      className="task-open-detail-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectTask(task.id);
+                        onOpenTaskDetail(task.id);
+                      }}
+                      onDoubleClick={(e) => e.stopPropagation()}
+                      title={
+                        task.isSummary
+                          ? 'Abrir configurações e calendário do Subprojeto'
+                          : 'Abrir detalhes, checklist, linha de base e notas da tarefa'
+                      }
+                    >
+                      <SlidersHorizontal size={11} />
+                      <span>Abrir</span>
+                    </button>
                   </div>
                 )}
               </div>

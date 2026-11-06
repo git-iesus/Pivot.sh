@@ -29,10 +29,13 @@ import {
   Target,
   LogOut,
   UserCheck,
+  Pencil,
 } from 'lucide-react';
 import { ViewMode, ZoomLevel, NexoPhase, NexoRoleView } from '../../types/project';
 
 interface RibbonProps {
+  projectTitle?: string;
+  onUpdateProjectTitle?: (newTitle: string) => void;
   saveStatus?: 'saved' | 'saving';
   lastSavedTime?: string;
   currentTab: string;
@@ -81,6 +84,8 @@ interface RibbonProps {
 }
 
 export const Ribbon: React.FC<RibbonProps> = ({
+  projectTitle = 'Projeto Sem Título',
+  onUpdateProjectTitle,
   saveStatus = 'saved',
   lastSavedTime = 'agora',
   viewMode,
@@ -120,11 +125,24 @@ export const Ribbon: React.FC<RibbonProps> = ({
   onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<'tarefa' | 'recursos' | 'exibir' | 'formato' | 'nexo'>('tarefa');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(projectTitle);
+
+  const handleCommitProjectTitle = () => {
+    setIsEditingTitle(false);
+    const trimmed = titleDraft.trim();
+    if (trimmed && trimmed !== projectTitle && onUpdateProjectTitle) {
+      onUpdateProjectTitle(trimmed);
+    } else {
+      setTitleDraft(projectTitle);
+    }
+  };
 
   return (
     <div className="ribbon-container">
-      {/* Barra de Título Superior / Quick Access Toolbar */}
+      {/* Barra de Título Superior dividida em 3 zonas equilibradas: Esquerda (Ações) | Centro (App + Projeto + Status) | Direita (Conta) */}
       <div className="title-bar">
+        {/* Zona 1 (Esquerda): Quick Access Toolbar */}
         <div className="quick-access">
           <button className="qa-btn" onClick={onUndo} disabled={!canUndo} title="Desfazer (Ctrl+Z)">
             <RotateCcw size={14} />
@@ -134,11 +152,49 @@ export const Ribbon: React.FC<RibbonProps> = ({
           </button>
         </div>
 
+        {/* Zona 2 (Centro): Marca + Título do Projeto Ativo (Editável Inline) + Indicador Salvo */}
         <div className="title-center-group">
           <span className="window-title">Pivot.sh</span>
+          <span className="title-divider-dot">•</span>
+
+          {isEditingTitle ? (
+            <input
+              type="text"
+              className="title-project-input"
+              value={titleDraft}
+              autoFocus
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={handleCommitProjectTitle}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCommitProjectTitle();
+                if (e.key === 'Escape') {
+                  setTitleDraft(projectTitle);
+                  setIsEditingTitle(false);
+                }
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="title-project-name-btn"
+              onClick={() => {
+                setTitleDraft(projectTitle);
+                setIsEditingTitle(true);
+              }}
+              title="Clique para renomear o projeto ativo"
+            >
+              <span className="title-project-name-text">{projectTitle}</span>
+              <Pencil size={11} className="title-project-edit-icon" />
+            </button>
+          )}
+
           <div
             className={`autosave-pill ${saveStatus}`}
-            title={saveStatus === 'saving' ? 'Salvando alterações em tempo real...' : `Todas as alterações são salvas automaticamente sem precisar clicar em salvar (estilo Google Sheets). Último salvamento: ${lastSavedTime}`}
+            title={
+              saveStatus === 'saving'
+                ? 'Salvando alterações em tempo real...'
+                : `Todas as alterações são salvas automaticamente na nuvem. Último salvamento: ${lastSavedTime}`
+            }
           >
             {saveStatus === 'saving' ? (
               <>
@@ -153,6 +209,9 @@ export const Ribbon: React.FC<RibbonProps> = ({
               </>
             )}
           </div>
+        </div>
+
+        {/* Zona 3 (Direita): Usuário Conectado + Sair */}
         <div className="title-user-actions">
           {userEmail && (
             <span className="title-user-email" title={`Conectado como ${userEmail}`}>
@@ -171,7 +230,6 @@ export const Ribbon: React.FC<RibbonProps> = ({
               <span>Sair</span>
             </button>
           )}
-        </div>
         </div>
       </div>
 

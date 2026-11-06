@@ -43,7 +43,7 @@ import {
   saveUserProjectToCloud,
   signOutUser,
 } from './services/cloudSync';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { CheckCircle2, Loader2, ChevronLeft, ChevronRight, Columns } from 'lucide-react';
 
 export const App: React.FC = () => {
   // Estados de Autenticação e Sincronização em Nuvem
@@ -174,11 +174,44 @@ export const App: React.FC = () => {
     });
   }, []);
 
-  // Divisor de Painéis (Splitter)
+  // Divisor de Painéis (Splitter) com persistência e Quick Snap
   const [splitWidth, setSplitWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('ms_project_split_width');
+    if (saved !== null) {
+      const num = parseInt(saved, 10);
+      if (!isNaN(num) && (num === 0 || (num >= 240 && num <= window.innerWidth - 260))) {
+        return num;
+      }
+    }
     return Math.floor(window.innerWidth * 0.44);
   });
   const isDraggingSplitter = useRef(false);
+
+  const updateAndPersistSplitWidth = useCallback((width: number) => {
+    setSplitWidth(width);
+    localStorage.setItem('ms_project_split_width', String(width));
+  }, []);
+
+  const handleSnapSplit = useCallback(
+    (preset: 'collapse-sheet' | 'balanced' | 'wide-sheet') => {
+      if (preset === 'collapse-sheet') {
+        updateAndPersistSplitWidth(0);
+      } else if (preset === 'balanced') {
+        updateAndPersistSplitWidth(Math.floor(window.innerWidth * 0.44));
+      } else if (preset === 'wide-sheet') {
+        updateAndPersistSplitWidth(Math.floor(window.innerWidth * 0.66));
+      }
+    },
+    [updateAndPersistSplitWidth]
+  );
+
+  const handleDoubleClickSplitter = useCallback(() => {
+    if (splitWidth === 0) {
+      updateAndPersistSplitWidth(Math.floor(window.innerWidth * 0.44));
+    } else {
+      updateAndPersistSplitWidth(0);
+    }
+  }, [splitWidth, updateAndPersistSplitWidth]);
 
   // Sincronização de Scroll Vertical
   const taskSheetScrollRef = useRef<HTMLDivElement | null>(null);
@@ -951,8 +984,12 @@ export const App: React.FC = () => {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDraggingSplitter.current) return;
-      const newWidth = Math.max(300, Math.min(window.innerWidth - 300, e.clientX));
-      setSplitWidth(newWidth);
+      if (e.clientX < 140) {
+        updateAndPersistSplitWidth(0);
+      } else {
+        const newWidth = Math.max(260, Math.min(window.innerWidth - 280, e.clientX));
+        updateAndPersistSplitWidth(newWidth);
+      }
     };
 
     const handleMouseUp = () => {
@@ -968,7 +1005,20 @@ export const App: React.FC = () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, []);
+  }, [updateAndPersistSplitWidth]);
+
+  const handleUpdateProjectTitle = useCallback(
+    (newTitle: string) => {
+      const updatedMeta: ProjectMetadata = {
+        ...metadata,
+        title: newTitle,
+      };
+      setMetadata(updatedMeta);
+      saveToStorage(scheduledTasks, resources, updatedMeta);
+      showToast('Título do projeto atualizado!');
+    },
+    [metadata, scheduledTasks, resources, saveToStorage, showToast]
+  );
 
   // Atalhos de teclado
   useEffect(() => {
@@ -1003,10 +1053,66 @@ export const App: React.FC = () => {
     return <AuthScreen onAuthenticated={handleAuthenticated} />;
   }
 
+  const renderSplitterQuickSnap = () => (
+    <div
+      className={`splitter-handle ${splitWidth === 0 ? 'is-collapsed' : ''}`}
+      onMouseDown={handleMouseDownSplitter}
+      onDoubleClick={handleDoubleClickSplitter}
+      title="Arraste para redimensionar os painéis (ou dê duplo clique para recolher/restaurar a Planilha)"
+    >
+      <div className="splitter-bar"></div>
+      <div
+        className="splitter-quick-snap-group"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {splitWidth > 0 && (
+          <button
+            type="button"
+            className="splitter-snap-btn"
+            onClick={() => handleSnapSplit('collapse-sheet')}
+            title="Ocultar Planilha (Expandir painel direito em 100%)"
+          >
+            <ChevronLeft size={12} />
+          </button>
+        )}
+        <button
+          type="button"
+          className={`splitter-snap-btn ${splitWidth === 0 ? 'restore-pill' : ''}`}
+          onClick={() => handleSnapSplit('balanced')}
+          title={
+            splitWidth === 0
+              ? 'Restaurar Planilha Lateral (Divisão Equilibrada)'
+              : 'Divisão Equilibrada (Padrão)'
+          }
+        >
+          <Columns size={11} />
+          {splitWidth === 0 && <span>Planilha</span>}
+        </button>
+        {splitWidth < Math.floor(window.innerWidth * 0.6) && (
+          <button
+            type="button"
+            className="splitter-snap-btn"
+            onClick={() => handleSnapSplit(splitWidth === 0 ? 'balanced' : 'wide-sheet')}
+            title={
+              splitWidth === 0
+                ? 'Expandir Planilha Lateral'
+                : 'Ampliar Planilha para edição de colunas'
+            }
+          >
+            <ChevronRight size={12} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="ms-project-app">
       {/* Faixa de Opções (Ribbon) Estilo Office 2010 */}
       <Ribbon
+        projectTitle={metadata.title}
+        onUpdateProjectTitle={handleUpdateProjectTitle}
         saveStatus={saveStatus}
         lastSavedTime={lastSavedTime}
         currentTab={currentTab}
@@ -1067,40 +1173,40 @@ export const App: React.FC = () => {
           />
         ) : viewMode === 'gantt' ? (
           <>
-            <div className="sheet-pane" style={{ width: `${splitWidth}px` }}>
-              <TaskSheet
-                tasks={scheduledTasks}
-                resources={resources}
-                activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
-                exceptions={metadata.exceptions || []}
-                selectedTaskId={selectedTaskId}
-                checkedTaskIds={checkedTaskIds}
-                onSelectTask={setSelectedTaskId}
-                onToggleCheckTask={handleToggleCheckTask}
-                onSelectAllTasks={handleSelectAllTasks}
-                onClearCheckedTasks={handleClearCheckedTasks}
-                onBulkDeleteTasks={handleDeleteSelected}
-                onBulkSetProgress={handleSetProgress}
-                onBulkIndentTasks={handleIndentTask}
-                onBulkOutdentTasks={handleOutdentTask}
-                onUpdateTask={handleUpdateTask}
-                onToggleCollapse={(id) => {
-                  const t = scheduledTasks.find((item) => item.id === id);
-                  if (t) handleUpdateTask(id, { collapsed: !t.collapsed });
-                }}
-                onAddTask={handleAddTask}
-                onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
-                rowHeights={rowHeights}
-                onUpdateRowHeight={handleUpdateRowHeight}
-                scrollTop={0}
-                onScroll={handleScroll('sheet')}
-                scrollRef={taskSheetScrollRef}
-              />
-            </div>
+            {splitWidth > 0 && (
+              <div className="sheet-pane" style={{ width: `${splitWidth}px` }}>
+                <TaskSheet
+                  tasks={scheduledTasks}
+                  resources={resources}
+                  activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
+                  exceptions={metadata.exceptions || []}
+                  selectedTaskId={selectedTaskId}
+                  checkedTaskIds={checkedTaskIds}
+                  onSelectTask={setSelectedTaskId}
+                  onToggleCheckTask={handleToggleCheckTask}
+                  onSelectAllTasks={handleSelectAllTasks}
+                  onClearCheckedTasks={handleClearCheckedTasks}
+                  onBulkDeleteTasks={handleDeleteSelected}
+                  onBulkSetProgress={handleSetProgress}
+                  onBulkIndentTasks={handleIndentTask}
+                  onBulkOutdentTasks={handleOutdentTask}
+                  onUpdateTask={handleUpdateTask}
+                  onToggleCollapse={(id) => {
+                    const t = scheduledTasks.find((item) => item.id === id);
+                    if (t) handleUpdateTask(id, { collapsed: !t.collapsed });
+                  }}
+                  onAddTask={handleAddTask}
+                  onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
+                  rowHeights={rowHeights}
+                  onUpdateRowHeight={handleUpdateRowHeight}
+                  scrollTop={0}
+                  onScroll={handleScroll('sheet')}
+                  scrollRef={taskSheetScrollRef}
+                />
+              </div>
+            )}
 
-            <div className="splitter-handle" onMouseDown={handleMouseDownSplitter}>
-              <div className="splitter-bar"></div>
-            </div>
+            {renderSplitterQuickSnap()}
 
             <div className="gantt-pane">
               <GanttChart
@@ -1123,40 +1229,40 @@ export const App: React.FC = () => {
           </>
         ) : viewMode === 'week' ? (
           <>
-            <div className="sheet-pane" style={{ width: `${splitWidth}px` }}>
-              <TaskSheet
-                tasks={scheduledTasks}
-                resources={resources}
-                activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
-                exceptions={metadata.exceptions || []}
-                selectedTaskId={selectedTaskId}
-                checkedTaskIds={checkedTaskIds}
-                onSelectTask={setSelectedTaskId}
-                onToggleCheckTask={handleToggleCheckTask}
-                onSelectAllTasks={handleSelectAllTasks}
-                onClearCheckedTasks={handleClearCheckedTasks}
-                onBulkDeleteTasks={handleDeleteSelected}
-                onBulkSetProgress={handleSetProgress}
-                onBulkIndentTasks={handleIndentTask}
-                onBulkOutdentTasks={handleOutdentTask}
-                onUpdateTask={handleUpdateTask}
-                onToggleCollapse={(id) => {
-                  const t = scheduledTasks.find((item) => item.id === id);
-                  if (t) handleUpdateTask(id, { collapsed: !t.collapsed });
-                }}
-                onAddTask={handleAddTask}
-                onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
-                rowHeights={rowHeights}
-                onUpdateRowHeight={handleUpdateRowHeight}
-                scrollTop={0}
-                onScroll={() => {}}
-                scrollRef={taskSheetScrollRef}
-              />
-            </div>
+            {splitWidth > 0 && (
+              <div className="sheet-pane" style={{ width: `${splitWidth}px` }}>
+                <TaskSheet
+                  tasks={scheduledTasks}
+                  resources={resources}
+                  activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
+                  exceptions={metadata.exceptions || []}
+                  selectedTaskId={selectedTaskId}
+                  checkedTaskIds={checkedTaskIds}
+                  onSelectTask={setSelectedTaskId}
+                  onToggleCheckTask={handleToggleCheckTask}
+                  onSelectAllTasks={handleSelectAllTasks}
+                  onClearCheckedTasks={handleClearCheckedTasks}
+                  onBulkDeleteTasks={handleDeleteSelected}
+                  onBulkSetProgress={handleSetProgress}
+                  onBulkIndentTasks={handleIndentTask}
+                  onBulkOutdentTasks={handleOutdentTask}
+                  onUpdateTask={handleUpdateTask}
+                  onToggleCollapse={(id) => {
+                    const t = scheduledTasks.find((item) => item.id === id);
+                    if (t) handleUpdateTask(id, { collapsed: !t.collapsed });
+                  }}
+                  onAddTask={handleAddTask}
+                  onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
+                  rowHeights={rowHeights}
+                  onUpdateRowHeight={handleUpdateRowHeight}
+                  scrollTop={0}
+                  onScroll={() => {}}
+                  scrollRef={taskSheetScrollRef}
+                />
+              </div>
+            )}
 
-            <div className="splitter-handle" onMouseDown={handleMouseDownSplitter}>
-              <div className="splitter-bar"></div>
-            </div>
+            {renderSplitterQuickSnap()}
 
             <div className="gantt-pane">
               <WeekView

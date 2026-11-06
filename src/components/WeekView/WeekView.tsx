@@ -170,6 +170,18 @@ export const WeekView: React.FC<WeekViewProps> = ({
     };
   }, [weekDays, tasksByDay]);
 
+  // Proporção dinâmica de colunas: dias úteis/ativos recebem largura integral (1fr),
+  // enquanto dias de folga sem tarefas são estreitados automaticamente (0.36fr) para dar respiro ao Kanban
+  const dynamicGridColumns = useMemo(() => {
+    return weekDays
+      .map((day) => {
+        const dayEntries = tasksByDay.get(day.iso) || [];
+        const isDayActive = day.isWork || dayEntries.length > 0;
+        return isDayActive ? 'minmax(150px, 1fr)' : 'minmax(68px, 0.36fr)';
+      })
+      .join(' ');
+  }, [weekDays, tasksByDay]);
+
   const handlePrevWeek = () => {
     const d = new Date(currentWeekDate);
     d.setDate(d.getDate() - 7);
@@ -216,8 +228,8 @@ export const WeekView: React.FC<WeekViewProps> = ({
         </div>
       </div>
 
-      {/* Grade dos 7 Dias da Semana */}
-      <div className="week-grid">
+      {/* Grade dos 7 Dias da Semana (Dias de folga estreitados automaticamente) */}
+      <div className="week-grid" style={{ gridTemplateColumns: dynamicGridColumns }}>
         {weekDays.map((day) => {
           const dayEntries = tasksByDay.get(day.iso) || [];
           const isDayActive = day.isWork || dayEntries.length > 0;
@@ -225,17 +237,18 @@ export const WeekView: React.FC<WeekViewProps> = ({
             <div
               key={day.iso}
               className={`week-day-column ${!isDayActive ? 'day-off' : ''} ${day.isToday ? 'day-today' : ''}`}
+              title={!isDayActive ? `${day.dayName} (${day.date.getDate()}) — Dia de Folga / Sem Expediente` : undefined}
             >
               {/* Cabeçalho do Dia */}
               <div className="week-day-header">
                 <div className="day-title-row">
-                  <span className="day-name">{day.dayName}</span>
+                  <span className="day-name">{isDayActive ? day.dayName : day.shortName}</span>
                   <span className="day-date-number">{day.date.getDate()}</span>
                 </div>
                 <div className="day-status-tags">
                   {day.isToday && <span className="tag-today">Hoje</span>}
                   {!isDayActive ? (
-                    <span className="tag-inactive">Inativo / Folga</span>
+                    <span className="tag-inactive">Folga</span>
                   ) : (
                     <span className="tag-task-count">
                       {dayEntries.length} {dayEntries.length === 1 ? 'tarefa' : 'tarefas'}
@@ -248,7 +261,7 @@ export const WeekView: React.FC<WeekViewProps> = ({
               <div className="week-day-tasks-list">
                 {dayEntries.length === 0 ? (
                   <div className="empty-day-state">
-                    <span>Sem tarefas</span>
+                    <span>{isDayActive ? 'Sem tarefas' : 'Folga'}</span>
                   </div>
                 ) : (
                   dayEntries.map(({ task, effectiveActiveDays, parentSubproject }) => {
