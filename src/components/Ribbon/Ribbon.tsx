@@ -45,6 +45,10 @@ interface RibbonProps {
   setShowCriticalPath: (show: boolean) => void;
   showGridLines: boolean;
   setShowGridLines: (show: boolean) => void;
+  showBaseline?: boolean;
+  setShowBaseline?: (show: boolean) => void;
+  onOpenBaselineModal?: () => void;
+  baselineCount?: number;
   onOpenBackstage: () => void;
   onSave: () => void;
   onUndo: () => void;
@@ -86,6 +90,10 @@ export const Ribbon: React.FC<RibbonProps> = ({
   setShowCriticalPath,
   showGridLines,
   setShowGridLines,
+  showBaseline = true,
+  setShowBaseline,
+  onOpenBaselineModal,
+  baselineCount = 0,
   onOpenBackstage,
   onUndo,
   onRedo,
@@ -276,6 +284,17 @@ export const Ribbon: React.FC<RibbonProps> = ({
             {/* Grupo: Agendamento & Modo */}
             <div className="ribbon-group">
               <div className="group-content horizontal">
+                <button
+                  className="large-tool-btn"
+                  onClick={onOpenBaselineModal}
+                  title="Definir ou gerenciar a Linha de Base (Teórico × Prático)"
+                >
+                  <Target size={26} className="tool-icon primary-color" />
+                  <span>Linha de Base</span>
+                  {baselineCount > 0 && (
+                    <span className="ribbon-baseline-badge">{baselineCount}</span>
+                  )}
+                </button>
                 <div className="small-tools-column">
                   <button className="small-tool-btn" onClick={() => onSetTaskMode('auto')} title="Agendamento Automático">
                     <Clock size={14} className="primary-color" />
@@ -412,6 +431,14 @@ export const Ribbon: React.FC<RibbonProps> = ({
                   <Grid size={24} className="tool-icon" />
                   <span>Linhas de Grade</span>
                 </button>
+                <button
+                  className={`large-tool-btn ${showBaseline ? 'selected' : ''}`}
+                  onClick={() => setShowBaseline && setShowBaseline(!showBaseline)}
+                  title="Exibir ou ocultar as barras cinzas da Linha de Base no Gráfico de Gantt"
+                >
+                  <Target size={24} className="tool-icon primary-color" />
+                  <span>Linha de Base</span>
+                </button>
               </div>
               <div className="group-label">Destaque</div>
             </div>
@@ -437,6 +464,10 @@ export const Ribbon: React.FC<RibbonProps> = ({
                 <div className="legend-item">
                   <div className="legend-swatch milestone-diamond"></div>
                   <span>Marco</span>
+                </div>
+                <div className="legend-item">
+                  <div className="legend-swatch baseline-swatch"></div>
+                  <span>Linha de Base</span>
                 </div>
               </div>
               <div className="group-label">Estilos de Barra do Gantt</div>

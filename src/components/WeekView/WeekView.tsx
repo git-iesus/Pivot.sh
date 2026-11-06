@@ -17,6 +17,8 @@ import {
   isWorkDay,
   getEffectiveActiveWeekDays,
   getParentSubproject,
+  getBaselineVarianceDays,
+  formatDatePTBR,
 } from '../../utils/scheduler';
 
 interface WeekViewProps {
@@ -249,7 +251,8 @@ export const WeekView: React.FC<WeekViewProps> = ({
                     <span>Sem tarefas</span>
                   </div>
                 ) : (
-                  dayEntries.map(({ task, parentSubproject }) => {
+                  dayEntries.map(({ task, effectiveActiveDays, parentSubproject }) => {
+                    const variance = getBaselineVarianceDays(task, effectiveActiveDays, exceptions);
                     const isSelected = selectedTaskId === task.id;
                     const isStartDay = task.startDate === day.iso;
                     const isEndDay = task.endDate === day.iso;
@@ -292,14 +295,24 @@ export const WeekView: React.FC<WeekViewProps> = ({
                             )}
                           </div>
 
-                          {/* Tag de início/término no dia */}
-                          {isStartDay && isEndDay ? (
-                            <span className="badge-date-event">Hoje</span>
-                          ) : isStartDay ? (
-                            <span className="badge-date-event start">Inicia</span>
-                          ) : isEndDay ? (
-                            <span className="badge-date-event end">Entrega</span>
-                          ) : null}
+                          {/* Tag de início/término no dia e alerta discreto de desvio da Linha de Base */}
+                          <div className="task-card-top-right-badges">
+                            {variance !== null && variance > 0 && (
+                              <span
+                                className="badge-baseline-delay"
+                                title={`Meta Base: ${formatDatePTBR(task.baselineEndDate || '')} • Término Prático: ${formatDatePTBR(task.endDate)} (+${variance}d úteis de atraso)`}
+                              >
+                                +{variance}d vs. Base
+                              </span>
+                            )}
+                            {isStartDay && isEndDay ? (
+                              <span className="badge-date-event">Hoje</span>
+                            ) : isStartDay ? (
+                              <span className="badge-date-event start">Inicia</span>
+                            ) : isEndDay ? (
+                              <span className="badge-date-event end">Entrega</span>
+                            ) : null}
+                          </div>
                         </div>
 
                         {/* Referência sutil ao Subprojeto pai (se houver) */}

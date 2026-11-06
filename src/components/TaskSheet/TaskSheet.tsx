@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { Task, Resource } from '../../types/project';
+import { Task, Resource, CalendarException } from '../../types/project';
 import {
   ChevronRight,
   ChevronDown,
@@ -22,12 +22,14 @@ import {
   getSubtreeTaskCount,
   getEffectiveActiveWeekDays,
   formatActiveWeekDaysShort,
+  getBaselineVarianceDays,
 } from '../../utils/scheduler';
 
 interface TaskSheetProps {
   tasks: Task[];
   resources: Resource[];
   activeWeekDays?: number[];
+  exceptions?: CalendarException[];
   selectedTaskId: string | null;
   checkedTaskIds?: string[];
   onSelectTask: (taskId: string) => void;
@@ -101,7 +103,7 @@ const DEFAULT_COL_WIDTHS: ColumnWidths = {
   name: 350,
   duration: 75,
   startDate: 92,
-  endDate: 92,
+  endDate: 124,
   predecessors: 95,
   resources: 140,
   cost: 95,
@@ -111,6 +113,7 @@ const DEFAULT_COL_WIDTHS: ColumnWidths = {
 export const TaskSheet: React.FC<TaskSheetProps> = ({
   tasks,
   activeWeekDays = [1, 2, 3, 4, 5],
+  exceptions = [],
   selectedTaskId,
   checkedTaskIds = [],
   onSelectTask,
@@ -695,7 +698,43 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     }}
                   />
                 ) : (
-                  <span>{formatDatePTBR(task.endDate)}</span>
+                  <div className="end-date-cell-content">
+                    <span>{formatDatePTBR(task.endDate)}</span>
+                    {(() => {
+                      const variance = getBaselineVarianceDays(task, effectiveActiveDays, exceptions);
+                      if (variance === null) return null;
+                      const basePt = formatDatePTBR(task.baselineEndDate || '');
+                      const actualPt = formatDatePTBR(task.endDate);
+                      if (variance === 0) {
+                        return (
+                          <span
+                            className="sheet-variance-badge on-track"
+                            title={`Linha de Base: ${basePt} • Prático: ${actualPt} (No prazo)`}
+                          >
+                            0d
+                          </span>
+                        );
+                      }
+                      if (variance < 0) {
+                        return (
+                          <span
+                            className="sheet-variance-badge ahead"
+                            title={`Linha de Base: ${basePt} • Prático: ${actualPt} (${Math.abs(variance)}d adiantada)`}
+                          >
+                            {variance}d
+                          </span>
+                        );
+                      }
+                      return (
+                        <span
+                          className="sheet-variance-badge delayed"
+                          title={`Linha de Base: ${basePt} • Prático: ${actualPt} (+${variance}d de atraso/desvio)`}
+                        >
+                          +{variance}d
+                        </span>
+                      );
+                    })()}
+                  </div>
                 )}
               </div>
 

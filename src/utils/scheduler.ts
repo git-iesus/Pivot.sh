@@ -451,6 +451,8 @@ export function recalculateSchedule(
       let totalDuration = 0;
       let weightedProgress = 0;
       let totalChildCost = 0;
+      let minBaseStart: Date | null = null;
+      let maxBaseEnd: Date | null = null;
 
       for (let j = i + 1; j < updatedTasks.length; j++) {
         const child = updatedTasks[j];
@@ -461,6 +463,13 @@ export function recalculateSchedule(
 
         if (!minStart || cStart < minStart) minStart = cStart;
         if (!maxEnd || cEnd > maxEnd) maxEnd = cEnd;
+
+        if (child.baselineEndDate) {
+          const bStart = parseISODate(child.baselineStartDate || child.startDate);
+          const bEnd = parseISODate(child.baselineEndDate);
+          if (!minBaseStart || bStart < minBaseStart) minBaseStart = bStart;
+          if (!maxBaseEnd || bEnd > maxBaseEnd) maxBaseEnd = bEnd;
+        }
 
         if (!child.isSummary) {
           totalDuration += Math.max(1, child.durationDays);
@@ -477,6 +486,21 @@ export function recalculateSchedule(
         if (totalChildCost > 0) {
           task.cost = totalChildCost;
         }
+      }
+
+      if (minBaseStart && maxBaseEnd) {
+        task.baselineStartDate = toISODate(minBaseStart);
+        task.baselineEndDate = toISODate(maxBaseEnd);
+        task.baselineDurationDays = getWorkDaysDifference(
+          minBaseStart,
+          maxBaseEnd,
+          summaryActiveDays,
+          exceptions
+        );
+      } else {
+        task.baselineStartDate = undefined;
+        task.baselineEndDate = undefined;
+        task.baselineDurationDays = undefined;
       }
     }
   }
@@ -581,4 +605,36 @@ export function getSubtreeTaskCount(tasks: Task[], summaryTaskId: string): numbe
     }
   }
   return count;
+}
+
+
+/**
+ * Calcula a variação (desvio em dias úteis) entre a Data Fim Base (teórica) e a Data Fim Atual (prática):
+ * - Retorna `null` se a tarefa não possuir Linha de Base (`baselineEndDate`) definida
+ * - Retorna `0` se `endDate === baselineEndDate` (No prazo)
+ * - Retorna `> 0` (ex: +3) se a tarefa estiver atrasada em relação à Linha de Base
+ * - Retorna `< 0` (ex: -2) se a tarefa estiver adiantada em relação à Linha de Base
+ */
+export function getBaselineVarianceDays(
+  task: Task,
+  activeWeekDays: number[] = [1, 2, 3, 4, 5],
+  exceptions: CalendarException[] = []
+): number | null {
+  if (!task.baselineEndDate || !task.endDate) return null;
+  if (task.endDate === task.baselineEndDate) return 0;
+
+  const baseEnd = parseISODate(task.baselineEndDate);
+  const actualEnd = parseISODate(task.endDate);
+
+  if (actualEnd > baseEnd) {
+    const nextDay = new Date(baseEnd);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const workDiff = getWorkDaysDifference(nextDay, actualEnd, activeWeekDays, exceptions);
+    return Math.max(1, workDiff);
+  } else {
+    const nextDay = new Date(actualEnd);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const workDiff = getWorkDaysDifference(nextDay, baseEnd, activeWeekDays, exceptions);
+    return -Math.max(1, workDiff);
+  }
 }

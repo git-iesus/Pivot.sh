@@ -10,6 +10,7 @@ import {
   getVisibleTasks,
   getEffectiveActiveWeekDays,
   formatActiveWeekDaysShort,
+  getBaselineVarianceDays,
 } from '../../utils/scheduler';
 
 interface GanttChartProps {
@@ -17,6 +18,7 @@ interface GanttChartProps {
   zoomLevel: ZoomLevel;
   showCriticalPath: boolean;
   showGridLines: boolean;
+  showBaseline?: boolean;
   selectedTaskId: string | null;
   checkedTaskIds?: string[];
   onSelectTask: (taskId: string) => void;
@@ -33,6 +35,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   zoomLevel,
   showCriticalPath,
   showGridLines,
+  showBaseline = true,
   selectedTaskId,
   checkedTaskIds = [],
   onSelectTask,
@@ -76,6 +79,14 @@ export const GanttChart: React.FC<GanttChartProps> = ({
         const e = parseISODate(t.endDate);
         if (s < minDate) minDate = s;
         if (e > maxDate) maxDate = e;
+        if (t.baselineStartDate) {
+          const bs = parseISODate(t.baselineStartDate);
+          if (bs < minDate) minDate = bs;
+        }
+        if (t.baselineEndDate) {
+          const be = parseISODate(t.baselineEndDate);
+          if (be > maxDate) maxDate = be;
+        }
       });
     }
 
@@ -412,15 +423,15 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                 style={{ top: `${layout.y}px`, height: `${layout.height}px` }}
                 onClick={() => onSelectTask(task.id)}
               >
-                {/* Linha de Base (se houver) */}
-                {task.baselineStartDate && task.baselineEndDate && (
+                {/* Linha de Base (se houver e estiver ativa) */}
+                {showBaseline && task.baselineEndDate && (
                   <div
-                    className="baseline-bar"
+                    className={`baseline-bar ${task.endDate > task.baselineEndDate ? 'delayed' : ''}`}
                     style={{
-                      left: `${getXForDate(task.baselineStartDate)}px`,
-                      width: `${getXForDate(task.baselineEndDate) + dayWidth - getXForDate(task.baselineStartDate)}px`,
+                      left: `${getXForDate(task.baselineStartDate || task.startDate)}px`,
+                      width: `${Math.max(dayWidth, getXForDate(task.baselineEndDate) + dayWidth - getXForDate(task.baselineStartDate || task.startDate))}px`,
                     }}
-                    title="Linha de Base Planejada"
+                    title={`Linha de Base: ${formatDatePTBR(task.baselineStartDate || task.startDate)} ➔ ${formatDatePTBR(task.baselineEndDate)}`}
                   />
                 )}
 
@@ -514,6 +525,23 @@ export const GanttChart: React.FC<GanttChartProps> = ({
           <div className="tooltip-row">
             <span>Término:</span> <strong>{formatDatePTBR(hoveredTask.endDate)}</strong>
           </div>
+          {hoveredTask.baselineEndDate && (
+            <>
+              <div className="tooltip-row">
+                <span>Término Base:</span>{' '}
+                <strong>{formatDatePTBR(hoveredTask.baselineEndDate)}</strong>
+              </div>
+              <div className="tooltip-row">
+                <span>Variação Base:</span>{' '}
+                {(() => {
+                  const v = getBaselineVarianceDays(hoveredTask, hoveredTaskActiveDays, exceptions);
+                  if (v === null || v === 0) return <strong className="tooltip-var-ok">No prazo (0d)</strong>;
+                  if (v < 0) return <strong className="tooltip-var-ahead">{v}d úteis (Adiantada)</strong>;
+                  return <strong className="tooltip-var-late">+{v}d úteis (Atraso)</strong>;
+                })()}
+              </div>
+            </>
+          )}
           <div className="tooltip-row">
             <span>Duração:</span> <strong>{hoveredTask.durationDays} dias úteis</strong>
           </div>

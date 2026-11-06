@@ -32,6 +32,7 @@ import { StatusBar } from './components/StatusBar/StatusBar';
 import { TaskDetailModal } from './components/TaskDetail/TaskDetailModal';
 import { CostReportModal } from './components/CostReport/CostReportModal';
 import { CalendarExceptionsModal } from './components/CalendarExceptions/CalendarExceptionsModal';
+import { BaselineModal } from './components/Baseline/BaselineModal';
 import { WeekView } from './components/WeekView/WeekView';
 import { NexoPlugin, defaultNexoState } from './components/Nexo/NexoPlugin';
 import { AuthScreen } from './components/Auth/AuthScreen';
@@ -113,6 +114,7 @@ export const App: React.FC = () => {
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('days');
   const [showCriticalPath, setShowCriticalPath] = useState<boolean>(true);
   const [showGridLines, setShowGridLines] = useState<boolean>(true);
+  const [showBaseline, setShowBaseline] = useState<boolean>(true);
   const [defaultTaskMode, setDefaultTaskMode] = useState<'manual' | 'auto'>('auto');
 
   // Modais
@@ -121,6 +123,7 @@ export const App: React.FC = () => {
   const [isProjectInfoModalOpen, setIsProjectInfoModalOpen] = useState<boolean>(false);
   const [isCostReportOpen, setIsCostReportOpen] = useState<boolean>(false);
   const [isExceptionsModalOpen, setIsExceptionsModalOpen] = useState<boolean>(false);
+  const [isBaselineModalOpen, setIsBaselineModalOpen] = useState<boolean>(false);
   const [selectedDetailTaskId, setSelectedDetailTaskId] = useState<string | null>(null);
 
   // Estado do Plugin NEXO (persistido com Auto-Save no localStorage)
@@ -405,6 +408,67 @@ export const App: React.FC = () => {
     setTasks(recalculated);
     saveToStorage(recalculated, resources, updatedMeta);
     showToast('Cronograma atualizado com as Datas de Exceção Globais!');
+  };
+
+  // Ações de Linha de Base (Teórico vs. Prático)
+  const effectiveSelectedTaskIds = useMemo(() => {
+    if (checkedTaskIds.length > 0) return checkedTaskIds;
+    if (selectedTaskId) return [selectedTaskId];
+    return [];
+  }, [checkedTaskIds, selectedTaskId]);
+
+  const baselineTasksCount = useMemo(() => {
+    return scheduledTasks.filter((t) => !t.isSummary && Boolean(t.baselineEndDate)).length;
+  }, [scheduledTasks]);
+
+  const handleSetBaselineSnapshot = (scope: 'all' | 'selected') => {
+    const targetSet = new Set(effectiveSelectedTaskIds);
+    const updated = scheduledTasks.map((t) => {
+      if (t.isSummary) return t;
+      if (scope === 'selected' && !targetSet.has(t.id)) return t;
+      return {
+        ...t,
+        baselineStartDate: t.startDate,
+        baselineEndDate: t.endDate,
+        baselineDurationDays: t.durationDays,
+      };
+    });
+    pushTaskState(updated);
+    showToast(
+      scope === 'all'
+        ? 'Linha de Base salva para todo o projeto!'
+        : `Linha de Base salva para ${targetSet.size} tarefa(s)!`
+    );
+  };
+
+  const handleSetCustomBaselineDate = (scope: 'all' | 'selected', customEndDate: string) => {
+    const targetSet = new Set(effectiveSelectedTaskIds);
+    const updated = scheduledTasks.map((t) => {
+      if (t.isSummary) return t;
+      if (scope === 'selected' && !targetSet.has(t.id)) return t;
+      return {
+        ...t,
+        baselineStartDate: t.baselineStartDate || t.startDate,
+        baselineEndDate: customEndDate,
+      };
+    });
+    pushTaskState(updated);
+    showToast('Data Fim Base definida com sucesso!');
+  };
+
+  const handleClearBaseline = (scope: 'all' | 'selected') => {
+    const targetSet = new Set(effectiveSelectedTaskIds);
+    const updated = scheduledTasks.map((t) => {
+      if (scope === 'selected' && !targetSet.has(t.id)) return t;
+      return {
+        ...t,
+        baselineStartDate: undefined,
+        baselineEndDate: undefined,
+        baselineDurationDays: undefined,
+      };
+    });
+    pushTaskState(updated);
+    showToast('Linha de Base removida!');
   };
 
   const handleAddTask = () => {
@@ -955,6 +1019,10 @@ export const App: React.FC = () => {
         setShowCriticalPath={setShowCriticalPath}
         showGridLines={showGridLines}
         setShowGridLines={setShowGridLines}
+        showBaseline={showBaseline}
+        setShowBaseline={setShowBaseline}
+        onOpenBaselineModal={() => setIsBaselineModalOpen(true)}
+        baselineCount={baselineTasksCount}
         onOpenBackstage={() => setIsBackstageOpen(true)}
         onSave={handleManualSave}
         onUndo={handleUndo}
@@ -1004,6 +1072,7 @@ export const App: React.FC = () => {
                 tasks={scheduledTasks}
                 resources={resources}
                 activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
+                exceptions={metadata.exceptions || []}
                 selectedTaskId={selectedTaskId}
                 checkedTaskIds={checkedTaskIds}
                 onSelectTask={setSelectedTaskId}
@@ -1039,6 +1108,7 @@ export const App: React.FC = () => {
                 zoomLevel={zoomLevel}
                 showCriticalPath={showCriticalPath}
                 showGridLines={showGridLines}
+                showBaseline={showBaseline}
                 selectedTaskId={selectedTaskId}
                 checkedTaskIds={checkedTaskIds}
                 onSelectTask={setSelectedTaskId}
@@ -1058,6 +1128,7 @@ export const App: React.FC = () => {
                 tasks={scheduledTasks}
                 resources={resources}
                 activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
+                exceptions={metadata.exceptions || []}
                 selectedTaskId={selectedTaskId}
                 checkedTaskIds={checkedTaskIds}
                 onSelectTask={setSelectedTaskId}
@@ -1104,6 +1175,7 @@ export const App: React.FC = () => {
               tasks={scheduledTasks}
               resources={resources}
               activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
+              exceptions={metadata.exceptions || []}
               selectedTaskId={selectedTaskId}
               checkedTaskIds={checkedTaskIds}
               onSelectTask={setSelectedTaskId}
@@ -1217,6 +1289,18 @@ export const App: React.FC = () => {
         exceptions={metadata.exceptions || []}
         onUpdateExceptions={handleUpdateExceptions}
         defaultDate={selectedTaskObj?.startDate || metadata.startDate || '2026-10-16'}
+      />
+
+      <BaselineModal
+        isOpen={isBaselineModalOpen}
+        onClose={() => setIsBaselineModalOpen(false)}
+        tasks={scheduledTasks}
+        selectedTaskIds={effectiveSelectedTaskIds}
+        activeWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
+        exceptions={metadata.exceptions || []}
+        onSetBaselineSnapshot={handleSetBaselineSnapshot}
+        onSetCustomBaselineDate={handleSetCustomBaselineDate}
+        onClearBaseline={handleClearBaseline}
       />
 
       <TaskDetailModal

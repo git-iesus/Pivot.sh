@@ -19,6 +19,7 @@ import {
   Clock,
   Ban,
   Info,
+  Target,
 } from 'lucide-react';
 import { HybridNotesEditor } from './HybridNotesEditor';
 import {
@@ -26,6 +27,7 @@ import {
   getParentSubproject,
   getSubtreeTaskCount,
   formatActiveWeekDaysShort,
+  getBaselineVarianceDays,
 } from '../../utils/scheduler';
 
 interface TaskDetailModalProps {
@@ -78,6 +80,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [subTasks, setSubTasks] = useState<SubTask[]>([]);
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
   const [notes, setNotes] = useState('');
+  const [baselineEndDate, setBaselineEndDate] = useState<string>('');
   const [subprojectActiveDays, setSubprojectActiveDays] = useState<number[] | undefined>(undefined);
 
   // Reordenação via Drag and Drop
@@ -115,6 +118,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       setCost(task.cost ?? 0);
       setSubTasks(task.subTasks || []);
       setNotes(task.notes || '');
+      setBaselineEndDate(task.baselineEndDate || '');
       setSubprojectActiveDays(
         task.activeWeekDays && task.activeWeekDays.length > 0 ? [...task.activeWeekDays] : undefined
       );
@@ -263,7 +267,15 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const handleMarkComplete = () => {
     if (isSubproject) return;
     const finalName = taskName.trim() || task.name;
-    onUpdateTask(task.id, { name: finalName, progress: 100, subTasks: [], notes, cost });
+    onUpdateTask(task.id, {
+      name: finalName,
+      progress: 100,
+      subTasks: [],
+      notes,
+      cost,
+      baselineEndDate: baselineEndDate || undefined,
+      baselineStartDate: baselineEndDate ? task.baselineStartDate || task.startDate : undefined,
+    });
     onClose();
   };
 
@@ -282,7 +294,15 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const newProgress = hasSubTasks
       ? Math.round((subTasks.filter((st) => st.done).length / subTasks.length) * 100)
       : task.progress;
-    onUpdateTask(task.id, { name: finalName, subTasks, progress: newProgress, notes, cost });
+    onUpdateTask(task.id, {
+      name: finalName,
+      subTasks,
+      progress: newProgress,
+      notes,
+      cost,
+      baselineEndDate: baselineEndDate || undefined,
+      baselineStartDate: baselineEndDate ? task.baselineStartDate || task.startDate : undefined,
+    });
     onClose();
   };
 
@@ -417,6 +437,78 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               )}
             </div>
           </div>
+
+            {/* Barra de Linha de Base (Teórico vs. Prático) */}
+            <div className="task-detail-baseline-bar">
+              <div className="baseline-bar-left">
+                <Target size={14} className="baseline-bar-icon" />
+                <span className="baseline-bar-label">Linha de Base (Data Fim Teórica):</span>
+                {isSubproject ? (
+                  <span className="baseline-subproject-readonly">
+                    {task.baselineEndDate
+                      ? `${formatDateBR(task.baselineStartDate || task.startDate)} ➔ ${formatDateBR(task.baselineEndDate)} (Consolidada das subtarefas)`
+                      : 'Sem Linha de Base nas subtarefas'}
+                  </span>
+                ) : (
+                  <div className="baseline-inline-controls">
+                    <input
+                      type="date"
+                      className="baseline-date-input"
+                      value={baselineEndDate}
+                      onChange={(e) => setBaselineEndDate(e.target.value)}
+                      title="Defina a Data Fim Base (teórica) para comparar com o término prático"
+                    />
+                    <button
+                      type="button"
+                      className="baseline-quick-btn"
+                      onClick={() => setBaselineEndDate(task.endDate)}
+                      title="Usar a Data de Término atual como Linha de Base"
+                    >
+                      Fixar Atual ({formatDateBR(task.endDate)})
+                    </button>
+                    {baselineEndDate && (
+                      <button
+                        type="button"
+                        className="baseline-quick-btn clear"
+                        onClick={() => setBaselineEndDate('')}
+                        title="Remover Linha de Base desta tarefa"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {(() => {
+                const effectiveBaseEnd = isSubproject ? task.baselineEndDate : baselineEndDate;
+                if (!effectiveBaseEnd) return null;
+                const v = getBaselineVarianceDays(
+                  { ...task, baselineEndDate: effectiveBaseEnd },
+                  effectiveSubprojectDays
+                );
+                if (v === null) return null;
+                if (v === 0) {
+                  return (
+                    <span className="variance-pill on-track" title="Término prático exatamente igual à Linha de Base">
+                      ✓ No prazo (0d de variação)
+                    </span>
+                  );
+                }
+                if (v < 0) {
+                  return (
+                    <span className="variance-pill ahead" title={`Adiantada em ${Math.abs(v)} dia(s) útil(eis) em relação à Linha de Base`}>
+                      ⚡ {v}d úteis (Adiantada)
+                    </span>
+                  );
+                }
+                return (
+                  <span className="variance-pill delayed" title={`Atraso de ${v} dia(s) útil(eis) em relação à Linha de Base`}>
+                    ⚠️ +{v}d úteis (Desvio / Atraso)
+                  </span>
+                );
+              })()}
+            </div>
 
           <hr className="task-detail-divider" />
 

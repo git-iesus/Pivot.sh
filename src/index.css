@@ -7202,3 +7202,470 @@ input, select, button {
 .auth-link-btn:hover {
   text-decoration: underline;
 }
+
+
+/* =========================================================
+   Sistema de Linha de Base (Baseline — Teórico × Prático)
+   ========================================================= */
+
+/* Badge na Faixa de Opções (Ribbon) */
+.ribbon-baseline-badge {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #194d33;
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.legend-swatch.baseline-swatch {
+  width: 24px;
+  height: 6px;
+  background: #64748b;
+  border: 1px dashed #334155;
+  border-radius: 2px;
+}
+
+/* Célula Término na Planilha (TaskSheet) + Pílula de Variação */
+.end-date-cell-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+}
+
+.sheet-variance-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.25;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-variance-badge.on-track {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.sheet-variance-badge.ahead {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.sheet-variance-badge.delayed {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+/* Barra de Linha de Base no Gráfico de Gantt */
+.baseline-bar {
+  position: absolute;
+  bottom: 4px;
+  height: 4px;
+  background: #64748b;
+  border-radius: 2px;
+  opacity: 0.85;
+  z-index: 2;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.15);
+  pointer-events: none;
+}
+
+.baseline-bar.delayed {
+  background: #dc2626;
+  opacity: 0.9;
+}
+
+.tooltip-var-ok {
+  color: #15803d;
+}
+
+.tooltip-var-ahead {
+  color: #1d4ed8;
+}
+
+.tooltip-var-late {
+  color: #dc2626;
+}
+
+/* Indicador Discreto no Kanban Semanal (WeekView) */
+.task-card-top-right-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-baseline-delay {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+/* Barra de Linha de Base dentro do Modal de Detalhes da Tarefa (TaskDetailModal) */
+.task-detail-baseline-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.baseline-bar-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.baseline-bar-icon {
+  color: #194d33;
+  flex-shrink: 0;
+}
+
+.baseline-bar-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.baseline-subproject-readonly {
+  font-size: 11.5px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.baseline-inline-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.baseline-date-input {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  font-size: 11.5px;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.baseline-quick-btn {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.baseline-quick-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.baseline-quick-btn.clear {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.variance-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.variance-pill.on-track {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.variance-pill.ahead {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.variance-pill.delayed {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+/* Modal Dedicado de Linha de Base (BaselineModal) */
+.baseline-modal {
+  width: 580px;
+  max-width: 95vw;
+}
+
+.baseline-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.baseline-stats-banner {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.baseline-stat-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.baseline-stat-box.success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
+.baseline-stat-box.warning {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.baseline-stat-box .stat-label {
+  display: block;
+  font-size: 10.5px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.baseline-stat-box .stat-value {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.baseline-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.baseline-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.baseline-method-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.baseline-method-card {
+  text-align: left;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.baseline-method-card:hover {
+  background: #f8fafc;
+}
+
+.baseline-method-card.active {
+  border-color: #194d33;
+  background: #f0fdf4;
+  box-shadow: 0 0 0 2px rgba(25, 77, 51, 0.1);
+}
+
+.method-card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #0f172a;
+  margin-bottom: 5px;
+}
+
+.method-icon {
+  color: #194d33;
+  flex-shrink: 0;
+}
+
+.baseline-method-card p {
+  margin: 0;
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.baseline-custom-date-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+}
+
+.baseline-custom-date-box label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.baseline-date-preview {
+  font-size: 11.5px;
+  color: #15803d;
+}
+
+.baseline-scope-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.baseline-scope-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.baseline-scope-radio.selected {
+  border-color: #194d33;
+  background: #f8fafc;
+}
+
+.baseline-scope-radio.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.baseline-scope-radio strong {
+  display: block;
+  font-size: 12px;
+  color: #0f172a;
+}
+
+.baseline-scope-radio span {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.baseline-info-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 7px;
+  font-size: 11.5px;
+  color: #0c4a6e;
+  line-height: 1.45;
+}
+
+.baseline-info-note code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 10.5px;
+}
+
+.baseline-info-note code.var-ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.baseline-info-note code.var-ahead {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.baseline-info-note code.var-late {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.baseline-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.baseline-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-office.danger-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #b91c1c;
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.btn-office.danger-outline:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.btn-office.danger-outline:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
