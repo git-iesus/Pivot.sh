@@ -1218,6 +1218,7 @@ export const App: React.FC = () => {
                 selectedTaskId={selectedTaskId}
                 checkedTaskIds={checkedTaskIds}
                 onSelectTask={setSelectedTaskId}
+                onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
                 rowHeights={rowHeights}
                 scrollTop={0}
                 onScroll={handleScroll('gantt')}
@@ -1412,7 +1413,9 @@ export const App: React.FC = () => {
       <TaskDetailModal
         task={scheduledTasks.find((t) => t.id === selectedDetailTaskId) || null}
         tasks={scheduledTasks}
+        resources={resources}
         projectActiveWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
+        exceptions={metadata.exceptions || []}
         isOpen={selectedDetailTaskId !== null}
         onClose={() => setSelectedDetailTaskId(null)}
         onUpdateTask={handleUpdateTask}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Task, SubTask } from '../../types/project';
+import { Task, SubTask, Resource, CalendarException } from '../../types/project';
 import {
   X,
   Plus,
@@ -28,11 +28,17 @@ import {
   getSubtreeTaskCount,
   formatActiveWeekDaysShort,
   getBaselineVarianceDays,
+  parseISODate,
+  toISODate,
+  addWorkDays,
+  getWorkDaysDifference,
 } from '../../utils/scheduler';
 
 interface TaskDetailModalProps {
   task: Task | null;
   tasks?: Task[];
+  resources?: Resource[];
+  exceptions?: CalendarException[];
   projectActiveWeekDays?: number[];
   isOpen: boolean;
   onClose: () => void;
@@ -70,13 +76,22 @@ function arraysEqual(a: number[], b: number[]): boolean {
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   task,
   tasks = [],
+  resources = [],
+  exceptions = [],
   projectActiveWeekDays = [1, 2, 3, 4, 5],
   isOpen,
   onClose,
   onUpdateTask,
 }) => {
   const [taskName, setTaskName] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [durationDays, setDurationDays] = useState<number>(1);
+  const [predecessorText, setPredecessorText] = useState('');
+  const [resourceNames, setResourceNames] = useState<string[]>([]);
+  const [customResourceInput, setCustomResourceInput] = useState('');
   const [cost, setCost] = useState<number>(0);
+  const [localProgress, setLocalProgress] = useState<number>(0);
   const [subTasks, setSubTasks] = useState<SubTask[]>([]);
   const [newSubTaskTitle, setNewSubTaskTitle] = useState('');
   const [notes, setNotes] = useState('');
@@ -115,7 +130,14 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   useEffect(() => {
     if (task) {
       setTaskName(task.name || '');
+      setStartDate(task.startDate || '');
+      setEndDate(task.endDate || '');
+      setDurationDays(task.isMilestone ? 0 : Math.max(1, task.durationDays || 1));
+      setPredecessorText(task.predecessorText || '');
+      setResourceNames(task.resourceNames ? [...task.resourceNames] : []);
+      setCustomResourceInput('');
       setCost(task.cost ?? 0);
+      setLocalProgress(task.progress ?? 0);
       setSubTasks(task.subTasks || []);
       setNotes(task.notes || '');
       setBaselineEndDate(task.baselineEndDate || '');
@@ -146,6 +168,57 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     : hasSubTasks
       ? Math.round((doneCount / subTasks.length) * 100)
       : task.progress;
+
+  // Handlers de edição interativa de Datas, Duração e Recursos dentro do Modal
+  const handleModalStartDateChange = (nextStart: string) => {
+    if (!nextStart) return;
+    setStartDate(nextStart);
+    const startDt = parseISODate(nextStart);
+    const dur = task.isMilestone ? 0 : Math.max(1, durationDays);
+    const computedEnd = toISODate(addWorkDays(startDt, dur, effectiveSubprojectDays, exceptions));
+    setEndDate(computedEnd);
+  };
+
+  const handleModalDurationChange = (nextDurRaw: number) => {
+    const validDur = task.isMilestone ? 0 : Math.max(1, nextDurRaw || 1);
+    setDurationDays(validDur);
+    if (startDate) {
+      const startDt = parseISODate(startDate);
+      const computedEnd = toISODate(addWorkDays(startDt, validDur, effectiveSubprojectDays, exceptions));
+      setEndDate(computedEnd);
+    }
+  };
+
+  const handleModalEndDateChange = (nextEnd: string) => {
+    if (!nextEnd) return;
+    setEndDate(nextEnd);
+    if (startDate) {
+      const startDt = parseISODate(startDate);
+      const endDt = parseISODate(nextEnd);
+      if (endDt >= startDt) {
+        const diffDays = getWorkDaysDifference(startDt, endDt, effectiveSubprojectDays, exceptions);
+        setDurationDays(task.isMilestone ? 0 : Math.max(1, diffDays));
+      } else {
+        setStartDate(nextEnd);
+        setDurationDays(task.isMilestone ? 0 : 1);
+      }
+    }
+  };
+
+  const handleToggleResourceName = (resName: string) => {
+    setResourceNames((prev) =>
+      prev.includes(resName) ? prev.filter((r) => r !== resName) : [...prev, resName]
+    );
+  };
+
+  const handleAddCustomResource = () => {
+    const trimmed = customResourceInput.trim();
+    if (!trimmed) return;
+    if (!resourceNames.includes(trimmed)) {
+      setResourceNames((prev) => [...prev, trimmed]);
+    }
+    setCustomResourceInput('');
+  };
 
   const handleToggleSubprojectDay = (dayIndex: number) => {
     const current = effectiveSubprojectDays;
@@ -264,19 +337,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setDragOverIndex(null);
   };
 
-  const handleMarkComplete = () => {
+  const handleToggleMasterComplete = () => {
     if (isSubproject) return;
-    const finalName = taskName.trim() || task.name;
-    onUpdateTask(task.id, {
-      name: finalName,
-      progress: 100,
-      subTasks: [],
-      notes,
-      cost,
-      baselineEndDate: baselineEndDate || undefined,
-      baselineStartDate: baselineEndDate ? task.baselineStartDate || task.startDate : undefined,
-    });
-    onClose();
+    setLocalProgress((prev) => (prev === 100 ? 0 : 100));
   };
 
   const handleSave = () => {
@@ -293,15 +356,20 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
     const newProgress = hasSubTasks
       ? Math.round((subTasks.filter((st) => st.done).length / subTasks.length) * 100)
-      : task.progress;
+      : localProgress;
     onUpdateTask(task.id, {
       name: finalName,
+      startDate,
+      endDate,
+      durationDays: Math.max(0, durationDays),
+      predecessorText: predecessorText.trim(),
+      resourceNames,
       subTasks,
       progress: newProgress,
       notes,
       cost,
       baselineEndDate: baselineEndDate || undefined,
-      baselineStartDate: baselineEndDate ? task.baselineStartDate || task.startDate : undefined,
+      baselineStartDate: baselineEndDate ? task.baselineStartDate || startDate : undefined,
     });
     onClose();
   };
@@ -310,8 +378,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     if (e.key === 'Enter') handleAddSubTask();
   };
 
+  const effectiveTaskProgress = hasSubTasks ? computedProgress : localProgress;
   const progressColor =
-    computedProgress === 100 ? '#2e7d32' : computedProgress >= 50 ? '#1976d2' : '#e65100';
+    effectiveTaskProgress === 100 ? '#2e7d32' : effectiveTaskProgress >= 50 ? '#1976d2' : '#e65100';
 
   const activeDaysNames = WEEK_DAYS.filter((d) => effectiveSubprojectDays.includes(d.index)).map(
     (d) => d.name
@@ -395,19 +464,20 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               </div>
             </div>
 
-            {/* Agrupamento de Metadados em Chips / Badges elegantes */}
+            {/* Agrupamento de Metadados e Edição Direta de Cronograma / Recursos */}
             <div className="task-metadata-chips-bar">
-              <div className="meta-chip date-chip" title="Data de Início, Término e Duração em dias úteis">
-                <Calendar size={13} className="chip-icon" />
-                <span>
-                  {formatDateBR(task.startDate)} ➔ {formatDateBR(task.endDate)} ({task.durationDays}d úteis)
-                </span>
-              </div>
-              {!isSubproject && (
-                <div className="meta-chip pred-chip" title="Predecessoras da tarefa">
-                  <Link2 size={13} className="chip-icon" />
+              {isSubproject ? (
+                <div className="meta-chip date-chip" title="Data de Início, Término e Duração consolidada das subtarefas">
+                  <Calendar size={13} className="chip-icon" />
                   <span>
-                    Pred: <strong>{task.predecessorText || 'Nenhuma'}</strong>
+                    {formatDateBR(task.startDate)} ➔ {formatDateBR(task.endDate)} ({task.durationDays}d úteis)
+                  </span>
+                </div>
+              ) : (
+                <div className="meta-chip date-chip" title="Resumo do agendamento atual">
+                  <Calendar size={13} className="chip-icon" />
+                  <span>
+                    {formatDateBR(startDate)} ➔ {formatDateBR(endDate)} ({durationDays}d úteis)
                   </span>
                 </div>
               )}
@@ -429,13 +499,113 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   </span>
                 </div>
               )}
-              {task.resourceNames.length > 0 && (
-                <div className="meta-chip res-chip" title="Recursos atribuídos">
-                  <Users size={13} className="chip-icon" />
-                  <span>{task.resourceNames.join(', ')}</span>
-                </div>
-              )}
             </div>
+
+            {!isSubproject && (
+              <div className="task-detail-schedule-editor">
+                <div className="schedule-fields-row">
+                  <label className="schedule-field-group">
+                    <span className="schedule-field-label">
+                      <Calendar size={12} /> Início
+                    </span>
+                    <input
+                      type="date"
+                      className="schedule-field-input"
+                      value={startDate}
+                      onChange={(e) => handleModalStartDateChange(e.target.value)}
+                    />
+                  </label>
+                  <label className="schedule-field-group">
+                    <span className="schedule-field-label">
+                      <Clock size={12} /> Duração (d úteis)
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      className="schedule-field-input duration-input"
+                      value={durationDays}
+                      onChange={(e) => handleModalDurationChange(parseInt(e.target.value, 10) || 0)}
+                    />
+                  </label>
+                  <label className="schedule-field-group">
+                    <span className="schedule-field-label">
+                      <Calendar size={12} /> Término
+                    </span>
+                    <input
+                      type="date"
+                      className="schedule-field-input"
+                      value={endDate}
+                      onChange={(e) => handleModalEndDateChange(e.target.value)}
+                    />
+                  </label>
+                  <label className="schedule-field-group pred-group">
+                    <span className="schedule-field-label">
+                      <Link2 size={12} /> Predecessoras
+                    </span>
+                    <input
+                      type="text"
+                      className="schedule-field-input"
+                      value={predecessorText}
+                      onChange={(e) => setPredecessorText(e.target.value)}
+                      placeholder="Ex: 2, 3FS+1d"
+                    />
+                  </label>
+                </div>
+
+                <div className="schedule-resources-row">
+                  <span className="schedule-field-label">
+                    <Users size={12} /> Recursos Atribuídos:
+                  </span>
+                  <div className="schedule-resources-pills">
+                    {Array.from(
+                      new Set([
+                        ...resources.map((r) => r.name),
+                        ...resourceNames,
+                      ])
+                    ).map((resName) => {
+                      const isAssigned = resourceNames.includes(resName);
+                      return (
+                        <button
+                          key={resName}
+                          type="button"
+                          className={`resource-toggle-pill ${isAssigned ? 'assigned' : ''}`}
+                          onClick={() => handleToggleResourceName(resName)}
+                          title={isAssigned ? `Remover ${resName}` : `Atribuir ${resName}`}
+                        >
+                          {isAssigned ? '✓ ' : '+ '}
+                          {resName}
+                        </button>
+                      );
+                    })}
+                    <div className="resource-inline-add">
+                      <input
+                        type="text"
+                        className="resource-inline-input"
+                        value={customResourceInput}
+                        onChange={(e) => setCustomResourceInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddCustomResource();
+                          }
+                        }}
+                        placeholder="+ Novo recurso..."
+                      />
+                      {customResourceInput.trim() && (
+                        <button
+                          type="button"
+                          className="resource-inline-btn"
+                          onClick={handleAddCustomResource}
+                          title="Adicionar recurso"
+                        >
+                          <Plus size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
             {/* Barra de Linha de Base (Teórico vs. Prático) */}
@@ -461,10 +631,10 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     <button
                       type="button"
                       className="baseline-quick-btn"
-                      onClick={() => setBaselineEndDate(task.endDate)}
+                      onClick={() => setBaselineEndDate(endDate)}
                       title="Usar a Data de Término atual como Linha de Base"
                     >
-                      Fixar Atual ({formatDateBR(task.endDate)})
+                      Fixar Atual ({formatDateBR(endDate)})
                     </button>
                     {baselineEndDate && (
                       <button
@@ -484,8 +654,14 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 const effectiveBaseEnd = isSubproject ? task.baselineEndDate : baselineEndDate;
                 if (!effectiveBaseEnd) return null;
                 const v = getBaselineVarianceDays(
-                  { ...task, baselineEndDate: effectiveBaseEnd },
-                  effectiveSubprojectDays
+                  {
+                    ...task,
+                    startDate: isSubproject ? task.startDate : startDate,
+                    endDate: isSubproject ? task.endDate : endDate,
+                    baselineEndDate: effectiveBaseEnd,
+                  },
+                  effectiveSubprojectDays,
+                  exceptions
                 );
                 if (v === null) return null;
                 if (v === 0) {
@@ -653,17 +829,24 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     Esta tarefa não possui sub-tarefas. Você pode marcá-la como concluída diretamente ou adicionar um checklist abaixo.
                   </p>
                   <button
-                    className={`master-checkbox-btn ${task.progress === 100 ? 'completed' : ''}`}
-                    onClick={handleMarkComplete}
-                    title={task.progress === 100 ? 'Tarefa já concluída' : 'Marcar como 100% Concluída'}
+                    type="button"
+                    className={`master-checkbox-btn ${localProgress === 100 ? 'completed' : ''}`}
+                    onClick={handleToggleMasterComplete}
+                    title={
+                      localProgress === 100
+                        ? 'Clique para desmarcar e voltar para Pendente (0%)'
+                        : 'Marcar como 100% Concluída'
+                    }
                   >
-                    {task.progress === 100 ? (
+                    {localProgress === 100 ? (
                       <CheckSquare size={22} className="icon-done" />
                     ) : (
                       <Square size={22} className="icon-pending" />
                     )}
                     <span>
-                      {task.progress === 100 ? 'Concluída (100%)' : 'Marcar como Concluída'}
+                      {localProgress === 100
+                        ? 'Concluída (100%) — Clique para reabrir'
+                        : 'Marcar como Concluída (100%)'}
                     </span>
                   </button>
                 </div>

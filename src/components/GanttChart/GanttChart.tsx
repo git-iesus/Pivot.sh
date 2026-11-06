@@ -22,6 +22,7 @@ interface GanttChartProps {
   selectedTaskId: string | null;
   checkedTaskIds?: string[];
   onSelectTask: (taskId: string) => void;
+  onOpenTaskDetail?: (taskId: string) => void;
   scrollTop: number;
   onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
   scrollRef: React.RefObject<HTMLDivElement | null>;
@@ -39,6 +40,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   selectedTaskId,
   checkedTaskIds = [],
   onSelectTask,
+  onOpenTaskDetail,
   onScroll,
   scrollRef,
   activeWeekDays = [1, 2, 3, 4, 5],
@@ -47,6 +49,31 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 }) => {
   const [hoveredTask, setHoveredTask] = useState<Task | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+
+  const updateTooltipFromMouse = (e: React.MouseEvent, task: Task) => {
+    setHoveredTask(task);
+    setTooltipPos({ x: e.clientX, y: e.clientY });
+  };
+
+  const getSafeTooltipStyle = (pos: { x: number; y: number }): React.CSSProperties => {
+    const tooltipWidth = 270;
+    const tooltipHeight = 250;
+    const offset = 16;
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+
+    let left = pos.x + offset;
+    let top = pos.y + offset;
+
+    if (left + tooltipWidth > vw - 12) {
+      left = Math.max(12, pos.x - tooltipWidth - offset);
+    }
+    if (top + tooltipHeight > vh - 12) {
+      top = Math.max(12, pos.y - tooltipHeight - offset);
+    }
+
+    return { left: `${left}px`, top: `${top}px` };
+  };
 
   // Apenas tarefas visíveis (sincronizado 1:1 com a planilha quando Subprojetos estão recolhidos)
   const visibleTasks = useMemo(() => getVisibleTasks(tasks), [tasks]);
@@ -207,6 +234,14 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const todayStr = toISODate(new Date());
   const todayX = getXForDate(todayStr) + dayWidth / 2;
 
+  const handleScrollToToday = () => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const viewportWidth = container.clientWidth || 600;
+    const targetLeft = Math.max(0, todayX - viewportWidth / 2);
+    container.scrollTo({ left: targetLeft, behavior: 'smooth' });
+  };
+
   // Layout vertical acumulado com suporte a alturas de linhas dinâmicas estilo Excel (apenas tarefas visíveis)
   const taskLayout = useMemo(() => {
     const positions: { y: number; height: number; centerY: number }[] = [];
@@ -247,6 +282,16 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
   return (
     <div className="gantt-chart-container">
+      {/* Botão flutuante "Ir para Hoje" */}
+      <button
+        type="button"
+        className="gantt-scroll-today-btn"
+        onClick={handleScrollToToday}
+        title="Centralizar o gráfico de Gantt na linha de Hoje"
+      >
+        📍 Ir para Hoje
+      </button>
+
       {/* Container Rolável Único: Cabeçalho e Canvas compartilham o mesmo scroll e largura exata */}
       <div className="gantt-chart-body" ref={scrollRef} onScroll={onScroll}>
         {/* Cabeçalho da Escala de Tempo Dupla (Fixo no topo durante scroll vertical) */}
@@ -422,6 +467,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                 className={`gantt-row-layer ${isSelected ? 'selected-row' : ''}`}
                 style={{ top: `${layout.y}px`, height: `${layout.height}px` }}
                 onClick={() => onSelectTask(task.id)}
+                onDoubleClick={() => onOpenTaskDetail?.(task.id)}
               >
                 {/* Linha de Base (se houver e estiver ativa) */}
                 {showBaseline && task.baselineEndDate && (
@@ -440,10 +486,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                   <div
                     className="summary-bar-wrapper"
                     style={{ left: `${startX}px`, width: `${width}px` }}
-                    onMouseEnter={(e) => {
-                      setHoveredTask(task);
-                      setTooltipPos({ x: e.clientX, y: e.clientY });
-                    }}
+                    onMouseEnter={(e) => updateTooltipFromMouse(e, task)}
+                    onMouseMove={(e) => updateTooltipFromMouse(e, task)}
                     onMouseLeave={() => setHoveredTask(null)}
                   >
                     <div
@@ -463,10 +507,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                   <div
                     className="milestone-wrapper"
                     style={{ left: `${startX + dayWidth / 2}px` }}
-                    onMouseEnter={(e) => {
-                      setHoveredTask(task);
-                      setTooltipPos({ x: e.clientX, y: e.clientY });
-                    }}
+                    onMouseEnter={(e) => updateTooltipFromMouse(e, task)}
+                    onMouseMove={(e) => updateTooltipFromMouse(e, task)}
                     onMouseLeave={() => setHoveredTask(null)}
                   >
                     <div
@@ -481,10 +523,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                   <div
                     className={`task-bar ${isCrit ? 'critical' : ''} ${task.progress === 100 ? 'completed' : ''}`}
                     style={{ left: `${startX}px`, width: `${width}px` }}
-                    onMouseEnter={(e) => {
-                      setHoveredTask(task);
-                      setTooltipPos({ x: e.clientX, y: e.clientY });
-                    }}
+                    onMouseEnter={(e) => updateTooltipFromMouse(e, task)}
+                    onMouseMove={(e) => updateTooltipFromMouse(e, task)}
                     onMouseLeave={() => setHoveredTask(null)}
                   >
                     <div
@@ -503,11 +543,11 @@ export const GanttChart: React.FC<GanttChartProps> = ({
         </div>
       </div>
 
-      {/* Tooltip Flutuante de Detalhes da Tarefa / Subprojeto */}
+      {/* Tooltip Flutuante de Detalhes da Tarefa / Subprojeto com Collision Detection */}
       {hoveredTask && tooltipPos && (
         <div
           className="gantt-tooltip"
-          style={{ left: `${tooltipPos.x + 15}px`, top: `${tooltipPos.y + 15}px` }}
+          style={getSafeTooltipStyle(tooltipPos)}
         >
           <div className="tooltip-title">{hoveredTask.name}</div>
           {hoveredTask.isSummary && (
@@ -556,6 +596,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
           {hoveredTask.isCritical && (
             <div className="tooltip-critical-tag">⚠️ Tarefa no Caminho Crítico</div>
           )}
+          <div className="tooltip-dblclick-hint">💡 Duplo clique para abrir detalhes</div>
         </div>
       )}
     </div>

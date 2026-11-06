@@ -7945,3 +7945,180 @@ input, select, button {
   font-size: 10px;
   color: #94a3b8;
 }
+
+/* ==========================================================================
+   PACOTE 2 — EDIÇÃO COMPLETA NO MODAL & GANTT INTERATIVO
+   ========================================================================== */
+
+/* 1. Editor de Cronograma, Predecessoras e Recursos no TaskDetailModal */
+.task-detail-schedule-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.schedule-fields-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.schedule-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schedule-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.schedule-field-input {
+  height: 28px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.schedule-field-input:focus {
+  border-color: #217346;
+  box-shadow: 0 0 0 2px rgba(33, 115, 70, 0.14);
+}
+
+.schedule-field-input.duration-input {
+  font-weight: 600;
+  text-align: center;
+}
+
+.schedule-resources-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.schedule-resources-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.resource-toggle-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.resource-toggle-pill:hover {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.resource-toggle-pill.assigned {
+  color: #14532d;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.resource-inline-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.resource-inline-input {
+  height: 24px;
+  width: 120px;
+  padding: 2px 8px;
+  font-size: 11px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #0f172a;
+  outline: none;
+}
+
+.resource-inline-input:focus {
+  border-style: solid;
+  border-color: #217346;
+}
+
+.resource-inline-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 999px;
+  background: #217346;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+/* 2. Botão "Ir para Hoje" e Dica de Duplo Clique no GanttChart */
+.gantt-scroll-today-btn {
+  position: absolute;
+  top: 6px;
+  right: 16px;
+  z-index: 35;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #991b1b;
+  background: rgba(254, 242, 242, 0.96);
+  border: 1px solid #fca5a5;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.gantt-scroll-today-btn:hover {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+  box-shadow: 0 3px 10px rgba(220, 38, 38, 0.25);
+}
+
+.tooltip-dblclick-hint {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.18);
+  font-size: 10.5px;
+  color: #cbd5e1;
+  text-align: center;
+}
