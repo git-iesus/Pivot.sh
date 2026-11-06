@@ -8122,3 +8122,140 @@ input, select, button {
   color: #cbd5e1;
   text-align: center;
 }
+
+/* ==========================================================================
+   PACOTE 3 — POLIMENTO DA ARQUITETURA NEXO & CONSISTÊNCIA VISUAL
+   ========================================================================== */
+
+/* 1. Harmonização da Paleta Nexo (Slate + Emerald/Teal Corporativo) */
+.ribbon-tab-btn.nexo-tab-highlight {
+  color: #194d33;
+  font-weight: 700;
+}
+
+.ribbon-tab-btn.nexo-tab-highlight.active {
+  color: #14532d;
+  border-top: 2px solid #217346;
+}
+
+.nexo-logo-badge {
+  background: linear-gradient(135deg, #194d33 0%, #0d9488 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(25, 77, 51, 0.25) !important;
+}
+
+.nexo-btn-primary,
+.nexo-btn-cta {
+  background: linear-gradient(135deg, #194d33 0%, #217346 100%) !important;
+  border-color: #194d33 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(25, 77, 51, 0.2) !important;
+}
+
+.nexo-btn-primary:hover:not(:disabled),
+.nexo-btn-cta:hover:not(:disabled) {
+  background: linear-gradient(135deg, #14532d 0%, #194d33 100%) !important;
+  box-shadow: 0 4px 10px rgba(25, 77, 51, 0.28) !important;
+}
+
+.nexo-phase-item.active {
+  background: #f0fdf4 !important;
+  border-color: #86efac !important;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.08) !important;
+}
+
+.nexo-phase-item.active .phase-step-indicator {
+  background: #194d33 !important;
+  color: #ffffff !important;
+  border-color: #194d33 !important;
+}
+
+.nexo-phase-item.active .phase-title {
+  color: #14532d !important;
+}
+
+.stage-kicker,
+.pointb-phase-tag {
+  color: #194d33 !important;
+  background: #dcfce7 !important;
+  border-color: #bbf7d0 !important;
+}
+
+.reverse-step-badge,
+.ms-index-badge,
+.validator-step-number {
+  background: #f0fdf4 !important;
+  color: #166534 !important;
+  border-color: #bbf7d0 !important;
+}
+
+/* 2. Stepper Guiado de Prontidão da Matriz (Fase 4 do Nexo) */
+.nexo-phase4-readiness-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-left: 4px solid #f59e0b;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.nexo-phase4-readiness-bar.ready {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  border-left: 4px solid #16a34a;
+}
+
+.readiness-bar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.readiness-status-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #1e293b;
+}
+
+.nexo-phase4-readiness-bar.ready .readiness-status-text svg {
+  color: #16a34a;
+}
+
+.nexo-phase4-readiness-bar:not(.ready) .readiness-status-text svg {
+  color: #d97706;
+}
+
+.readiness-complete-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #15803d;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  border-radius: 999px;
+}
+
+.readiness-progress-track {
+  width: 100%;
+  height: 7px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.readiness-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #194d33 0%, #16a34a 100%);
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}

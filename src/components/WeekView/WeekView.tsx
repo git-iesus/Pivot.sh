@@ -319,7 +319,7 @@ export const WeekView: React.FC<WeekViewProps> = ({
                               </span>
                             )}
                             {isStartDay && isEndDay ? (
-                              <span className="badge-date-event">Hoje</span>
+                              <span className="badge-date-event">{day.isToday ? 'Hoje' : 'Dia único'}</span>
                             ) : isStartDay ? (
                               <span className="badge-date-event start">Inicia</span>
                             ) : isEndDay ? (

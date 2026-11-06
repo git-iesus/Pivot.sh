@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Resource } from '../../types/project';
 import { X, Plus, Trash2, Users } from 'lucide-react';
 
@@ -16,6 +16,12 @@ export const ResourceSheetModal: React.FC<ResourceSheetModalProps> = ({
   onUpdateResources,
 }) => {
   const [list, setList] = useState<Resource[]>(resources);
+
+  useEffect(() => {
+    if (isOpen) {
+      setList(resources);
+    }
+  }, [isOpen, resources]);
 
   if (!isOpen) return null;
 
@@ -48,7 +54,12 @@ export const ResourceSheetModal: React.FC<ResourceSheetModalProps> = ({
   };
 
   return (
-    <div className="modal-backdrop">
+    <div
+      className="modal-backdrop"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="modal-window resource-modal">
         <div className="modal-titlebar">
           <div className="title-with-icon">

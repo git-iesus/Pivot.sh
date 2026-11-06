@@ -153,14 +153,19 @@ export const ProjectInfoModal: React.FC<ProjectInfoModalProps> = ({
   const inactiveDaysList = WEEK_DAYS.filter((d) => !currentActive.includes(d.index)).map((d) => d.name);
 
   return (
-    <div className="modal-backdrop">
+    <div
+      className="modal-backdrop"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleSave();
+      }}
+    >
       <div className="modal-window project-info-modal expanded">
         <div className="modal-titlebar">
           <div className="title-with-icon">
             <Calendar size={18} />
             <span>Informações sobre o Projeto &amp; Calendários de Subprojetos</span>
           </div>
-          <button className="close-btn" onClick={onClose} title="Fechar">
+          <button className="close-btn" onClick={handleSave} title="Fechar (salva automaticamente)">
             <X size={16} />
           </button>
         </div>

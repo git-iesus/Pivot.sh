@@ -3,8 +3,6 @@ import {
   NexoProjectState,
   NexoMilestone,
   NexoPhase,
-  NexoRoleView,
-  NexoRetrospectiveLog,
   Resource,
   CalendarException,
 } from '../../types/project';
@@ -24,30 +22,19 @@ import {
   Trash2,
   CheckCircle2,
   Lock,
-  Unlock,
-  Flame,
   ShieldCheck,
   AlertTriangle,
   Sparkles,
-  Play,
-  Pause,
-  RotateCcw,
   Calendar,
   User,
   Wrench,
   DollarSign,
-  Layers,
-  CheckSquare,
-  Square,
   RefreshCw,
   Compass,
   Zap,
   Flag,
-  ChevronRight,
   BarChart3,
-  History,
   X,
-  Eye,
   EyeOff,
 } from 'lucide-react';
 
@@ -141,22 +128,6 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
   const [chronologicalOrderInPhase3, setChronologicalOrderInPhase3] = useState<boolean>(true);
   const [gateAlertMessage, setGateAlertMessage] = useState<string | null>(null);
 
-  // Estados do Modo Ignição (Fase 5 / Visão Executor)
-  const [newChecklistText, setNewChecklistText] = useState<string>('');
-  const [timerSeconds, setTimerSeconds] = useState<number>(25 * 60);
-  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
-
-  // Estado do Modal de Retrospectiva (Melhoria Contínua)
-  const [retroModal, setRetroModal] = useState<{
-    isOpen: boolean;
-    type: 'completion' | 'obstacle';
-    milestoneId: string;
-    milestoneTitle: string;
-  } | null>(null);
-  const [whatWorked, setWhatWorked] = useState<string>('');
-  const [whatBlocked, setWhatBlocked] = useState<string>('');
-  const [whatToAdjust, setWhatToAdjust] = useState<string>('');
-
   const reverseInputRef = useRef<HTMLInputElement | null>(null);
   const gapInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -166,9 +137,7 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
     reachedPointA,
     logicValidated,
     activePhase,
-    roleView,
     isFocusModeNewProject,
-    retrospectives,
   } = nexoState;
 
   // =========================================================
@@ -201,21 +170,6 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
     allMilestonesHaveDeadline;
 
   const totalBudget = milestones.reduce((acc, m) => acc + (Number(m.budget) || 0), 0);
-
-  // Timer de Foco para o Modo Ignição
-  useEffect(() => {
-    if (!isTimerRunning) return;
-    const interval = setInterval(() => {
-      setTimerSeconds((prev) => {
-        if (prev <= 1) {
-          setIsTimerRunning(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isTimerRunning]);
 
   // Atalhos de Teclado (Keyboard-First): Cmd/Ctrl + Setas para reordenar na Fase 3
   useEffect(() => {
@@ -1268,6 +1222,50 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
                   <span>Calcular Cronograma Reverso (B → A)</span>
                 </button>
               </div>
+
+              {/* Stepper Guiado de Prontidão da Matriz (Fase 4) */}
+              {(() => {
+                const ownersCount = milestones.filter((m) => m.owner && m.owner.trim().length > 0).length;
+                const readinessPct =
+                  milestones.length > 0
+                    ? Math.round((milestonesWithDeadlineCount / milestones.length) * 100)
+                    : 0;
+                return (
+                  <div className={`nexo-phase4-readiness-bar ${allMilestonesHaveDeadline ? 'ready' : ''}`}>
+                    <div className="readiness-bar-top">
+                      <div className="readiness-status-text">
+                        <ShieldCheck size={15} />
+                        <span>
+                          <strong>Progresso de Calibração da Matriz:</strong>{' '}
+                          {milestonesWithDeadlineCount} de {milestones.length} prazos definidos ({readinessPct}%) •{' '}
+                          {ownersCount} de {milestones.length} responsáveis (Owners) atribuídos
+                        </span>
+                      </div>
+                      {!allMilestonesHaveDeadline ? (
+                        <button
+                          type="button"
+                          className="nexo-btn-primary small"
+                          onClick={handleCalculateReverseSchedule}
+                          title="Preencher automaticamente todos os prazos de trás para frente a partir do Ponto B"
+                        >
+                          <Zap size={12} />
+                          <span>Preencher Prazos Automaticamente</span>
+                        </button>
+                      ) : (
+                        <span className="readiness-complete-pill">
+                          ✓ Matriz 100% Destravada para Sincronizar com o Gantt
+                        </span>
+                      )}
+                    </div>
+                    <div className="readiness-progress-track">
+                      <div
+                        className="readiness-progress-fill"
+                        style={{ width: `${readinessPct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="milestones-matrix-grid">
                 {milestones.map((ms, index) => {
