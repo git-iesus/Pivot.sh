@@ -264,8 +264,8 @@ export const WeekView: React.FC<WeekViewProps> = ({
                     <span>{isDayActive ? 'Sem tarefas' : 'Folga'}</span>
                   </div>
                 ) : (
-                  dayEntries.map(({ task, effectiveActiveDays, parentSubproject }) => {
-                    const variance = getBaselineVarianceDays(task, effectiveActiveDays, exceptions);
+                  dayEntries.map(({ task, parentSubproject }) => {
+                    const variance = getBaselineVarianceDays(task, activeWeekDays, exceptions);
                     const isSelected = selectedTaskId === task.id;
                     const isStartDay = task.startDate === day.iso;
                     const isEndDay = task.endDate === day.iso;

@@ -660,7 +660,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     endDate: isSubproject ? task.endDate : endDate,
                     baselineEndDate: effectiveBaseEnd,
                   },
-                  effectiveSubprojectDays,
+                  projectActiveWeekDays,
                   exceptions
                 );
                 if (v === null) return null;

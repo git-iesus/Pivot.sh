@@ -754,7 +754,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                   <div className="end-date-cell-content">
                     <span>{formatDatePTBR(task.endDate)}</span>
                     {(() => {
-                      const variance = getBaselineVarianceDays(task, effectiveActiveDays, exceptions);
+                      const variance = getBaselineVarianceDays(task, activeWeekDays, exceptions);
                       if (variance === null) return null;
                       const basePt = formatDatePTBR(task.baselineEndDate || '');
                       const actualPt = formatDatePTBR(task.endDate);

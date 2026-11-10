@@ -574,7 +574,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
               <div className="tooltip-row">
                 <span>Variação Base:</span>{' '}
                 {(() => {
-                  const v = getBaselineVarianceDays(hoveredTask, hoveredTaskActiveDays, exceptions);
+                  const v = getBaselineVarianceDays(hoveredTask, activeWeekDays, exceptions);
                   if (v === null || v === 0) return <strong className="tooltip-var-ok">No prazo (0d)</strong>;
                   if (v < 0) return <strong className="tooltip-var-ahead">{v}d úteis (Adiantada)</strong>;
                   return <strong className="tooltip-var-late">+{v}d úteis (Atraso)</strong>;

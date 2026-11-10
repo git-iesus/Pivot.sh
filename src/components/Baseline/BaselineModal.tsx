@@ -3,7 +3,6 @@ import { Task, CalendarException } from '../../types/project';
 import {
   formatDatePTBR,
   getBaselineVarianceDays,
-  getEffectiveActiveWeekDays,
 } from '../../utils/scheduler';
 import {
   X,
@@ -62,10 +61,7 @@ export const BaselineModal: React.FC<BaselineModalProps> = ({
     executables.forEach((t) => {
       if (t.baselineEndDate) {
         withBaseline++;
-        const idx = tasks.findIndex((item) => item.id === t.id);
-        const effDays =
-          idx >= 0 ? getEffectiveActiveWeekDays(tasks, idx, activeWeekDays) : activeWeekDays;
-        const variance = getBaselineVarianceDays(t, effDays, exceptions);
+        const variance = getBaselineVarianceDays(t, activeWeekDays, exceptions);
         if (variance !== null && variance > 0) {
           delayed++;
         } else {
