@@ -87,7 +87,7 @@ const COLUMNS: ColumnDef[] = [
   { key: 'info', label: 'i', title: 'Indicadores', minWidth: 22, className: 'col-info' },
   { key: 'mode', label: 'Modo', title: 'Modo da Tarefa / Subprojeto', minWidth: 40, className: 'col-mode' },
   { key: 'name', label: 'Nome da Tarefa / Subprojeto', minWidth: 160, className: 'col-name' },
-  { key: 'duration', label: 'Duração', minWidth: 65, className: 'col-duration' },
+  { key: 'duration', label: 'Duração', minWidth: 92, className: 'col-duration' },
   { key: 'startDate', label: 'Início', minWidth: 80, className: 'col-date' },
   { key: 'endDate', label: 'Término', minWidth: 80, className: 'col-date' },
   { key: 'predecessors', label: 'Predecessoras', minWidth: 85, className: 'col-pred' },
@@ -102,7 +102,7 @@ const DEFAULT_COL_WIDTHS: ColumnWidths = {
   info: 24,
   mode: 46,
   name: 350,
-  duration: 75,
+  duration: 104,
   startDate: 92,
   endDate: 124,
   predecessors: 95,
@@ -170,7 +170,12 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
     const saved = localStorage.getItem('ms_project_col_widths');
     if (saved) {
       try {
-        return { ...DEFAULT_COL_WIDTHS, ...JSON.parse(saved) };
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_COL_WIDTHS,
+          ...parsed,
+          duration: Math.max(96, Number(parsed.duration) || DEFAULT_COL_WIDTHS.duration),
+        };
       } catch (e) {
         // fallback
       }
@@ -596,16 +601,19 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     {task.isSummary && (
                       <button
                         type="button"
-                        className={`subproject-calendar-pill ${hasCustomSubprojectCalendar ? 'custom' : ''}`}
+                        className={`subproject-calendar-pill ${hasCustomSubprojectCalendar || (task.exceptions?.length || 0) > 0 ? 'custom' : ''}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           onSelectTask(task.id);
                           onOpenTaskDetail(task.id);
                         }}
-                        title={`Dias ativos deste Subprojeto: ${formatActiveWeekDaysShort(effectiveActiveDays)} — Clique para configurar o calendário individual`}
+                        title={`Dias ativos deste Subprojeto: ${formatActiveWeekDaysShort(effectiveActiveDays)}${(task.exceptions?.length || 0) > 0 ? ` • ${task.exceptions!.length} data(s) de exceção exclusiva(s)` : ''} — Clique para configurar`}
                       >
                         <Calendar size={10} />
-                        <span>{formatActiveWeekDaysShort(effectiveActiveDays)}</span>
+                        <span>
+                          {formatActiveWeekDaysShort(effectiveActiveDays)}
+                          {(task.exceptions?.length || 0) > 0 ? ` • ${task.exceptions!.length} exc.` : ''}
+                        </span>
                       </button>
                     )}
                     {task.isSummary && task.scheduleDirection === 'backward' && (
@@ -679,7 +687,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                 )}
               </div>
 
-              {/* Duração */}
+              {/* Duração com botões (+) e (-) rápidos */}
               <div
                 className="sheet-cell col-duration text-right"
                 onDoubleClick={() =>
@@ -704,11 +712,46 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     }}
                   />
                 ) : (
-                  <span>
-                    {task.isMilestone
-                      ? '0 dias'
-                      : `${task.durationDays} ${task.durationDays === 1 ? 'dia' : 'dias'}`}
-                  </span>
+                  <div className="duration-cell-wrapper">
+                    {!task.isSummary && (
+                      <div
+                        className="duration-stepper-controls"
+                        onDoubleClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          className="duration-step-btn minus"
+                          disabled={task.isMilestone ? task.durationDays <= 0 : task.durationDays <= 1}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const minAllowed = task.isMilestone ? 0 : 1;
+                            const nextVal = Math.max(minAllowed, (task.durationDays || 1) - 1);
+                            onUpdateTask(task.id, { durationDays: nextVal });
+                          }}
+                          title="Diminuir 1 dia útil de duração (-)"
+                        >
+                          −
+                        </button>
+                        <button
+                          type="button"
+                          className="duration-step-btn plus"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const nextVal = (task.durationDays || 0) + 1;
+                            onUpdateTask(task.id, { durationDays: nextVal });
+                          }}
+                          title="Aumentar 1 dia útil de duração (+)"
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
+                    <span className="duration-value-text">
+                      {task.isMilestone
+                        ? '0 dias'
+                        : `${task.durationDays} ${task.durationDays === 1 ? 'dia' : 'dias'}`}
+                    </span>
+                  </div>
                 )}
               </div>
 

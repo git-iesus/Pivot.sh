@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Task, SubTask, Resource, CalendarException, ScheduleDirection } from '../../types/project';
+import {
+  Task,
+  SubTask,
+  Resource,
+  CalendarException,
+  ExceptionCategory,
+  ScheduleDirection,
+} from '../../types/project';
 import {
   X,
   Plus,
@@ -18,7 +25,6 @@ import {
   Sparkles,
   Clock,
   Ban,
-  Info,
   Target,
   AlertTriangle,
   ArrowRight,
@@ -27,6 +33,7 @@ import {
 import { HybridNotesEditor } from './HybridNotesEditor';
 import {
   getEffectiveActiveWeekDays,
+  getEffectiveExceptions,
   getParentSubproject,
   getSubtreeTaskCount,
   formatActiveWeekDaysShort,
@@ -101,6 +108,12 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [notes, setNotes] = useState('');
   const [baselineEndDate, setBaselineEndDate] = useState<string>('');
   const [subprojectActiveDays, setSubprojectActiveDays] = useState<number[] | undefined>(undefined);
+  const [subprojectExceptions, setSubprojectExceptions] = useState<CalendarException[]>([]);
+  const [newExcType, setNewExcType] = useState<ExceptionCategory>('Feriado');
+  const [newExcName, setNewExcName] = useState<string>('');
+  const [newExcDate, setNewExcDate] = useState<string>('');
+  const [newExcEndDate, setNewExcEndDate] = useState<string>('');
+  const [newExcIsWorking, setNewExcIsWorking] = useState<boolean>(false);
   const [subprojectScheduleDirection, setSubprojectScheduleDirection] =
     useState<ScheduleDirection>('forward');
   const [subprojectTargetEndDate, setSubprojectTargetEndDate] = useState<string>('');
@@ -135,6 +148,11 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     return projectActiveWeekDays;
   }, [tasks, taskIndex, parentSubproject, projectActiveWeekDays]);
 
+  const inheritedExceptions = useMemo(() => {
+    if (taskIndex < 0) return exceptions;
+    return getEffectiveExceptions(tasks, taskIndex, exceptions);
+  }, [tasks, taskIndex, exceptions]);
+
   useEffect(() => {
     if (task) {
       setTaskName(task.name || '');
@@ -152,6 +170,12 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       setSubprojectActiveDays(
         task.activeWeekDays && task.activeWeekDays.length > 0 ? [...task.activeWeekDays] : undefined
       );
+      setSubprojectExceptions(task.exceptions ? [...task.exceptions] : []);
+      setNewExcDate(task.startDate || toISODate(new Date()));
+      setNewExcEndDate(task.startDate || toISODate(new Date()));
+      setNewExcName('');
+      setNewExcType('Feriado');
+      setNewExcIsWorking(false);
       setSubprojectScheduleDirection(task.scheduleDirection || 'forward');
       setSubprojectTargetEndDate(task.targetEndDate || task.endDate || '');
       setCycleErrorMsg(null);
@@ -169,6 +193,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     subprojectActiveDays && subprojectActiveDays.length > 0
       ? subprojectActiveDays
       : inheritedActiveDays;
+  const effectiveSubprojectExceptions = isSubproject
+    ? subprojectExceptions
+    : inheritedExceptions;
 
   const linkedSubtaskCount = isSubproject ? getSubtreeTaskCount(tasks, task.id) : 0;
 
@@ -186,7 +213,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setStartDate(nextStart);
     const startDt = parseISODate(nextStart);
     const dur = task.isMilestone ? 0 : Math.max(1, durationDays);
-    const computedEnd = toISODate(addWorkDays(startDt, dur, effectiveSubprojectDays, exceptions));
+    const computedEnd = toISODate(
+      addWorkDays(startDt, dur, effectiveSubprojectDays, effectiveSubprojectExceptions)
+    );
     setEndDate(computedEnd);
   };
 
@@ -195,7 +224,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setDurationDays(validDur);
     if (startDate) {
       const startDt = parseISODate(startDate);
-      const computedEnd = toISODate(addWorkDays(startDt, validDur, effectiveSubprojectDays, exceptions));
+      const computedEnd = toISODate(
+        addWorkDays(startDt, validDur, effectiveSubprojectDays, effectiveSubprojectExceptions)
+      );
       setEndDate(computedEnd);
     }
   };
@@ -207,7 +238,12 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       const startDt = parseISODate(startDate);
       const endDt = parseISODate(nextEnd);
       if (endDt >= startDt) {
-        const diffDays = getWorkDaysDifference(startDt, endDt, effectiveSubprojectDays, exceptions);
+        const diffDays = getWorkDaysDifference(
+          startDt,
+          endDt,
+          effectiveSubprojectDays,
+          effectiveSubprojectExceptions
+        );
         setDurationDays(task.isMilestone ? 0 : Math.max(1, diffDays));
       } else {
         setStartDate(nextEnd);
@@ -360,6 +396,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         name: finalName,
         notes,
         activeWeekDays: subprojectActiveDays,
+        exceptions: subprojectExceptions,
         scheduleDirection: subprojectScheduleDirection,
         targetEndDate:
           subprojectScheduleDirection === 'backward'
@@ -950,13 +987,111 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   </div>
                 </div>
 
-                <div className="subproject-global-exceptions-note">
-                  <Info size={14} />
-                  <span>
-                    <strong>Escopo Global de Exceções:</strong> As Datas de Exceção (feriados, recessos e
-                    emendas) permanecem globais e aplicam-se uniformemente ao projeto macro e a todos os
-                    seus subprojetos.
-                  </span>
+                <div className="subproject-exceptions-inline-box">
+                  <div className="subproject-exceptions-inline-header">
+                    <Calendar size={14} />
+                    <strong>
+                      Datas de Exceção Exclusivas deste Subprojeto ({subprojectExceptions.length})
+                    </strong>
+                    <span>
+                      (Feriados, Recessos ou Expedientes Atípicos que afetam somente este Subprojeto)
+                    </span>
+                  </div>
+
+                  <div className="subproject-exception-quick-add">
+                    <select
+                      className="office-select small"
+                      value={newExcType}
+                      onChange={(e) => {
+                        const t = e.target.value as ExceptionCategory;
+                        setNewExcType(t);
+                        setNewExcIsWorking(t === 'Expediente Atípico');
+                      }}
+                    >
+                      <option value="Feriado">Feriado (Folga)</option>
+                      <option value="Recesso">Recesso (Folga)</option>
+                      <option value="Emenda">Emenda (Folga)</option>
+                      <option value="Expediente Atípico">Expediente Atípico (Dia Útil)</option>
+                    </select>
+                    <input
+                      type="text"
+                      className="office-input small"
+                      placeholder="Descrição (ex: Feriado Local)"
+                      value={newExcName}
+                      onChange={(e) => setNewExcName(e.target.value)}
+                    />
+                    <input
+                      type="date"
+                      className="office-input small"
+                      value={newExcDate}
+                      onChange={(e) => {
+                        setNewExcDate(e.target.value);
+                        if (!newExcEndDate || newExcEndDate < e.target.value) {
+                          setNewExcEndDate(e.target.value);
+                        }
+                      }}
+                    />
+                    <span>até</span>
+                    <input
+                      type="date"
+                      className="office-input small"
+                      value={newExcEndDate}
+                      min={newExcDate}
+                      onChange={(e) => setNewExcEndDate(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn-office primary small"
+                      onClick={() => {
+                        if (!newExcDate) return;
+                        const item: CalendarException = {
+                          id: `exc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                          name: newExcName.trim() || newExcType,
+                          date: newExcDate,
+                          endDate: newExcEndDate >= newExcDate ? newExcEndDate : newExcDate,
+                          type: newExcType,
+                          isWorkingDay: newExcIsWorking,
+                        };
+                        setSubprojectExceptions((prev) =>
+                          [...prev, item].sort((a, b) => a.date.localeCompare(b.date))
+                        );
+                        setNewExcName('');
+                      }}
+                    >
+                      <Plus size={13} /> Adicionar Exceção
+                    </button>
+                  </div>
+
+                  {subprojectExceptions.length > 0 && (
+                    <div className="subproject-exceptions-chips-list">
+                      {subprojectExceptions.map((ex) => (
+                        <div
+                          key={ex.id}
+                          className={`subproject-exception-chip ${ex.isWorkingDay ? 'work' : 'off'}`}
+                        >
+                          <span>
+                            <strong>{ex.name}</strong> ({formatDateBR(ex.date)}
+                            {ex.endDate && ex.endDate !== ex.date
+                              ? ` a ${formatDateBR(ex.endDate)}`
+                              : ''}
+                            ) • {ex.isWorkingDay ? 'Dia Útil' : 'Folga'}
+                          </span>
+                          <button
+                            type="button"
+                            className="subproject-exception-remove-btn"
+                            onClick={() =>
+                              setSubprojectExceptions((prev) =>
+                                prev.filter((item) => item.id !== ex.id)
+                              )
+                            }
+                            title="Remover esta exceção do Subprojeto"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </>

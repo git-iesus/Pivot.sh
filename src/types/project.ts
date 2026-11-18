@@ -33,6 +33,7 @@ export interface Task {
   outlineLevel: number; // 0 = raiz/projeto, 1 = fase, 2 = tarefa, 3 = subtarefa
   isSummary: boolean; // true = classificado automaticamente como Subprojeto (possui subtarefas abaixo na EAP)
   activeWeekDays?: number[]; // Calendário de dias ativos exclusivo do Subprojeto (0=Dom..6=Sáb)
+  exceptions?: CalendarException[]; // Datas de exceção (feriados, recessos, expedientes atípicos) exclusivas deste Subprojeto
   scheduleDirection?: ScheduleDirection; // 'forward' (padrão) ou 'backward' (de trás para frente - ALAP)
   targetEndDate?: string; // Data Limite do Subprojeto quando scheduleDirection === 'backward' (YYYY-MM-DD)
   isOverdueStart?: boolean; // true quando o cálculo reverso gera data de início no passado (< Hoje) e a tarefa não está 100% concluída

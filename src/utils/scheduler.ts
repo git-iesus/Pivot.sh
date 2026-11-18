@@ -89,6 +89,39 @@ export function getEffectiveActiveWeekDays(
 }
 
 /**
+ * Retorna as Datas de Exceção efetivas (feriados, recessos, expedientes atípicos) para uma tarefa:
+ * - Se a própria tarefa for um Subprojeto (`isSummary`), retorna exclusivamente `target.exceptions || []`;
+ * - Se a tarefa pertencer a um Subprojeto ancestral na hierarquia EAP, retorna exclusivamente `candidate.exceptions || []` daquele Subprojeto;
+ * - Caso a tarefa esteja na raiz fora de qualquer Subprojeto, retorna `fallbackExceptions`.
+ */
+export function getEffectiveExceptions(
+  tasks: Task[],
+  taskIndex: number,
+  fallbackExceptions: CalendarException[] = []
+): CalendarException[] {
+  const target = tasks[taskIndex];
+  if (!target) return fallbackExceptions;
+
+  if (target.isSummary) {
+    return target.exceptions || [];
+  }
+
+  let requiredMaxLevel = target.outlineLevel;
+  for (let i = taskIndex - 1; i >= 0; i--) {
+    const candidate = tasks[i];
+    if (candidate.outlineLevel < requiredMaxLevel) {
+      if (candidate.isSummary) {
+        return candidate.exceptions || [];
+      }
+      requiredMaxLevel = candidate.outlineLevel;
+      if (requiredMaxLevel === 0) break;
+    }
+  }
+
+  return fallbackExceptions;
+}
+
+/**
  * Retorna a configuração efetiva de direção de agendamento ('forward' ou 'backward')
  * e a Data Limite (`targetEndDate`) para uma tarefa com base no seu Subprojeto ancestral mais próximo
  * (ou na configuração global do projeto).
@@ -561,6 +594,7 @@ export function recalculateSchedule(
 
       const currentTaskNum = idx + 1;
       const taskActiveDays = getEffectiveActiveWeekDays(updatedTasks, idx, activeWeekDays);
+      const taskExceptions = getEffectiveExceptions(updatedTasks, idx, exceptions);
 
       if (task.predecessorText && task.predecessorText.trim() !== '') {
         const parsedPreds = parsePredecessors(task.predecessorText);
@@ -576,19 +610,19 @@ export function recalculateSchedule(
 
             if (type === 'II') {
               const predStart = parseISODate(predTask.startDate);
-              const reqStart = toWorkDay(predStart, taskActiveDays, exceptions);
+              const reqStart = toWorkDay(predStart, taskActiveDays, taskExceptions);
               if (!maxReqStart || reqStart > maxReqStart) {
                 maxReqStart = reqStart;
               }
             } else if (type === 'TT') {
               const predEnd = parseISODate(predTask.endDate);
-              const reqEnd = toPrevWorkDay(predEnd, taskActiveDays, exceptions);
+              const reqEnd = toPrevWorkDay(predEnd, taskActiveDays, taskExceptions);
               if (!maxReqEnd || reqEnd > maxReqEnd) {
                 maxReqEnd = reqEnd;
               }
             } else if (type === 'IT') {
               const predStart = parseISODate(predTask.startDate);
-              const reqEnd = toPrevWorkDay(predStart, taskActiveDays, exceptions);
+              const reqEnd = toPrevWorkDay(predStart, taskActiveDays, taskExceptions);
               if (!maxReqEnd || reqEnd > maxReqEnd) {
                 maxReqEnd = reqEnd;
               }
@@ -597,7 +631,7 @@ export function recalculateSchedule(
               const predEnd = parseISODate(predTask.endDate);
               const nextDay = new Date(predEnd);
               nextDay.setDate(nextDay.getDate() + 1);
-              const reqStart = toWorkDay(nextDay, taskActiveDays, exceptions);
+              const reqStart = toWorkDay(nextDay, taskActiveDays, taskExceptions);
               if (!maxReqStart || reqStart > maxReqStart) {
                 maxReqStart = reqStart;
               }
@@ -612,7 +646,7 @@ export function recalculateSchedule(
             const finalStart =
               task.durationDays === 0
                 ? finalEnd
-                : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, exceptions);
+                : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, taskExceptions);
             newStartDate = toISODate(finalStart);
             newEndDate = toISODate(finalEnd);
           } else if (maxReqStart && !maxReqEnd) {
@@ -620,7 +654,7 @@ export function recalculateSchedule(
             const finalEnd =
               task.durationDays === 0
                 ? finalStart
-                : addWorkDays(finalStart, task.durationDays, taskActiveDays, exceptions);
+                : addWorkDays(finalStart, task.durationDays, taskActiveDays, taskExceptions);
             newStartDate = toISODate(finalStart);
             newEndDate = toISODate(finalEnd);
           } else if (maxReqStart && maxReqEnd) {
@@ -628,13 +662,13 @@ export function recalculateSchedule(
             const tentativeEnd =
               task.durationDays === 0
                 ? tentativeStart
-                : addWorkDays(tentativeStart, task.durationDays, taskActiveDays, exceptions);
+                : addWorkDays(tentativeStart, task.durationDays, taskActiveDays, taskExceptions);
             if (tentativeEnd < maxReqEnd) {
               const finalEnd = maxReqEnd;
               const finalStart =
                 task.durationDays === 0
                   ? finalEnd
-                  : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, exceptions);
+                  : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, taskExceptions);
               newStartDate = toISODate(finalStart);
               newEndDate = toISODate(finalEnd);
             } else {
@@ -653,12 +687,12 @@ export function recalculateSchedule(
       }
 
       // Tarefas sem predecessoras em modo Forward: valida início em dia útil e recalcula término
-      const start = toWorkDay(parseISODate(task.startDate), taskActiveDays, exceptions);
+      const start = toWorkDay(parseISODate(task.startDate), taskActiveDays, taskExceptions);
       const newStartDate = toISODate(start);
       const newEndDate =
         task.durationDays === 0
           ? newStartDate
-          : toISODate(addWorkDays(start, task.durationDays, taskActiveDays, exceptions));
+          : toISODate(addWorkDays(start, task.durationDays, taskActiveDays, taskExceptions));
       if (newStartDate !== task.startDate || newEndDate !== task.endDate) {
         task.startDate = newStartDate;
         task.endDate = newEndDate;
@@ -723,11 +757,12 @@ export function recalculateSchedule(
     taskIndices.forEach((idx) => {
       const task = updatedTasks[idx];
       const taskActiveDays = getEffectiveActiveWeekDays(updatedTasks, idx, activeWeekDays);
-      const anchorEnd = toPrevWorkDay(parseISODate(targetEndDate), taskActiveDays, exceptions);
+      const taskExceptions = getEffectiveExceptions(updatedTasks, idx, exceptions);
+      const anchorEnd = toPrevWorkDay(parseISODate(targetEndDate), taskActiveDays, taskExceptions);
       const anchorStart =
         task.durationDays === 0
           ? anchorEnd
-          : subtractWorkDays(anchorEnd, task.durationDays, taskActiveDays, exceptions);
+          : subtractWorkDays(anchorEnd, task.durationDays, taskActiveDays, taskExceptions);
       task.endDate = toISODate(anchorEnd);
       task.startDate = toISODate(anchorStart);
     });
@@ -747,15 +782,16 @@ export function recalculateSchedule(
         const rowNum = idx + 1;
         const task = updatedTasks[idx];
         const taskActiveDays = getEffectiveActiveWeekDays(updatedTasks, idx, activeWeekDays);
+        const taskExceptions = getEffectiveExceptions(updatedTasks, idx, exceptions);
         const succs = successorsMap.get(rowNum) || [];
 
         if (succs.length === 0) {
           // Regra 1 — Tarefa Final (Âncora): termina exatamente na Data Limite do Projeto/Subprojeto
-          const anchorEnd = toPrevWorkDay(parseISODate(targetEndDate), taskActiveDays, exceptions);
+          const anchorEnd = toPrevWorkDay(parseISODate(targetEndDate), taskActiveDays, taskExceptions);
           const anchorStart =
             task.durationDays === 0
               ? anchorEnd
-              : subtractWorkDays(anchorEnd, task.durationDays, taskActiveDays, exceptions);
+              : subtractWorkDays(anchorEnd, task.durationDays, taskActiveDays, taskExceptions);
           const nextStartStr = toISODate(anchorStart);
           const nextEndStr = toISODate(anchorEnd);
           if (task.startDate !== nextStartStr || task.endDate !== nextEndStr) {
@@ -780,30 +816,30 @@ export function recalculateSchedule(
           if (type === 'TT') {
             // Término-Término: A termina junto ou antes do término de B
             const succEnd = parseISODate(succTask.endDate);
-            candidateMaxEnd = toPrevWorkDay(succEnd, taskActiveDays, exceptions);
+            candidateMaxEnd = toPrevWorkDay(succEnd, taskActiveDays, taskExceptions);
           } else if (type === 'II') {
             // Início-Início: A começa no máximo no início de B
             const succStart = parseISODate(succTask.startDate);
-            const maxStart = toPrevWorkDay(succStart, taskActiveDays, exceptions);
+            const maxStart = toPrevWorkDay(succStart, taskActiveDays, taskExceptions);
             candidateMaxEnd =
               task.durationDays === 0
                 ? maxStart
-                : addWorkDays(maxStart, task.durationDays, taskActiveDays, exceptions);
+                : addWorkDays(maxStart, task.durationDays, taskActiveDays, taskExceptions);
           } else if (type === 'IT') {
             // Início-Término: A começa no máximo no término de B
             const succEnd = parseISODate(succTask.endDate);
-            const maxStart = toPrevWorkDay(succEnd, taskActiveDays, exceptions);
+            const maxStart = toPrevWorkDay(succEnd, taskActiveDays, taskExceptions);
             candidateMaxEnd =
               task.durationDays === 0
                 ? maxStart
-                : addWorkDays(maxStart, task.durationDays, taskActiveDays, exceptions);
+                : addWorkDays(maxStart, task.durationDays, taskActiveDays, taskExceptions);
           } else {
             // Regra 3 — Vínculo Fim-Início (TI / Padrão):
             // A Tarefa A precisa terminar 1 dia útil antes de a Tarefa B começar.
             const succStart = parseISODate(succTask.startDate);
             const dayBefore = new Date(succStart);
             dayBefore.setDate(dayBefore.getDate() - 1);
-            candidateMaxEnd = toPrevWorkDay(dayBefore, taskActiveDays, exceptions);
+            candidateMaxEnd = toPrevWorkDay(dayBefore, taskActiveDays, taskExceptions);
           }
 
           if (!minAllowedEnd || candidateMaxEnd < minAllowedEnd) {
@@ -817,7 +853,7 @@ export function recalculateSchedule(
           const finalStart =
             task.durationDays === 0
               ? finalEnd
-              : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, exceptions);
+              : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, taskExceptions);
           const nextStartStr = toISODate(finalStart);
           const nextEndStr = toISODate(finalEnd);
 
@@ -847,6 +883,7 @@ export function recalculateSchedule(
     const task = updatedTasks[i];
     if (task.isSummary) {
       const summaryActiveDays = getEffectiveActiveWeekDays(updatedTasks, i, activeWeekDays);
+      const summaryExceptions = getEffectiveExceptions(updatedTasks, i, exceptions);
       let minStart: Date | null = null;
       let maxEnd: Date | null = null;
       let totalDuration = 0;
@@ -887,7 +924,7 @@ export function recalculateSchedule(
           const lockedEnd = toPrevWorkDay(
             parseISODate(task.targetEndDate),
             summaryActiveDays,
-            exceptions
+            summaryExceptions
           );
           task.endDate = toISODate(lockedEnd > maxEnd ? lockedEnd : maxEnd);
         } else {
@@ -897,7 +934,7 @@ export function recalculateSchedule(
           minStart,
           parseISODate(task.endDate),
           summaryActiveDays,
-          exceptions
+          summaryExceptions
         );
         task.progress = totalDuration > 0 ? Math.round(weightedProgress / totalDuration) : 0;
         if (totalChildCost > 0) {
@@ -921,7 +958,7 @@ export function recalculateSchedule(
           minBaseStart,
           maxBaseEnd,
           summaryActiveDays,
-          exceptions
+          summaryExceptions
         );
       } else {
         task.baselineStartDate = undefined;

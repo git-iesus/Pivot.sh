@@ -20,6 +20,7 @@ import {
   getWorkDaysDifference,
   getVisibleTasks,
   getEffectiveActiveWeekDays,
+  getEffectiveExceptions,
   detectCircularDependency,
   formatDatePTBR,
 } from './utils/scheduler';
@@ -448,10 +449,11 @@ export const App: React.FC = () => {
       // Se o usuário editou a Data de Término diretamente na planilha (tarefa executável), sincroniza a Duração em dias úteis do respectivo Subprojeto
       if (updates.endDate && updates.durationDays === undefined && !t.isSummary) {
         const taskActiveDays = getEffectiveActiveWeekDays(scheduledTasks, idx, activeDays);
+        const taskExceptions = getEffectiveExceptions(scheduledTasks, idx, exceptions);
         const start = parseISODate(merged.startDate);
         const end = parseISODate(updates.endDate);
         if (end >= start) {
-          const diffDays = getWorkDaysDifference(start, end, taskActiveDays, exceptions);
+          const diffDays = getWorkDaysDifference(start, end, taskActiveDays, taskExceptions);
           merged.durationDays = t.isMilestone ? 0 : Math.max(1, diffDays);
         }
       }
@@ -460,17 +462,15 @@ export const App: React.FC = () => {
     pushTaskState(updated);
   };
 
-  const handleUpdateExceptions = (newExceptions: CalendarException[]) => {
-    const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
-    const updatedMeta: ProjectMetadata = {
-      ...metadata,
-      exceptions: newExceptions,
-    };
-    setMetadata(updatedMeta);
-    const recalculated = recalculateSchedule(scheduledTasks, activeDays, newExceptions);
-    setTasks(recalculated);
-    saveToStorage(recalculated, resources, updatedMeta);
-    showToast('Cronograma atualizado com as Datas de Exceção Globais!');
+  const handleUpdateSubprojectExceptions = (
+    subprojectId: string,
+    newExceptions: CalendarException[]
+  ) => {
+    const updatedTasks = scheduledTasks.map((t) =>
+      t.id === subprojectId ? { ...t, exceptions: newExceptions } : t
+    );
+    pushTaskState(updatedTasks);
+    showToast('Datas de Exceção do Subprojeto atualizadas!');
   };
 
   // Ações de Linha de Base (Teórico vs. Prático)
@@ -543,10 +543,14 @@ export const App: React.FC = () => {
       selectedIndex >= 0
         ? getEffectiveActiveWeekDays(scheduledTasks, selectedIndex, activeDays)
         : activeDays;
+    const effectiveExceptions =
+      selectedIndex >= 0
+        ? getEffectiveExceptions(scheduledTasks, selectedIndex, exceptions)
+        : exceptions;
 
-    const now = toWorkDay(new Date(), effectiveDays, exceptions);
+    const now = toWorkDay(new Date(), effectiveDays, effectiveExceptions);
     const startStr = toISODate(now);
-    const endStr = toISODate(addWorkDays(now, 1, effectiveDays, exceptions));
+    const endStr = toISODate(addWorkDays(now, 1, effectiveDays, effectiveExceptions));
 
     const parentLevel =
       selectedIndex >= 0
@@ -1203,7 +1207,10 @@ export const App: React.FC = () => {
         onSetProgress={handleSetProgress}
         onSetTaskMode={handleSetTaskMode}
         onOpenExceptionsModal={() => setIsExceptionsModalOpen(true)}
-        exceptionsCount={(metadata.exceptions || []).length}
+        exceptionsCount={scheduledTasks.reduce(
+          (acc, t) => acc + (t.isSummary ? (t.exceptions?.length || 0) : 0),
+          0
+        )}
         onOpenResourceSheet={() => setIsResourceModalOpen(true)}
         onOpenCostReport={() => setIsCostReportOpen(true)}
         selectedTaskId={selectedTaskId}
@@ -1480,8 +1487,9 @@ export const App: React.FC = () => {
       <CalendarExceptionsModal
         isOpen={isExceptionsModalOpen}
         onClose={() => setIsExceptionsModalOpen(false)}
-        exceptions={metadata.exceptions || []}
-        onUpdateExceptions={handleUpdateExceptions}
+        tasks={scheduledTasks}
+        selectedTaskId={selectedTaskId}
+        onUpdateSubprojectExceptions={handleUpdateSubprojectExceptions}
         defaultDate={selectedTaskObj?.startDate || metadata.startDate || '2026-10-16'}
       />
 

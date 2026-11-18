@@ -9,6 +9,7 @@ import {
   formatDatePTBR,
   getVisibleTasks,
   getEffectiveActiveWeekDays,
+  getEffectiveExceptions,
   formatActiveWeekDaysShort,
   getBaselineVarianceDays,
 } from '../../utils/scheduler';
@@ -79,8 +80,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const visibleTasks = useMemo(() => getVisibleTasks(tasks), [tasks]);
   const checkedSet = useMemo(() => new Set(checkedTaskIds), [checkedTaskIds]);
 
-  // Calendário de dias ativos exibido nas colunas de fundo do Gantt:
-  // Se houver um Subprojeto ou subtarefa selecionada, reflete o calendário efetivo daquele Subprojeto
+  // Calendário de dias ativos e Datas de Exceção exibidos nas colunas de fundo do Gantt:
+  // Se houver um Subprojeto ou subtarefa selecionada, reflete o calendário e as exceções exclusivas daquele Subprojeto
   const effectiveChartActiveDays = useMemo(() => {
     if (selectedTaskId) {
       const idx = tasks.findIndex((t) => t.id === selectedTaskId);
@@ -90,6 +91,20 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     }
     return activeWeekDays;
   }, [tasks, selectedTaskId, activeWeekDays]);
+
+  const effectiveChartExceptions = useMemo(() => {
+    if (selectedTaskId) {
+      const idx = tasks.findIndex((t) => t.id === selectedTaskId);
+      if (idx >= 0) {
+        return getEffectiveExceptions(tasks, idx, exceptions);
+      }
+    }
+    const firstSummary = tasks.find((t) => t.isSummary);
+    if (firstSummary) {
+      return firstSummary.exceptions || [];
+    }
+    return exceptions;
+  }, [tasks, selectedTaskId, exceptions]);
 
   // Determinar extensão de datas do projeto
   const { startDate, totalDays, dayWidth } = useMemo(() => {
@@ -158,19 +173,19 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
     for (let i = 0; i < totalDays; i++) {
       const iso = toISODate(cur);
-      const ex = getExceptionForDate(iso, exceptions);
+      const ex = getExceptionForDate(iso, effectiveChartExceptions);
       list.push({
         date: new Date(cur),
         iso,
         dayNum: cur.getDate(),
         dayOfWeek: daysNames[cur.getDay()],
-        isWeekend: isWeekend(cur, effectiveChartActiveDays, exceptions),
+        isWeekend: isWeekend(cur, effectiveChartActiveDays, effectiveChartExceptions),
         exception: ex,
       });
       cur.setDate(cur.getDate() + 1);
     }
     return list;
-  }, [startDate, totalDays, effectiveChartActiveDays, exceptions]);
+  }, [startDate, totalDays, effectiveChartActiveDays, effectiveChartExceptions]);
 
   // Agrupamento por Meses para o Cabeçalho Superior
   const monthGroups = useMemo(() => {

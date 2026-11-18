@@ -16,6 +16,7 @@ import {
   toISODate,
   isWorkDay,
   getEffectiveActiveWeekDays,
+  getEffectiveExceptions,
   getParentSubproject,
   getBaselineVarianceDays,
   formatDatePTBR,
@@ -33,6 +34,7 @@ interface WeekViewProps {
 interface ExecutableTaskEntry {
   task: Task;
   effectiveActiveDays: number[];
+  effectiveExceptions: CalendarException[];
   parentSubproject?: Task;
 }
 
@@ -53,21 +55,28 @@ export const WeekView: React.FC<WeekViewProps> = ({
       .map((task, idx) => ({
         task,
         effectiveActiveDays: getEffectiveActiveWeekDays(tasks, idx, activeWeekDays),
+        effectiveExceptions: getEffectiveExceptions(tasks, idx, exceptions),
         parentSubproject: getParentSubproject(tasks, idx),
       }))
       .filter((entry) => !entry.task.isSummary);
-  }, [tasks, activeWeekDays]);
+  }, [tasks, activeWeekDays, exceptions]);
 
-  // Coleta todos os dias da semana ativos (Projeto Macro + Subprojetos) para saber se o dia na coluna possui expediente
-  const unionActiveWeekDays = useMemo(() => {
-    const set = new Set<number>(activeWeekDays && activeWeekDays.length > 0 ? activeWeekDays : [1, 2, 3, 4, 5]);
-    tasks.forEach((t) => {
-      if (t.isSummary && t.activeWeekDays && t.activeWeekDays.length > 0) {
-        t.activeWeekDays.forEach((d) => set.add(d));
-      }
-    });
-    return Array.from(set);
-  }, [tasks, activeWeekDays]);
+  // Coleta os calendários e exceções de todos os Subprojetos para saber se o dia na coluna possui expediente em algum Subprojeto
+  const subprojectCalendars = useMemo(() => {
+    const summaries = tasks.filter((t) => t.isSummary);
+    if (summaries.length === 0) {
+      return [
+        {
+          days: activeWeekDays && activeWeekDays.length > 0 ? activeWeekDays : [1, 2, 3, 4, 5],
+          excs: exceptions,
+        },
+      ];
+    }
+    return summaries.map((s) => ({
+      days: s.activeWeekDays && s.activeWeekDays.length > 0 ? s.activeWeekDays : activeWeekDays || [1, 2, 3, 4, 5],
+      excs: s.exceptions || [],
+    }));
+  }, [tasks, activeWeekDays, exceptions]);
 
   // Obter o primeiro dia da semana (Segunda-feira)
   const mondayDate = useMemo(() => {
@@ -99,17 +108,20 @@ export const WeekView: React.FC<WeekViewProps> = ({
       const d = new Date(mondayDate);
       d.setDate(mondayDate.getDate() + i);
       const iso = toISODate(d);
+      const hasWorkInAnySubproject = subprojectCalendars.some((cal) =>
+        isWorkDay(d, cal.days, cal.excs)
+      );
       days.push({
         date: d,
         iso,
         dayName: names[i],
         shortName: shortNames[i],
-        isWork: isWorkDay(d, unionActiveWeekDays, exceptions),
+        isWork: hasWorkInAnySubproject,
         isToday: iso === todayIso,
       });
     }
     return days;
-  }, [mondayDate, unionActiveWeekDays, exceptions]);
+  }, [mondayDate, subprojectCalendars]);
 
   // Intervalo formatado para exibição no cabeçalho
   const formattedRange = useMemo(() => {
@@ -136,19 +148,19 @@ export const WeekView: React.FC<WeekViewProps> = ({
     return `${start.getDate()} de ${monthNames[start.getMonth()]} a ${end.getDate()} de ${monthNames[end.getMonth()]} de ${end.getFullYear()}`;
   }, [weekDays]);
 
-  // Tarefas executáveis presentes em cada dia da semana (respeitando o calendário do respectivo Subprojeto e Exceções Globais)
+  // Tarefas executáveis presentes em cada dia da semana (respeitando o calendário e as Datas de Exceção individuais do respectivo Subprojeto)
   const tasksByDay = useMemo(() => {
     const map = new Map<string, ExecutableTaskEntry[]>();
     weekDays.forEach((day) => {
-      const dayTasks = executableEntries.filter(({ task, effectiveActiveDays }) => {
+      const dayTasks = executableEntries.filter(({ task, effectiveActiveDays, effectiveExceptions }) => {
         if (task.startDate > day.iso || task.endDate < day.iso) return false;
-        // Só renderiza no dia se for dia útil para o Subprojeto/Tarefa (e não for feriado/exceção global)
-        return isWorkDay(day.date, effectiveActiveDays, exceptions);
+        // Só renderiza no dia se for dia útil para o Subprojeto da tarefa (respeitando as exceções exclusivas daquele Subprojeto)
+        return isWorkDay(day.date, effectiveActiveDays, effectiveExceptions);
       });
       map.set(day.iso, dayTasks);
     });
     return map;
-  }, [weekDays, executableEntries, exceptions]);
+  }, [weekDays, executableEntries]);
 
   // Total de tarefas executáveis únicas nesta semana (excluindo Subprojetos)
   const weekSummary = useMemo(() => {
@@ -264,8 +276,8 @@ export const WeekView: React.FC<WeekViewProps> = ({
                     <span>{isDayActive ? 'Sem tarefas' : 'Folga'}</span>
                   </div>
                 ) : (
-                  dayEntries.map(({ task, parentSubproject }) => {
-                    const variance = getBaselineVarianceDays(task, activeWeekDays, exceptions);
+                  dayEntries.map(({ task, effectiveExceptions, parentSubproject }) => {
+                    const variance = getBaselineVarianceDays(task, activeWeekDays, effectiveExceptions);
                     const isSelected = selectedTaskId === task.id;
                     const isStartDay = task.startDate === day.iso;
                     const isEndDay = task.endDate === day.iso;
