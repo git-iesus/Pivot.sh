@@ -3,9 +3,9 @@
    ========================================================= */
 
 :root {
-  --office-green-dark: #194d33;
-  --office-green: #217346;
-  --office-green-light: #2c8f58;
+  --office-green-dark: #0a1d30;
+  --office-green: #0E2841;
+  --office-green-light: #163e64;
   --office-ribbon-bg: #e9ecf0;
   --office-ribbon-border: #b8c4d4;
   --office-group-bg: #f5f7fa;
@@ -70,7 +70,7 @@ input, select, button {
   justify-content: space-between;
   height: 28px;
   padding: 0 8px;
-  background: linear-gradient(180deg, #2a5f45 0%, #1e4a35 100%);
+  background: #0E2841;
   color: #ffffff;
 }
 
@@ -215,7 +215,7 @@ input, select, button {
 }
 
 .ribbon-tab.file-tab {
-  background: linear-gradient(180deg, #2d8252 0%, #1e5a38 100%);
+  background: #0E2841;
   color: #ffffff;
   font-weight: 600;
   margin-right: 4px;
@@ -223,7 +223,7 @@ input, select, button {
 }
 
 .ribbon-tab.file-tab:hover {
-  background: linear-gradient(180deg, #359860 0%, #256a42 100%);
+  background: #163e64;
 }
 
 .ribbon-panel {
@@ -1262,7 +1262,7 @@ input, select, button {
 
 .backstage-nav {
   width: 220px;
-  background: linear-gradient(180deg, #246f44 0%, #17482d 100%);
+  background: linear-gradient(180deg, #0E2841 0%, #091b2c 100%);
   color: #ffffff;
   display: flex;
   flex-direction: column;
@@ -1414,7 +1414,7 @@ input, select, button {
   justify-content: space-between;
   height: 36px;
   padding: 0 12px;
-  background: linear-gradient(180deg, #2b579a 0%, #1e3f73 100%);
+  background: #0E2841;
   color: #ffffff;
   font-weight: 600;
 }
@@ -1523,13 +1523,13 @@ input, select, button {
 }
 
 .btn-office.primary {
-  background: #217346;
-  border-color: #1e5a38;
+  background: #0E2841;
+  border-color: #091b2c;
   color: #ffffff;
 }
 
 .btn-office.primary:hover {
-  background: #1e5a38;
+  background: #163e64;
 }
 
 .icon-action-btn {
@@ -7806,8 +7806,8 @@ input, select, button {
 }
 
 .task-open-detail-btn:hover {
-  background: #217346;
-  border-color: #194d33;
+  background: #0E2841;
+  border-color: #0a1d30;
   color: #ffffff;
 }
 
@@ -7885,12 +7885,12 @@ input, select, button {
   height: 22px;
   padding: 0 7px;
   border-radius: 5px;
-  background: #194d33;
+  background: #0E2841;
   color: #ffffff;
 }
 
 .splitter-snap-btn:hover {
-  background: #217346;
+  background: #163e64;
   color: #ffffff;
 }
 
@@ -7998,8 +7998,8 @@ input, select, button {
 }
 
 .schedule-field-input:focus {
-  border-color: #217346;
-  box-shadow: 0 0 0 2px rgba(33, 115, 70, 0.14);
+  border-color: #0E2841;
+  box-shadow: 0 0 0 2px rgba(14, 40, 65, 0.16);
 }
 
 .schedule-field-input.duration-input {
@@ -8070,7 +8070,7 @@ input, select, button {
 
 .resource-inline-input:focus {
   border-style: solid;
-  border-color: #217346;
+  border-color: #0E2841;
 }
 
 .resource-inline-btn {
@@ -8081,7 +8081,7 @@ input, select, button {
   height: 22px;
   border: none;
   border-radius: 999px;
-  background: #217346;
+  background: #0E2841;
   color: #ffffff;
   cursor: pointer;
 }
@@ -8127,66 +8127,87 @@ input, select, button {
    PACOTE 3 — POLIMENTO DA ARQUITETURA NEXO & CONSISTÊNCIA VISUAL
    ========================================================================== */
 
-/* 1. Harmonização da Paleta Nexo (Slate + Emerald/Teal Corporativo) */
+/* 1. Harmonização da Paleta Nexo e Identidade Visual Base (#0E2841) */
+.title-bar {
+  background: #0E2841 !important;
+  color: #ffffff !important;
+}
+
+.app-icon {
+  background: #091b2c !important;
+}
+
 .ribbon-tab-btn.nexo-tab-highlight {
-  color: #194d33;
+  color: #0E2841;
   font-weight: 700;
 }
 
 .ribbon-tab-btn.nexo-tab-highlight.active {
-  color: #14532d;
-  border-top: 2px solid #217346;
+  color: #0E2841;
+  border-top: 2px solid #0E2841;
 }
 
 .nexo-logo-badge {
-  background: linear-gradient(135deg, #194d33 0%, #0d9488 100%) !important;
+  background: linear-gradient(135deg, #0E2841 0%, #163e64 100%) !important;
   color: #ffffff !important;
-  box-shadow: 0 2px 6px rgba(25, 77, 51, 0.25) !important;
+  box-shadow: 0 2px 6px rgba(14, 40, 65, 0.25) !important;
 }
 
 .nexo-btn-primary,
 .nexo-btn-cta {
-  background: linear-gradient(135deg, #194d33 0%, #217346 100%) !important;
-  border-color: #194d33 !important;
+  background: linear-gradient(135deg, #0E2841 0%, #163e64 100%) !important;
+  border-color: #0E2841 !important;
   color: #ffffff !important;
-  box-shadow: 0 2px 6px rgba(25, 77, 51, 0.2) !important;
+  box-shadow: 0 2px 6px rgba(14, 40, 65, 0.2) !important;
 }
 
 .nexo-btn-primary:hover:not(:disabled),
 .nexo-btn-cta:hover:not(:disabled) {
-  background: linear-gradient(135deg, #14532d 0%, #194d33 100%) !important;
-  box-shadow: 0 4px 10px rgba(25, 77, 51, 0.28) !important;
+  background: linear-gradient(135deg, #091b2c 0%, #0E2841 100%) !important;
+  box-shadow: 0 4px 10px rgba(14, 40, 65, 0.28) !important;
 }
 
 .nexo-phase-item.active {
-  background: #f0fdf4 !important;
-  border-color: #86efac !important;
-  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.08) !important;
+  background: #f0f4f8 !important;
+  border-color: #93c5fd !important;
+  box-shadow: 0 2px 6px rgba(14, 40, 65, 0.08) !important;
 }
 
 .nexo-phase-item.active .phase-step-indicator {
-  background: #194d33 !important;
+  background: #0E2841 !important;
   color: #ffffff !important;
-  border-color: #194d33 !important;
+  border-color: #0E2841 !important;
 }
 
 .nexo-phase-item.active .phase-title {
-  color: #14532d !important;
+  color: #0E2841 !important;
 }
 
 .stage-kicker,
 .pointb-phase-tag {
-  color: #194d33 !important;
-  background: #dcfce7 !important;
-  border-color: #bbf7d0 !important;
+  color: #0E2841 !important;
+  background: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
 }
 
 .reverse-step-badge,
 .ms-index-badge,
 .validator-step-number {
-  background: #f0fdf4 !important;
-  color: #166534 !important;
-  border-color: #bbf7d0 !important;
+  background: #f0f4f8 !important;
+  color: #0E2841 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.cost-filter-btn.active,
+.btn-preset.active {
+  background: #0E2841 !important;
+  border-color: #0E2841 !important;
+  color: #ffffff !important;
+}
+
+.backstage-menu-item.active,
+.backstage-header h2 {
+  color: #0E2841 !important;
 }
 
 /* 2. Stepper Guiado de Prontidão da Matriz (Fase 4 do Nexo) */
@@ -8255,7 +8276,428 @@ input, select, button {
 
 .readiness-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #194d33 0%, #16a34a 100%);
+  background: linear-gradient(90deg, #0E2841 0%, #16a34a 100%);
   border-radius: 999px;
   transition: width 0.25s ease;
+}
+
+/* ==========================================================================
+   AGENDAMENTO REVERSO (DE TRÁS PARA FRENTE / ALAP) & ALERTAS DE PRAZO
+   ========================================================================== */
+
+.subproject-direction-config-box {
+  margin-bottom: 14px;
+}
+
+.schedule-direction-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.schedule-direction-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 14px;
+  text-align: left;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.schedule-direction-card:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.schedule-direction-card.active {
+  background: #f0fdf4;
+  border-color: #217346;
+  box-shadow: 0 2px 8px rgba(33, 115, 70, 0.12);
+}
+
+.schedule-direction-card.backward.active {
+  background: #eff6ff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+}
+
+.direction-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #0f172a;
+}
+
+.schedule-direction-card.active .direction-card-header {
+  color: #14532d;
+}
+
+.schedule-direction-card.backward.active .direction-card-header {
+  color: #1e40af;
+}
+
+.schedule-direction-card p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #475569;
+}
+
+.backward-target-date-panel {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #2563eb;
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.backward-target-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.backward-target-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.backward-target-date-input {
+  height: 30px;
+  padding: 3px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1.5px solid #93c5fd;
+  border-radius: 6px;
+  outline: none;
+}
+
+.backward-target-date-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.16);
+}
+
+.backward-target-preview {
+  font-size: 11.5px;
+  color: #1e40af;
+  background: #dbeafe;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.backward-rules-summary {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.modal-cycle-alert-banner,
+.modal-overdue-start-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 12px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 6px;
+}
+
+.modal-cycle-alert-banner svg,
+.modal-overdue-start-alert svg {
+  flex-shrink: 0;
+  color: #dc2626;
+  margin-top: 1px;
+}
+
+.modal-backward-mode-info {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+}
+
+.backward-overdue-workspace-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 16px;
+  background: #fef2f2;
+  border-bottom: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 12px;
+  z-index: 25;
+}
+
+.backward-overdue-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.overdue-banner-icon {
+  color: #dc2626;
+  flex-shrink: 0;
+}
+
+.backward-overdue-banner-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #dc2626;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+
+.backward-overdue-banner-btn:hover {
+  background: #b91c1c;
+}
+
+.subproject-backward-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #1e40af;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  border-radius: 999px;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.subproject-backward-pill:hover {
+  background: #bfdbfe;
+}
+
+.subproject-backward-pill.overdue {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.start-date-cell-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.overdue-start-date-text {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.sheet-overdue-start-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   AGENDAMENTO REVERSO (DE TRÁS PARA FRENTE / ALAP) NO PLUGIN NEXO
+   ========================================================================== */
+
+.nexo-schedule-mode-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.nexo-schedule-mode-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.nexo-mode-option-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  text-align: left;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nexo-mode-option-btn:hover {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.nexo-mode-option-btn.active.backward {
+  background: #eff6ff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+}
+
+.nexo-mode-option-btn.active.forward {
+  background: #f0fdf4;
+  border-color: #16a34a;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.1);
+}
+
+.nexo-mode-option-btn svg {
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: #475569;
+}
+
+.nexo-mode-option-btn.active.backward svg {
+  color: #2563eb;
+}
+
+.nexo-mode-option-btn.active.forward svg {
+  color: #16a34a;
+}
+
+.nexo-mode-option-btn div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nexo-mode-option-btn strong {
+  font-size: 12.5px;
+  color: #0f172a;
+}
+
+.nexo-mode-option-btn span {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #475569;
+}
+
+.nexo-schedule-anchor-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.nexo-anchor-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.nexo-anchor-date-picker {
+  height: 30px;
+  padding: 2px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1.5px solid #93c5fd;
+  border-radius: 6px;
+  outline: none;
+}
+
+.nexo-anchor-date-picker:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.nexo-anchor-hint {
+  font-size: 11.5px;
+  color: #475569;
+}
+
+.nexo-overdue-alert-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 7px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #991b1b;
+}
+
+.nexo-overdue-icon {
+  color: #dc2626;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.nexo-milestone-card.overdue-card {
+  border-color: #fca5a5 !important;
+  border-left: 4px solid #dc2626 !important;
+  background: #fffafa !important;
+}
+
+.lead-time-box.pred-box {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  gap: 4px;
+  padding: 0 8px;
+}
+
+.ms-pred-inline-input {
+  width: 58px !important;
+  border: none !important;
+  background: transparent !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  text-align: center;
+  outline: none;
 }

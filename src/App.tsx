@@ -20,6 +20,8 @@ import {
   getWorkDaysDifference,
   getVisibleTasks,
   getEffectiveActiveWeekDays,
+  detectCircularDependency,
+  formatDatePTBR,
 } from './utils/scheduler';
 import { exportToXLSX, exportToCSV } from './utils/exportImport';
 import { Ribbon } from './components/Ribbon/Ribbon';
@@ -43,7 +45,14 @@ import {
   saveUserProjectToCloud,
   signOutUser,
 } from './services/cloudSync';
-import { CheckCircle2, Loader2, ChevronLeft, ChevronRight, Columns } from 'lucide-react';
+import {
+  CheckCircle2,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Columns,
+  AlertTriangle,
+} from 'lucide-react';
 
 export const App: React.FC = () => {
   // Estados de Autenticação e Sincronização em Nuvem
@@ -411,11 +420,32 @@ export const App: React.FC = () => {
     const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
     const exceptions = metadata.exceptions || [];
 
+    // Regra 5 — Prevenção de Loop Infinito: bloquear referência circular antes de atualizar predecessoras
+    if (updates.predecessorText !== undefined) {
+      const cycleCheck = detectCircularDependency(
+        scheduledTasks,
+        taskId,
+        updates.predecessorText
+      );
+      if (cycleCheck.hasCycle) {
+        showToast(
+          cycleCheck.message ||
+            'Referência circular bloqueada: remova a dependência mútua entre as tarefas.'
+        );
+        return;
+      }
+    }
+
     const updated = scheduledTasks.map((t, idx) => {
       if (t.id !== taskId) return t;
       const merged = { ...t, ...updates };
 
-      // Se o usuário editou a Data de Término diretamente na planilha, sincroniza a Duração em dias úteis do respectivo Subprojeto
+      // Se o usuário editou a Data de Término de um Subprojeto em modo Reverso, atualiza a Data Limite (targetEndDate)
+      if (t.isSummary && updates.endDate && merged.scheduleDirection === 'backward') {
+        merged.targetEndDate = updates.endDate;
+      }
+
+      // Se o usuário editou a Data de Término diretamente na planilha (tarefa executável), sincroniza a Duração em dias úteis do respectivo Subprojeto
       if (updates.endDate && updates.durationDays === undefined && !t.isSummary) {
         const taskActiveDays = getEffectiveActiveWeekDays(scheduledTasks, idx, activeDays);
         const start = parseISODate(merged.startDate);
@@ -626,6 +656,7 @@ export const App: React.FC = () => {
 
     pushTaskState([...scheduledTasks, subprojectTask, initialChildTask]);
     setSelectedTaskId(subprojectTask.id);
+    setSelectedDetailTaskId(subprojectTask.id);
   };
 
   // Seleção Múltipla com suporte a Shift-Click em sequência (Intervalo)
@@ -917,8 +948,9 @@ export const App: React.FC = () => {
       const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
       const exceptions = metadata.exceptions || [];
       const today = toWorkDay(new Date(), activeDays, exceptions);
+      const nexoDirection = targetState.scheduleDirection || 'backward';
 
-      // Cria um Subprojeto com o Ponto B + subtarefas encadeadas na ordem cronológica A → B
+      // Cria um Subprojeto com o Ponto B + subtarefas encadeadas (mantendo o modo Reverso ALAP ou Forward ASAP)
       const summaryId = `nexo_sum_${Date.now()}`;
       const summaryTask: Task = {
         id: summaryId,
@@ -927,6 +959,11 @@ export const App: React.FC = () => {
         durationDays: 1,
         startDate: toISODate(today),
         endDate: targetState.pointB.targetDate || toISODate(today),
+        scheduleDirection: nexoDirection,
+        targetEndDate:
+          nexoDirection === 'backward'
+            ? targetState.pointB.targetDate || toISODate(today)
+            : undefined,
         progress: 0,
         mode: 'auto',
         predecessorText: '',
@@ -942,8 +979,28 @@ export const App: React.FC = () => {
       const generatedTasks: Task[] = targetState.milestones.map((m, idx) => {
         const dur = Math.max(1, m.leadTimeDays || 1);
         const endDt = m.deadline ? parseISODate(m.deadline) : addWorkDays(today, dur, activeDays, exceptions);
-        const startDt = addWorkDays(endDt, -(dur - 1), activeDays, exceptions);
-        const predText = idx > 0 ? String(baseRowNumber + idx - 1) : '';
+        const startDt = m.startDate
+          ? parseISODate(m.startDate)
+          : addWorkDays(endDt, -(dur - 1), activeDays, exceptions);
+
+        let predText = '';
+        if (m.predecessorText !== undefined) {
+          predText = m.predecessorText
+            .split(',')
+            .map((part) => {
+              const trimmed = part.trim();
+              const match = trimmed.match(/^(\d+)\s*([a-zA-Z]*)$/);
+              if (!match) return '';
+              const nexoNum = parseInt(match[1], 10);
+              if (isNaN(nexoNum) || nexoNum < 1 || nexoNum > targetState.milestones.length) return '';
+              return `${baseRowNumber + nexoNum - 1}${match[2] || ''}`;
+            })
+            .filter(Boolean)
+            .join(', ');
+        } else if (idx > 0) {
+          predText = String(baseRowNumber + idx - 1);
+        }
+
         return {
           id: `nexo_task_${m.id}_${Date.now()}`,
           wbsIndex: '',
@@ -1159,6 +1216,36 @@ export const App: React.FC = () => {
         userEmail={currentUser.email}
         onLogout={handleLogout}
       />
+
+      {/* Alerta Visual de Prazo Estourado no Agendamento Reverso (De Trás para Frente) */}
+      {viewMode !== 'nexo' &&
+        (() => {
+          const overdueSummaries = scheduledTasks.filter(
+            (t) => t.isSummary && t.scheduleDirection === 'backward' && t.isOverdueStart
+          );
+          if (overdueSummaries.length === 0) return null;
+          const first = overdueSummaries[0];
+          return (
+            <div className="backward-overdue-workspace-banner">
+              <div className="backward-overdue-banner-left">
+                <AlertTriangle size={16} className="overdue-banner-icon" />
+                <span>
+                  <strong>Alerta de Prazo Estourado (Agendamento Reverso):</strong> O cálculo de trás para frente do Subprojeto{' '}
+                  <strong>"{first.name}"</strong> (Data Limite:{' '}
+                  <strong>{formatDatePTBR(first.targetEndDate || first.endDate)}</strong>) resultou na data de início{' '}
+                  <strong>{formatDatePTBR(first.startDate)}</strong> (no passado). O prazo é inviável com as durações atuais.
+                </span>
+              </div>
+              <button
+                type="button"
+                className="backward-overdue-banner-btn"
+                onClick={() => setSelectedDetailTaskId(first.id)}
+              >
+                Ajustar Data Limite / Configurar
+              </button>
+            </div>
+          );
+        })()}
 
       {/* Área Principal de Trabalho (Split Panes: Planilha de Tarefas, Gráfico de Gantt, Minha Semana ou Plugin Nexo) */}
       <div className="workspace-container">

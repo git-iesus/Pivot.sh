@@ -608,6 +608,27 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                         <span>{formatActiveWeekDaysShort(effectiveActiveDays)}</span>
                       </button>
                     )}
+                    {task.isSummary && task.scheduleDirection === 'backward' && (
+                      <button
+                        type="button"
+                        className={`subproject-backward-pill ${task.isOverdueStart ? 'overdue' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectTask(task.id);
+                          onOpenTaskDetail(task.id);
+                        }}
+                        title={
+                          task.isOverdueStart
+                            ? `⚠️ Prazo Estourado! Agendamento Reverso (ALAP) com Data Limite em ${formatDatePTBR(task.targetEndDate || task.endDate)} exige início em ${formatDatePTBR(task.startDate)} (no passado)`
+                            : `Agendamento Reverso (ALAP): calculado de trás para frente a partir da Data Limite ${formatDatePTBR(task.targetEndDate || task.endDate)} — Clique para configurar`
+                        }
+                      >
+                        <span>
+                          {task.isOverdueStart ? '⚠️ ' : '⏪ '}
+                          Meta: {formatDatePTBR(task.targetEndDate || task.endDate)}
+                        </span>
+                      </button>
+                    )}
                     {hiddenSubtaskCount > 0 && (
                       <span
                         className="collapsed-subtasks-pill"
@@ -719,7 +740,19 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     }}
                   />
                 ) : (
-                  <span>{formatDatePTBR(task.startDate)}</span>
+                  <div className="start-date-cell-content">
+                    <span className={task.isOverdueStart ? 'overdue-start-date-text' : ''}>
+                      {formatDatePTBR(task.startDate)}
+                    </span>
+                    {task.isOverdueStart && (
+                      <span
+                        className="sheet-overdue-start-badge"
+                        title={`Prazo Estourado (Agendamento Reverso): esta atividade precisaria ter começado em ${formatDatePTBR(task.startDate)} (data já passada) para cumprir a Data Limite!`}
+                      >
+                        ⚠️ Passado
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -727,7 +760,8 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
               <div
                 className="sheet-cell col-date"
                 onDoubleClick={() =>
-                  !task.isSummary && setEditingCell({ taskId: task.id, field: 'endDate' })
+                  (!task.isSummary || task.scheduleDirection === 'backward') &&
+                  setEditingCell({ taskId: task.id, field: 'endDate' })
                 }
               >
                 {isEditing('endDate') ? (

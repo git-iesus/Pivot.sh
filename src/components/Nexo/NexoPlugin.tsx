@@ -5,19 +5,24 @@ import {
   NexoPhase,
   Resource,
   CalendarException,
+  ScheduleDirection,
 } from '../../types/project';
 import {
   formatDatePTBR,
   parseISODate,
   toISODate,
   subtractWorkDays,
+  addWorkDays,
   toWorkDay,
+  toPrevWorkDay,
+  parsePredecessors,
 } from '../../utils/scheduler';
 import {
   Target,
   ArrowUp,
   ArrowDown,
   ArrowRight,
+  ArrowLeft,
   Plus,
   Trash2,
   CheckCircle2,
@@ -36,6 +41,7 @@ import {
   BarChart3,
   X,
   EyeOff,
+  Link2,
 } from 'lucide-react';
 
 interface NexoPluginProps {
@@ -106,11 +112,256 @@ export const defaultNexoState: NexoProjectState = {
   reachedPointA: true,
   logicValidated: true,
   ignitionApproved: false,
+  scheduleDirection: 'backward',
   activePhase: 1,
   roleView: 'architect',
   isFocusModeNewProject: false,
   retrospectives: [],
 };
+
+/**
+ * Regra 5 — Prevenção de Loop Infinito no Nexo:
+ * Detecta referências circulares diretas ou indiretas entre Milestones (1..N).
+ */
+function detectNexoCircularDependency(
+  milestones: NexoMilestone[],
+  targetId?: string,
+  candidatePredText?: string
+): { hasCycle: boolean; message?: string } {
+  const n = milestones.length;
+  if (n === 0) return { hasCycle: false };
+
+  const getEffectivePreds = (idx: number): number[] => {
+    const m = milestones[idx];
+    const raw =
+      targetId && m.id === targetId && candidatePredText !== undefined
+        ? candidatePredText
+        : m.predecessorText !== undefined
+          ? m.predecessorText
+          : idx > 0
+            ? String(idx)
+            : '';
+    return parsePredecessors(raw).map((p) => p.predId);
+  };
+
+  for (let i = 0; i < n; i++) {
+    const rowNum = i + 1;
+    const preds = getEffectivePreds(i);
+    if (preds.includes(rowNum)) {
+      return {
+        hasCycle: true,
+        message: `Referência circular bloqueada no Nexo: o Milestone #${rowNum} não pode depender de si mesmo.`,
+      };
+    }
+  }
+
+  const state = new Array<number>(n + 1).fill(0);
+  const stack: number[] = [];
+
+  const dfs = (u: number): { found: boolean; cycle?: number[] } => {
+    state[u] = 1;
+    stack.push(u);
+    const preds = getEffectivePreds(u - 1);
+    for (const v of preds) {
+      if (v < 1 || v > n) continue;
+      if (state[v] === 1) {
+        const idx = stack.indexOf(v);
+        const cycle = idx >= 0 ? [...stack.slice(idx), v] : [u, v, u];
+        return { found: true, cycle };
+      }
+      if (state[v] === 0) {
+        const r = dfs(v);
+        if (r.found) return r;
+      }
+    }
+    stack.pop();
+    state[u] = 2;
+    return { found: false };
+  };
+
+  for (let i = 1; i <= n; i++) {
+    if (state[i] === 0) {
+      const r = dfs(i);
+      if (r.found && r.cycle) {
+        return {
+          hasCycle: true,
+          message: `Referência circular bloqueada no Nexo (${r.cycle.map((c) => `#${c}`).join(' ➔ ')}): dois ou mais Milestones dependem mutuamente um do outro.`,
+        };
+      }
+    }
+  }
+
+  return { hasCycle: false };
+}
+
+/**
+ * Calcula automaticamente as datas de Início (`startDate`) e Término (`deadline`)
+ * de todos os Milestones do Nexo respeitando:
+ * - Modo 'backward' (Agendamento Reverso ALAP — Regras 1, 2, 3, 4 e 5)
+ * - Modo 'forward' (Agendamento a partir da Data de Início ASAP)
+ */
+function computeNexoSchedule(
+  list: NexoMilestone[],
+  direction: ScheduleDirection,
+  targetEndDate: string,
+  projectStartDate: string,
+  activeWeekDays: number[],
+  exceptions: CalendarException[]
+): NexoMilestone[] {
+  if (!list || list.length === 0) return [];
+  const n = list.length;
+  const updated: NexoMilestone[] = list.map((m) => ({
+    ...m,
+    leadTimeDays: Math.max(1, Number(m.leadTimeDays) || 1),
+  }));
+
+  const getPredsForIndex = (idx: number) => {
+    const m = updated[idx];
+    const raw = m.predecessorText !== undefined ? m.predecessorText : idx > 0 ? String(idx) : '';
+    return parsePredecessors(raw).filter((p) => p.predId >= 1 && p.predId <= n && p.predId !== idx + 1);
+  };
+
+  if (direction === 'forward') {
+    const baseStart = toWorkDay(
+      parseISODate(projectStartDate || toISODate(new Date())),
+      activeWeekDays,
+      exceptions
+    );
+    updated.forEach((m) => {
+      const end = addWorkDays(baseStart, m.leadTimeDays, activeWeekDays, exceptions);
+      m.startDate = toISODate(baseStart);
+      m.deadline = toISODate(end);
+    });
+
+    let changed = true;
+    let pass = 0;
+    while (changed && pass < n + 5) {
+      changed = false;
+      pass++;
+      for (let i = 0; i < n; i++) {
+        const m = updated[i];
+        const preds = getPredsForIndex(i);
+        if (preds.length === 0) {
+          const st = baseStart;
+          const en = addWorkDays(st, m.leadTimeDays, activeWeekDays, exceptions);
+          const sIso = toISODate(st);
+          const eIso = toISODate(en);
+          if (m.startDate !== sIso || m.deadline !== eIso) {
+            m.startDate = sIso;
+            m.deadline = eIso;
+            changed = true;
+          }
+          continue;
+        }
+
+        let maxStart: Date | null = null;
+        for (const { predId } of preds) {
+          const predM = updated[predId - 1];
+          if (!predM || !predM.deadline) continue;
+          const nextDay = parseISODate(predM.deadline);
+          nextDay.setDate(nextDay.getDate() + 1);
+          const reqStart = toWorkDay(nextDay, activeWeekDays, exceptions);
+          if (!maxStart || reqStart > maxStart) {
+            maxStart = reqStart;
+          }
+        }
+
+        if (maxStart) {
+          const en = addWorkDays(maxStart, m.leadTimeDays, activeWeekDays, exceptions);
+          const sIso = toISODate(maxStart);
+          const eIso = toISODate(en);
+          if (m.startDate !== sIso || m.deadline !== eIso) {
+            m.startDate = sIso;
+            m.deadline = eIso;
+            changed = true;
+          }
+        }
+      }
+    }
+    return updated;
+  }
+
+  // Modo 'backward' (De Trás para Frente / ALAP):
+  if (!targetEndDate) return updated;
+  const anchorLimit = toPrevWorkDay(parseISODate(targetEndDate), activeWeekDays, exceptions);
+
+  // Regra 3 — Mapear o inverso na memória (Sucessoras de cada Milestone)
+  const successorsMap = new Map<number, number[]>();
+  for (let i = 1; i <= n; i++) successorsMap.set(i, []);
+
+  for (let i = 0; i < n; i++) {
+    const succNum = i + 1;
+    const preds = getPredsForIndex(i);
+    for (const { predId } of preds) {
+      const arr = successorsMap.get(predId) || [];
+      if (!arr.includes(succNum)) arr.push(succNum);
+      successorsMap.set(predId, arr);
+    }
+  }
+
+  // Inicializar na âncora final (Regra 1 & Regra 2)
+  updated.forEach((m) => {
+    const startDt = subtractWorkDays(anchorLimit, m.leadTimeDays, activeWeekDays, exceptions);
+    m.deadline = toISODate(anchorLimit);
+    m.startDate = toISODate(startDt);
+  });
+
+  // Propagar de trás para frente (da última tarefa até a primeira) respeitando Regra 1, 2, 3 e 4 (Gargalo)
+  let changed = true;
+  let pass = 0;
+  while (changed && pass < n + 5) {
+    changed = false;
+    pass++;
+
+    for (let i = n - 1; i >= 0; i--) {
+      const rowNum = i + 1;
+      const m = updated[i];
+      const succs = successorsMap.get(rowNum) || [];
+
+      if (succs.length === 0) {
+        // Regra 1 — Tarefa Final (Âncora): termina exatamente na Data Limite do Projeto
+        const st = subtractWorkDays(anchorLimit, m.leadTimeDays, activeWeekDays, exceptions);
+        const sIso = toISODate(st);
+        const eIso = toISODate(anchorLimit);
+        if (m.startDate !== sIso || m.deadline !== eIso) {
+          m.startDate = sIso;
+          m.deadline = eIso;
+          changed = true;
+        }
+        continue;
+      }
+
+      // Regra 3 & Regra 4 (Múltiplas Dependentes / Regra do Gargalo):
+      // Termina 1 dia útil antes da sucessora que começar mais cedo
+      let minAllowedEnd: Date | null = null;
+      for (const succNum of succs) {
+        const succM = updated[succNum - 1];
+        if (!succM) continue;
+        const succStart = parseISODate(succM.startDate || succM.deadline);
+        const dayBefore = new Date(succStart);
+        dayBefore.setDate(dayBefore.getDate() - 1);
+        const candidateEnd = toPrevWorkDay(dayBefore, activeWeekDays, exceptions);
+        if (!minAllowedEnd || candidateEnd < minAllowedEnd) {
+          minAllowedEnd = candidateEnd;
+        }
+      }
+
+      if (minAllowedEnd) {
+        // Regra 2 — Cálculo da Duração (Inclusivo)
+        const finalStart = subtractWorkDays(minAllowedEnd, m.leadTimeDays, activeWeekDays, exceptions);
+        const sIso = toISODate(finalStart);
+        const eIso = toISODate(minAllowedEnd);
+        if (m.startDate !== sIso || m.deadline !== eIso) {
+          m.startDate = sIso;
+          m.deadline = eIso;
+          changed = true;
+        }
+      }
+    }
+  }
+
+  return updated;
+}
 
 export const NexoPlugin: React.FC<NexoPluginProps> = ({
   nexoState,
@@ -139,6 +390,35 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
     activePhase,
     isFocusModeNewProject,
   } = nexoState;
+
+  const scheduleDirection: ScheduleDirection = nexoState.scheduleDirection || 'backward';
+  const projectStartDate: string = nexoState.projectStartDate || toISODate(new Date());
+  const todayIso = toISODate(new Date());
+
+  // Calcula datas efetivas em tempo real conforme o modo (Backward ALAP ou Forward ASAP)
+  const scheduledMilestones = computeNexoSchedule(
+    milestones,
+    scheduleDirection,
+    pointB.targetDate,
+    projectStartDate,
+    activeWeekDays,
+    exceptions
+  );
+
+  // Alerta de Prazo Estourado (Item 4 de UX/UI): verifica se no modo Reverso alguma etapa precisaria iniciar no passado
+  const overdueMilestones =
+    scheduleDirection === 'backward'
+      ? scheduledMilestones.filter(
+          (m) => !m.completed && Boolean(m.startDate && m.startDate < todayIso)
+        )
+      : [];
+  const earliestRequiredStartDate =
+    overdueMilestones.length > 0
+      ? overdueMilestones.reduce(
+          (min, m) => (!min || (m.startDate && m.startDate < min) ? m.startDate || min : min),
+          ''
+        )
+      : null;
 
   // =========================================================
   // Cálculo de Travas de Processo (Gates do Perfil Lobo)
@@ -238,19 +518,35 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
   };
 
   const handleFinalizeAndSyncGantt = () => {
-    if (!canEnterExecution) {
+    const syncedState: NexoProjectState = {
+      ...nexoState,
+      milestones: scheduledMilestones,
+      scheduleDirection,
+    };
+    const withDeadlines = scheduledMilestones.filter(
+      (m) => m.deadline && m.deadline.trim().length > 0
+    ).length;
+    const allReady =
+      isPointBComplete &&
+      scheduledMilestones.length > 0 &&
+      reachedPointA &&
+      logicValidated &&
+      withDeadlines === scheduledMilestones.length;
+
+    if (!allReady) {
       const reasons: string[] = [];
       if (!logicValidated) reasons.push('marcar a Fase 3 (Validação Lógica A → B) como revisada');
-      if (!allMilestonesHaveDeadline)
+      if (withDeadlines < scheduledMilestones.length)
         reasons.push(
-          `definir o prazo de todos os Milestones (${milestonesWithDeadlineCount}/${milestones.length} preenchidos)`
+          `definir o prazo de todos os Milestones (${withDeadlines}/${scheduledMilestones.length} preenchidos)`
         );
       showGateAlert(
         `Trava de Processo (Gate): Para sincronizar os passos com o Gantt com clareza total, você precisa ${reasons.join(' e ')}.`
       );
       return;
     }
-    onSyncToGantt(nexoState);
+    onUpdateNexoState(syncedState);
+    onSyncToGantt(syncedState);
   };
 
   // =========================================================
@@ -291,9 +587,22 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
       nextPointB.successMetric.trim().length > 0 &&
       nextPointB.targetDate.trim().length > 0;
 
+    const nextMilestones =
+      updates.targetDate !== undefined && milestones.length > 0
+        ? computeNexoSchedule(
+            milestones,
+            scheduleDirection,
+            nextPointB.targetDate,
+            projectStartDate,
+            activeWeekDays,
+            exceptions
+          )
+        : milestones;
+
     onUpdateNexoState({
       ...nexoState,
       pointB: nextPointB,
+      milestones: nextMilestones,
     });
   };
 
@@ -426,10 +735,56 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
   };
 
   const handleUpdateMilestone = (id: string, updates: Partial<NexoMilestone>) => {
-    const next = milestones.map((m) => (m.id === id ? { ...m, ...updates } : m));
+    // Regra 5 — Prevenção de Loop Infinito: bloquear referência circular antes de atualizar Predecessoras
+    if (updates.predecessorText !== undefined) {
+      const cycleCheck = detectNexoCircularDependency(milestones, id, updates.predecessorText);
+      if (cycleCheck.hasCycle) {
+        showGateAlert(
+          cycleCheck.message ||
+            'Referência circular bloqueada: dois Milestones não podem depender mutuamente um do outro.'
+        );
+        return;
+      }
+    }
+
+    const rawNext = milestones.map((m) => (m.id === id ? { ...m, ...updates } : m));
+    const shouldRecalc =
+      updates.leadTimeDays !== undefined || updates.predecessorText !== undefined;
+    const next = shouldRecalc
+      ? computeNexoSchedule(
+          rawNext,
+          scheduleDirection,
+          pointB.targetDate,
+          projectStartDate,
+          activeWeekDays,
+          exceptions
+        )
+      : rawNext;
+
     onUpdateNexoState({
       ...nexoState,
       milestones: next,
+    });
+  };
+
+  const handleChangeNexoScheduleDirection = (
+    nextDirection: ScheduleDirection,
+    nextStartDate?: string
+  ) => {
+    const effStart = nextStartDate !== undefined ? nextStartDate : projectStartDate;
+    const recalculated = computeNexoSchedule(
+      milestones,
+      nextDirection,
+      pointB.targetDate,
+      effStart,
+      activeWeekDays,
+      exceptions
+    );
+    onUpdateNexoState({
+      ...nexoState,
+      scheduleDirection: nextDirection,
+      projectStartDate: effStart,
+      milestones: recalculated,
     });
   };
 
@@ -437,29 +792,17 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
   // Fase 4: Cálculo Automático de Cronograma Reverso (B -> A)
   // =========================================================
   const handleCalculateReverseSchedule = () => {
-    if (!pointB.targetDate || milestones.length === 0) return;
+    if (milestones.length === 0) return;
+    if (scheduleDirection === 'backward' && !pointB.targetDate) return;
 
-    const updated = [...milestones];
-    let currentAnchor = toWorkDay(parseISODate(pointB.targetDate), activeWeekDays, exceptions);
-
-    // Percorre de trás para frente (do último Milestone próximo ao Ponto B até o Milestone #1 no Ponto A)
-    for (let i = updated.length - 1; i >= 0; i--) {
-      const m = { ...updated[i] };
-      const lead = Math.max(1, Number(m.leadTimeDays) || 1);
-      if (i === updated.length - 1) {
-        // O último Milestone prepara a entrega do Ponto B
-        const d = subtractWorkDays(currentAnchor, lead, activeWeekDays, exceptions);
-        m.deadline = toISODate(d);
-        currentAnchor = d;
-      } else {
-        const prevAnchor = new Date(currentAnchor);
-        prevAnchor.setDate(prevAnchor.getDate() - 1);
-        const d = subtractWorkDays(prevAnchor, lead, activeWeekDays, exceptions);
-        m.deadline = toISODate(d);
-        currentAnchor = d;
-      }
-      updated[i] = m;
-    }
+    const updated = computeNexoSchedule(
+      milestones,
+      scheduleDirection,
+      pointB.targetDate,
+      projectStartDate,
+      activeWeekDays,
+      exceptions
+    );
 
     onUpdateNexoState({
       ...nexoState,
@@ -1204,11 +1547,9 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
               <div className="nexo-stage-header">
                 <div>
                   <span className="stage-kicker">FASE 4 • MATRIZ DE MILESTONES E RECURSOS (CAMADA ANALÍTICA)</span>
-                  <h3>Engenharia de Prazos Reversos, Proprietários e Orçamento</h3>
+                  <h3>Engenharia de Prazos Reversos (ALAP), Predecessoras e Orçamento</h3>
                   <p>
-                    Cada bloco validado agora é oficialmente um <strong>Milestone</strong> (pedra de medição).
-                    Defina a antecedência necessária, o responsável direto (<em>Owner</em>), os recursos
-                    materiais e o custo previsto de cada entrega.
+                    Escolha o modo de agendamento do cronograma, trave a Data Limite final e o sistema calculará automaticamente o <strong>Início</strong> e <strong>Término</strong> de cada Milestone respeitando durações (dias úteis inclusivos) e predecessoras.
                   </p>
                 </div>
 
@@ -1216,32 +1557,121 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
                   type="button"
                   className="nexo-btn-secondary"
                   onClick={handleCalculateReverseSchedule}
-                  title="Calcula automaticamente as datas de todos os Milestones de trás para frente a partir da Data-Limite do Ponto B"
+                  title="Recalcular e gravar as datas de todos os Milestones"
                 >
                   <Zap size={14} />
-                  <span>Calcular Cronograma Reverso (B → A)</span>
+                  <span>
+                    {scheduleDirection === 'backward'
+                      ? 'Recalcular De Trás para Frente (ALAP)'
+                      : 'Recalcular Do Início para Frente (ASAP)'}
+                  </span>
                 </button>
+              </div>
+
+              {/* Painel de Configuração do Modo de Agendamento no Nexo (Forward vs. Backward ALAP) */}
+              <div className="nexo-schedule-mode-panel">
+                <div className="nexo-schedule-mode-options">
+                  <button
+                    type="button"
+                    className={`nexo-mode-option-btn ${scheduleDirection === 'backward' ? 'active backward' : ''}`}
+                    onClick={() => handleChangeNexoScheduleDirection('backward')}
+                  >
+                    <ArrowLeft size={15} />
+                    <div>
+                      <strong>A partir da Data de Término (Reverso - Backward / ALAP)</strong>
+                      <span>
+                        Trava a Data Limite do Ponto B e puxa todas as entregas de trás para frente respeitando durações e gargalos de múltiplas dependentes.
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`nexo-mode-option-btn ${scheduleDirection === 'forward' ? 'active forward' : ''}`}
+                    onClick={() => handleChangeNexoScheduleDirection('forward')}
+                  >
+                    <ArrowRight size={15} />
+                    <div>
+                      <strong>A partir da Data de Início (Padrão - Forward / ASAP)</strong>
+                      <span>
+                        Define a data inicial do projeto e empurra os Milestones para a frente conforme suas predecessoras.
+                      </span>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="nexo-schedule-anchor-input-row">
+                  {scheduleDirection === 'backward' ? (
+                    <>
+                      <label className="nexo-anchor-label">
+                        <Target size={14} />
+                        <span>Data Limite do Projeto (Ponto B):</span>
+                      </label>
+                      <input
+                        type="date"
+                        className="nexo-anchor-date-picker"
+                        value={pointB.targetDate}
+                        onChange={(e) => handleUpdatePointB({ targetDate: e.target.value })}
+                      />
+                      <span className="nexo-anchor-hint">
+                        Regra 1 (Âncora): Milestones sem sucessoras terminam exatamente em{' '}
+                        <strong>{formatDatePTBR(pointB.targetDate)}</strong>.
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <label className="nexo-anchor-label">
+                        <Calendar size={14} />
+                        <span>Data de Início do Projeto (Ponto A):</span>
+                      </label>
+                      <input
+                        type="date"
+                        className="nexo-anchor-date-picker"
+                        value={projectStartDate}
+                        onChange={(e) => handleChangeNexoScheduleDirection('forward', e.target.value)}
+                      />
+                      <span className="nexo-anchor-hint">
+                        Milestones iniciais começam em{' '}
+                        <strong>{formatDatePTBR(projectStartDate)}</strong> e empurram os seguintes.
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* Alerta Visual de Prazo Estourado no Nexo (Item 4 de UX/UI) */}
+                {scheduleDirection === 'backward' && overdueMilestones.length > 0 && (
+                  <div className="nexo-overdue-alert-banner">
+                    <AlertTriangle size={18} className="nexo-overdue-icon" />
+                    <div>
+                      <strong>Alerta de Prazo Estourado (Inviável com as durações atuais):</strong> O cálculo de trás para frente exige que o projeto tivesse começado em{' '}
+                      <strong>{formatDatePTBR(earliestRequiredStartDate || '')}</strong> (anterior à data de hoje,{' '}
+                      {formatDatePTBR(todayIso)}). Há <strong>{overdueMilestones.length}</strong>{' '}
+                      {overdueMilestones.length === 1 ? 'Milestone com início no passado' : 'Milestones com início no passado'}. Reduza as durações, paraleliza predecessoras ou postergue a Data Limite do Ponto B.
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Stepper Guiado de Prontidão da Matriz (Fase 4) */}
               {(() => {
-                const ownersCount = milestones.filter((m) => m.owner && m.owner.trim().length > 0).length;
+                const ownersCount = scheduledMilestones.filter((m) => m.owner && m.owner.trim().length > 0).length;
+                const withDatesCount = scheduledMilestones.filter((m) => m.deadline && m.deadline.trim().length > 0).length;
                 const readinessPct =
-                  milestones.length > 0
-                    ? Math.round((milestonesWithDeadlineCount / milestones.length) * 100)
+                  scheduledMilestones.length > 0
+                    ? Math.round((withDatesCount / scheduledMilestones.length) * 100)
                     : 0;
                 return (
-                  <div className={`nexo-phase4-readiness-bar ${allMilestonesHaveDeadline ? 'ready' : ''}`}>
+                  <div className={`nexo-phase4-readiness-bar ${withDatesCount === scheduledMilestones.length ? 'ready' : ''}`}>
                     <div className="readiness-bar-top">
                       <div className="readiness-status-text">
                         <ShieldCheck size={15} />
                         <span>
                           <strong>Progresso de Calibração da Matriz:</strong>{' '}
-                          {milestonesWithDeadlineCount} de {milestones.length} prazos definidos ({readinessPct}%) •{' '}
-                          {ownersCount} de {milestones.length} responsáveis (Owners) atribuídos
+                          {withDatesCount} de {scheduledMilestones.length} prazos calculados ({readinessPct}%) •{' '}
+                          {ownersCount} de {scheduledMilestones.length} responsáveis (Owners) atribuídos
                         </span>
                       </div>
-                      {!allMilestonesHaveDeadline ? (
+                      {withDatesCount < scheduledMilestones.length ? (
                         <button
                           type="button"
                           className="nexo-btn-primary small"
@@ -1268,10 +1698,24 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
               })()}
 
               <div className="milestones-matrix-grid">
-                {milestones.map((ms, index) => {
+                {scheduledMilestones.map((ms, index) => {
                   const hasDeadline = Boolean(ms.deadline && ms.deadline.trim());
+                  const isOverdue =
+                    scheduleDirection === 'backward' &&
+                    !ms.completed &&
+                    Boolean(ms.startDate && ms.startDate < todayIso);
+                  const effectivePred =
+                    ms.predecessorText !== undefined
+                      ? ms.predecessorText
+                      : index > 0
+                        ? String(index)
+                        : '';
+
                   return (
-                    <div key={ms.id} className={`nexo-milestone-card ${!hasDeadline ? 'missing-date' : ''}`}>
+                    <div
+                      key={ms.id}
+                      className={`nexo-milestone-card ${!hasDeadline ? 'missing-date' : ''} ${isOverdue ? 'overdue-card' : ''}`}
+                    >
                       <div className="ms-card-top">
                         <span className="ms-index-badge">MILESTONE #{index + 1}</span>
                         <input
@@ -1280,9 +1724,20 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
                           value={ms.title}
                           onChange={(e) => handleUpdateMilestone(ms.id, { title: e.target.value })}
                         />
+                        {isOverdue && (
+                          <span
+                            className="ms-date-chip invalid"
+                            title={`Prazo Estourado: este Milestone precisaria começar em ${formatDatePTBR(ms.startDate || '')} (anterior a hoje)`}
+                          >
+                            ⚠️ Início no Passado ({formatDatePTBR(ms.startDate || '')})
+                          </span>
+                        )}
                         {hasDeadline ? (
                           <span className="ms-date-chip valid">
-                            <Calendar size={12} /> Ate {formatDatePTBR(ms.deadline)}
+                            <Calendar size={12} />{' '}
+                            {ms.startDate
+                              ? `${formatDatePTBR(ms.startDate)} ➔ ${formatDatePTBR(ms.deadline)}`
+                              : `Até ${formatDatePTBR(ms.deadline)}`}
                           </span>
                         ) : (
                           <span className="ms-date-chip invalid">⚠️ Sem Prazo (Trava Ativa)</span>
@@ -1290,13 +1745,16 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
                       </div>
 
                       <div className="ms-card-fields-grid">
-                        {/* 1. Cronograma Reverso */}
+                        {/* 1. Duração (Inclusiva), Predecessoras e Datas Calculadas */}
                         <div className="ms-field">
                           <label>
-                            <Calendar size={12} /> Cronograma Reverso (Antecedência &amp; Prazo)
+                            <Calendar size={12} /> Duração (Dias Úteis), Predecessoras &amp; Término
                           </label>
                           <div className="ms-reverse-date-inputs">
-                            <div className="lead-time-box" title="Quantos dias úteis antes da próxima entrega este Milestone deve estar pronto">
+                            <div
+                              className="lead-time-box"
+                              title="Regra 2: Duração em dias úteis (inclusiva: o próprio dia conta como 1 dia trabalhado)"
+                            >
                               <input
                                 type="number"
                                 min="1"
@@ -1309,11 +1767,30 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
                               />
                               <span>{ms.leadTimeDays === 1 ? 'dia útil' : 'dias úteis'}</span>
                             </div>
+                            <div
+                              className="lead-time-box pred-box"
+                              title="Predecessoras deste Milestone (ex: 1, ou 1, 2). Deixe vazio se não depender de nenhum anterior."
+                            >
+                              <Link2 size={11} />
+                              <span>Pred:</span>
+                              <input
+                                type="text"
+                                className="ms-pred-inline-input"
+                                value={effectivePred}
+                                onChange={(e) =>
+                                  handleUpdateMilestone(ms.id, {
+                                    predecessorText: e.target.value,
+                                  })
+                                }
+                                placeholder="Nenhuma"
+                              />
+                            </div>
                             <input
                               type="date"
                               className="ms-deadline-picker"
                               value={ms.deadline}
                               onChange={(e) => handleUpdateMilestone(ms.id, { deadline: e.target.value })}
+                              title="Data de Término calculada para este Milestone"
                             />
                           </div>
                         </div>

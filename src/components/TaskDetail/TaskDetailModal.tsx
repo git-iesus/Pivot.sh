@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Task, SubTask, Resource, CalendarException } from '../../types/project';
+import { Task, SubTask, Resource, CalendarException, ScheduleDirection } from '../../types/project';
 import {
   X,
   Plus,
@@ -20,6 +20,9 @@ import {
   Ban,
   Info,
   Target,
+  AlertTriangle,
+  ArrowRight,
+  ArrowLeft,
 } from 'lucide-react';
 import { HybridNotesEditor } from './HybridNotesEditor';
 import {
@@ -32,6 +35,7 @@ import {
   toISODate,
   addWorkDays,
   getWorkDaysDifference,
+  detectCircularDependency,
 } from '../../utils/scheduler';
 
 interface TaskDetailModalProps {
@@ -97,6 +101,10 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [notes, setNotes] = useState('');
   const [baselineEndDate, setBaselineEndDate] = useState<string>('');
   const [subprojectActiveDays, setSubprojectActiveDays] = useState<number[] | undefined>(undefined);
+  const [subprojectScheduleDirection, setSubprojectScheduleDirection] =
+    useState<ScheduleDirection>('forward');
+  const [subprojectTargetEndDate, setSubprojectTargetEndDate] = useState<string>('');
+  const [cycleErrorMsg, setCycleErrorMsg] = useState<string | null>(null);
 
   // Reordenação via Drag and Drop
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -144,6 +152,9 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       setSubprojectActiveDays(
         task.activeWeekDays && task.activeWeekDays.length > 0 ? [...task.activeWeekDays] : undefined
       );
+      setSubprojectScheduleDirection(task.scheduleDirection || 'forward');
+      setSubprojectTargetEndDate(task.targetEndDate || task.endDate || '');
+      setCycleErrorMsg(null);
       setEditingSubTaskId(null);
       setEditingSubTaskTitle('');
       setDraggedIndex(null);
@@ -349,9 +360,27 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         name: finalName,
         notes,
         activeWeekDays: subprojectActiveDays,
+        scheduleDirection: subprojectScheduleDirection,
+        targetEndDate:
+          subprojectScheduleDirection === 'backward'
+            ? subprojectTargetEndDate || task.endDate
+            : undefined,
       });
       onClose();
       return;
+    }
+
+    // Regra 5 — Prevenção de Loop Infinito: validar referência circular antes de salvar predecessoras
+    const trimmedPred = predecessorText.trim();
+    if (trimmedPred !== (task.predecessorText || '').trim()) {
+      const cycleCheck = detectCircularDependency(tasks, task.id, trimmedPred);
+      if (cycleCheck.hasCycle) {
+        setCycleErrorMsg(
+          cycleCheck.message ||
+            'Referência circular detectada nas Predecessoras. Corrija antes de salvar.'
+        );
+        return;
+      }
     }
 
     const newProgress = hasSubTasks
@@ -362,7 +391,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       startDate,
       endDate,
       durationDays: Math.max(0, durationDays),
-      predecessorText: predecessorText.trim(),
+      predecessorText: trimmedPred,
       resourceNames,
       subTasks,
       progress: newProgress,
@@ -546,11 +575,44 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       type="text"
                       className="schedule-field-input"
                       value={predecessorText}
-                      onChange={(e) => setPredecessorText(e.target.value)}
-                      placeholder="Ex: 2, 3FS+1d"
+                      onChange={(e) => {
+                        setPredecessorText(e.target.value);
+                        if (cycleErrorMsg) setCycleErrorMsg(null);
+                      }}
+                      placeholder="Ex: 2, 3TI"
                     />
                   </label>
                 </div>
+
+                {cycleErrorMsg && (
+                  <div className="modal-cycle-alert-banner">
+                    <AlertTriangle size={15} />
+                    <span>{cycleErrorMsg}</span>
+                  </div>
+                )}
+
+                {parentSubproject?.scheduleDirection === 'backward' && (
+                  <div className="modal-backward-mode-info">
+                    <ArrowLeft size={14} />
+                    <span>
+                      <strong>Agendamento Reverso (ALAP) ativo no Subprojeto:</strong> Datas calculadas de trás para frente a partir da Data Limite{' '}
+                      <strong>
+                        {formatDateBR(parentSubproject.targetEndDate || parentSubproject.endDate)}
+                      </strong>
+                      .
+                    </span>
+                  </div>
+                )}
+
+                {task.isOverdueStart && (
+                  <div className="modal-overdue-start-alert">
+                    <AlertTriangle size={15} />
+                    <span>
+                      <strong>Alerta de Prazo Estourado:</strong> Com as durações e vínculos atuais, esta tarefa precisaria ter iniciado em{' '}
+                      <strong>{formatDateBR(task.startDate)}</strong> (no passado) para cumprir a Data Limite.
+                    </span>
+                  </div>
+                )}
 
                 <div className="schedule-resources-row">
                   <span className="schedule-field-label">
@@ -690,7 +752,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
           {isSubproject ? (
             /* =========================================================
-               MODO SUBPROJETO: CALENDÁRIO DE DIAS ATIVOS INDIVIDUAL
+               MODO SUBPROJETO: DIREÇÃO DE AGENDAMENTO (FORWARD / BACKWARD) & CALENDÁRIO
                ========================================================= */
             <>
               <div className="subtask-progress-area">
@@ -706,6 +768,86 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     style={{ width: `${computedProgress}%`, background: progressColor }}
                   />
                 </div>
+              </div>
+
+              {/* SEÇÃO 1: MODO DE AGENDAMENTO DO SUBPROJETO (FORWARD vs. BACKWARD ALAP) */}
+              <div className="calendar-config-box subproject-direction-config-box">
+                <div className="calendar-header-row">
+                  <div className="calendar-title">
+                    <Target size={16} className="text-primary" />
+                    <strong>Modo de Agendamento do Subprojeto (Direção do Cronograma)</strong>
+                  </div>
+                </div>
+
+                <div className="schedule-direction-cards">
+                  <button
+                    type="button"
+                    className={`schedule-direction-card ${subprojectScheduleDirection === 'forward' ? 'active' : ''}`}
+                    onClick={() => setSubprojectScheduleDirection('forward')}
+                  >
+                    <div className="direction-card-header">
+                      <ArrowRight size={15} />
+                      <strong>A partir da Data de Início (Padrão - Forward)</strong>
+                    </div>
+                    <p>
+                      Empurra as datas das tarefas para a frente (<em>O Mais Cedo Possível - ASAP</em>) a partir da data de início de cada atividade e suas predecessoras.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`schedule-direction-card backward ${subprojectScheduleDirection === 'backward' ? 'active' : ''}`}
+                    onClick={() => {
+                      setSubprojectScheduleDirection('backward');
+                      if (!subprojectTargetEndDate) {
+                        setSubprojectTargetEndDate(task.endDate);
+                      }
+                    }}
+                  >
+                    <div className="direction-card-header">
+                      <ArrowLeft size={15} />
+                      <strong>A partir da Data de Término (Reverso - Backward / ALAP)</strong>
+                    </div>
+                    <p>
+                      Trava a Data Limite final do Subprojeto e calcula automaticamente o início e fim de todas as subtarefas de trás para frente (<em>O Mais Tarde Possível</em>).
+                    </p>
+                  </button>
+                </div>
+
+                {subprojectScheduleDirection === 'backward' && (
+                  <div className="backward-target-date-panel">
+                    <div className="backward-target-input-row">
+                      <label className="backward-target-label">
+                        <Calendar size={14} />
+                        <span>Data Limite de Entrega deste Subprojeto:</span>
+                      </label>
+                      <input
+                        type="date"
+                        className="backward-target-date-input"
+                        value={subprojectTargetEndDate}
+                        onChange={(e) => setSubprojectTargetEndDate(e.target.value)}
+                        required
+                      />
+                      <span className="backward-target-preview">
+                        Âncora Final: <strong>{formatDateBR(subprojectTargetEndDate || task.endDate)}</strong>
+                      </span>
+                    </div>
+                    <p className="backward-rules-summary">
+                      <strong>Como funciona o cálculo ALAP:</strong> Toda subtarefa que não for predecessora de nenhuma outra termina exatamente na Data Limite acima, e as tarefas anteriores são puxadas de trás para frente respeitando durações (inclusivas em dias úteis) e gargalos de múltiplas dependentes.
+                    </p>
+
+                    {(task.isOverdueStart || task.startDate < toISODate(new Date())) &&
+                      task.progress < 100 && (
+                        <div className="modal-overdue-start-alert">
+                          <AlertTriangle size={16} />
+                          <div>
+                            <strong>Alerta de Prazo Estourado (Inviável com as durações atuais):</strong> O cálculo de trás para frente exige que este Subprojeto tivesse começado em{' '}
+                            <strong>{formatDateBR(task.startDate)}</strong> (anterior à data de hoje). Reduza a duração das atividades, ajuste predecessoras ou postergue a Data Limite.
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                )}
               </div>
 
               <div className="calendar-config-box subproject-calendar-config-box">

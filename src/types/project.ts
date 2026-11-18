@@ -1,5 +1,7 @@
 export type TaskMode = 'manual' | 'auto';
 
+export type ScheduleDirection = 'forward' | 'backward';
+
 export type DependencyType = 'FS' | 'SS' | 'FF' | 'SF'; // Término-Início, Início-Início, Término-Término, Início-Término
 
 export interface TaskDependency {
@@ -31,6 +33,9 @@ export interface Task {
   outlineLevel: number; // 0 = raiz/projeto, 1 = fase, 2 = tarefa, 3 = subtarefa
   isSummary: boolean; // true = classificado automaticamente como Subprojeto (possui subtarefas abaixo na EAP)
   activeWeekDays?: number[]; // Calendário de dias ativos exclusivo do Subprojeto (0=Dom..6=Sáb)
+  scheduleDirection?: ScheduleDirection; // 'forward' (padrão) ou 'backward' (de trás para frente - ALAP)
+  targetEndDate?: string; // Data Limite do Subprojeto quando scheduleDirection === 'backward' (YYYY-MM-DD)
+  isOverdueStart?: boolean; // true quando o cálculo reverso gera data de início no passado (< Hoje) e a tarefa não está 100% concluída
   isMilestone: boolean;
   collapsed?: boolean;
   notes?: string;
@@ -73,6 +78,8 @@ export interface ProjectMetadata {
   calendar: string;
   activeWeekDays: number[]; // 0 = Domingo, 1 = Segunda, 2 = Terça, 3 = Quarta, 4 = Quinta, 5 = Sexta, 6 = Sábado
   exceptions?: CalendarException[]; // Datas de exceção globais do projeto
+  scheduleDirection?: ScheduleDirection; // Modo de agendamento global opcional
+  targetEndDate?: string; // Data Limite global quando scheduleDirection === 'backward'
   currency: 'BRL' | 'USD' | 'EUR';
 }
 
@@ -104,8 +111,10 @@ export interface NexoRetrospectiveLog {
 export interface NexoMilestone {
   id: string;
   title: string;
-  leadTimeDays: number; // Quantos dias úteis antes da entrega seguinte este passo precisa estar pronto
-  deadline: string; // YYYY-MM-DD
+  leadTimeDays: number; // Duração em dias úteis (inclusivo)
+  startDate?: string; // YYYY-MM-DD (Data de início calculada de trás para frente ou para a frente)
+  deadline: string; // YYYY-MM-DD (Data de término calculada)
+  predecessorText?: string; // Predecessoras (ex: "1", "1, 2") — se vazio, segue encadeamento ou livre
   owner: string;
   resources: string;
   budget: number;
@@ -126,6 +135,8 @@ export type NexoRoleView = 'architect';
 export interface NexoProjectState {
   pointB: NexoPointB;
   milestones: NexoMilestone[]; // Ordem cronológica A -> B
+  scheduleDirection?: ScheduleDirection; // 'backward' (padrão no Nexo: a partir da Data de Término do Ponto B) ou 'forward' (a partir da Data de Início)
+  projectStartDate?: string; // Data de início quando scheduleDirection === 'forward'
   reachedPointA: boolean; // Fase 2 concluída ("Cheguei no Dia de Hoje - Ponto A")
   logicValidated: boolean; // Gate da Fase 3 (Validação Lógica A -> B revisada)
   ignitionApproved: boolean; // Gate da Fase 4 -> 5 aprovado

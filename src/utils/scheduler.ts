@@ -1,4 +1,4 @@
-import { Task, CalendarException } from '../types/project';
+import { Task, CalendarException, ScheduleDirection } from '../types/project';
 
 /**
  * Utilitários de data e cálculo de cronograma do MS Project com suporte
@@ -86,6 +86,66 @@ export function getEffectiveActiveWeekDays(
   }
 
   return fallback;
+}
+
+/**
+ * Retorna a configuração efetiva de direção de agendamento ('forward' ou 'backward')
+ * e a Data Limite (`targetEndDate`) para uma tarefa com base no seu Subprojeto ancestral mais próximo
+ * (ou na configuração global do projeto).
+ */
+export function getEffectiveScheduleConfig(
+  tasks: Task[],
+  taskIndex: number,
+  projectDirection: ScheduleDirection = 'forward',
+  projectTargetEndDate?: string
+): {
+  direction: ScheduleDirection;
+  targetEndDate?: string;
+  scopeKey: string;
+  scopeSummaryIndex: number | null;
+} {
+  const target = tasks[taskIndex];
+  if (!target) {
+    return {
+      direction: projectDirection,
+      targetEndDate: projectTargetEndDate,
+      scopeKey: 'project_root',
+      scopeSummaryIndex: null,
+    };
+  }
+
+  if (target.isSummary && target.scheduleDirection) {
+    return {
+      direction: target.scheduleDirection,
+      targetEndDate: target.targetEndDate || target.endDate,
+      scopeKey: `subproject_${taskIndex}`,
+      scopeSummaryIndex: taskIndex,
+    };
+  }
+
+  let requiredMaxLevel = target.outlineLevel;
+  for (let i = taskIndex - 1; i >= 0; i--) {
+    const candidate = tasks[i];
+    if (candidate.outlineLevel < requiredMaxLevel) {
+      if (candidate.isSummary && candidate.scheduleDirection) {
+        return {
+          direction: candidate.scheduleDirection,
+          targetEndDate: candidate.targetEndDate || candidate.endDate,
+          scopeKey: `subproject_${i}`,
+          scopeSummaryIndex: i,
+        };
+      }
+      requiredMaxLevel = candidate.outlineLevel;
+      if (requiredMaxLevel === 0) break;
+    }
+  }
+
+  return {
+    direction: projectDirection,
+    targetEndDate: projectTargetEndDate,
+    scopeKey: 'project_root',
+    scopeSummaryIndex: null,
+  };
 }
 
 // Busca se existe uma Data de Exceção cadastrada para uma determinada data
@@ -291,18 +351,176 @@ export function parsePredecessors(predText?: string): ParsedPredecessor[] {
 }
 
 /**
+ * Regra 5 — Prevenção de Loop Infinito:
+ * Verifica se há referência circular (direta ou indireta, auto-referência ou dependência em Subprojeto pai)
+ * caso `targetTaskId` receba `candidatePredecessorText` (ou no estado atual das tarefas).
+ */
+export function detectCircularDependency(
+  tasks: Task[],
+  targetTaskId?: string,
+  candidatePredecessorText?: string
+): {
+  hasCycle: boolean;
+  cyclePath?: number[];
+  message?: string;
+} {
+  if (!tasks || tasks.length === 0) return { hasCycle: false };
+
+  const virtualTasks = tasks.map((t, i) => {
+    const isSummary =
+      i + 1 < tasks.length && tasks[i + 1].outlineLevel > t.outlineLevel;
+    return {
+      ...t,
+      isSummary,
+      predecessorText:
+        targetTaskId && t.id === targetTaskId && candidatePredecessorText !== undefined
+          ? candidatePredecessorText
+          : t.predecessorText,
+    };
+  });
+
+  // 1. Checar auto-referência e dependência de Subprojeto ancestral/descendente
+  for (let idx = 0; idx < virtualTasks.length; idx++) {
+    const task = virtualTasks[idx];
+    const rowNum = idx + 1;
+    if (!task.predecessorText || !task.predecessorText.trim()) continue;
+    const preds = parsePredecessors(task.predecessorText);
+
+    for (const { predId } of preds) {
+      if (predId === rowNum) {
+        return {
+          hasCycle: true,
+          cyclePath: [rowNum, rowNum],
+          message: `Referência circular bloqueada: a Tarefa #${rowNum} ("${task.name}") não pode depender de si mesma.`,
+        };
+      }
+
+      const predIdx = predId - 1;
+      if (predIdx >= 0 && predIdx < virtualTasks.length) {
+        const predTask = virtualTasks[predIdx];
+        // Se predTask é Subprojeto pai/ancestral de task
+        if (predTask.isSummary && predIdx < idx && predTask.outlineLevel < task.outlineLevel) {
+          let isAncestor = true;
+          for (let k = predIdx + 1; k <= idx; k++) {
+            if (virtualTasks[k].outlineLevel <= predTask.outlineLevel) {
+              isAncestor = false;
+              break;
+            }
+          }
+          if (isAncestor) {
+            return {
+              hasCycle: true,
+              cyclePath: [rowNum, predId],
+              message: `Referência circular bloqueada: a Tarefa #${rowNum} não pode ter seu próprio Subprojeto agrupador (#${predId}) como predecessora.`,
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Detecção de ciclo no grafo direcionado via DFS (coloração: 0 = não visitado, 1 = na pilha atual, 2 = concluído)
+  const n = virtualTasks.length;
+  const state = new Array<number>(n + 1).fill(0);
+  const parentStack: number[] = [];
+
+  const dfs = (u: number): { found: boolean; cycle?: number[] } => {
+    state[u] = 1;
+    parentStack.push(u);
+
+    const taskU = virtualTasks[u - 1];
+    if (taskU && !taskU.isSummary && taskU.predecessorText) {
+      const preds = parsePredecessors(taskU.predecessorText);
+      for (const { predId: v } of preds) {
+        if (v < 1 || v > n) continue;
+        if (state[v] === 1) {
+          const cycleStartIdx = parentStack.indexOf(v);
+          const cycle =
+            cycleStartIdx >= 0
+              ? [...parentStack.slice(cycleStartIdx), v]
+              : [u, v, u];
+          return { found: true, cycle };
+        }
+        if (state[v] === 0) {
+          const res = dfs(v);
+          if (res.found) return res;
+        }
+      }
+    }
+
+    parentStack.pop();
+    state[u] = 2;
+    return { found: false };
+  };
+
+  for (let i = 1; i <= n; i++) {
+    if (state[i] === 0) {
+      const res = dfs(i);
+      if (res.found && res.cycle) {
+        const pathStr = res.cycle.map((id) => `#${id}`).join(' ➔ ');
+        return {
+          hasCycle: true,
+          cyclePath: res.cycle,
+          message: `Referência circular bloqueada (${pathStr}): duas ou mais tarefas dependem mutuamente uma da outra.`,
+        };
+      }
+    }
+  }
+
+  return { hasCycle: false };
+}
+
+/**
+ * Identifica arestas que formam ciclo para ignorá-las com segurança durante o cálculo,
+ * garantindo prevenção absoluta contra loops infinitos mesmo em dados importados.
+ */
+function getSafeCycleEdges(tasks: Task[]): Set<string> {
+  const n = tasks.length;
+  const state = new Array<number>(n + 1).fill(0);
+  const backEdges = new Set<string>();
+
+  const dfs = (u: number) => {
+    state[u] = 1;
+    const taskU = tasks[u - 1];
+    if (taskU && !taskU.isSummary && taskU.predecessorText) {
+      const preds = parsePredecessors(taskU.predecessorText);
+      for (const { predId: v } of preds) {
+        if (v < 1 || v > n) continue;
+        if (u === v || state[v] === 1) {
+          backEdges.add(`${u}->${v}`);
+        } else if (state[v] === 0) {
+          dfs(v);
+        }
+      }
+    }
+    state[u] = 2;
+  };
+
+  for (let i = 1; i <= n; i++) {
+    if (state[i] === 0) dfs(i);
+  }
+  return backEdges;
+}
+
+/**
  * Recalcula o cronograma completo (Classificação Automática de Subprojetos, Calendários por Subprojeto,
- * Predecessoras, Datas de Exceção Globais e Caminho Crítico) atuando como Fonte Única da Verdade
- * (Single Source of Truth) para o Grid, Minha Semana e Gráfico de Gantt.
+ * Agendamento Forward ASAP, Agendamento Reverso ALAP "A partir da Data de Término",
+ * Predecessoras/Sucessoras, Datas de Exceção Globais, Alerta de Prazo Estourado e Caminho Crítico)
+ * atuando como Fonte Única da Verdade (Single Source of Truth) para o Grid, Minha Semana e Gráfico de Gantt.
  */
 export function recalculateSchedule(
   tasks: Task[],
   activeWeekDays: number[] = [1, 2, 3, 4, 5],
-  exceptions: CalendarException[] = []
+  exceptions: CalendarException[] = [],
+  projectScheduleDirection: ScheduleDirection = 'forward',
+  projectTargetEndDate?: string
 ): Task[] {
   if (!tasks || tasks.length === 0) return [];
 
-  const updatedTasks: Task[] = tasks.map((t) => ({ ...t }));
+  const updatedTasks: Task[] = tasks.map((t) => ({
+    ...t,
+    isOverdueStart: false,
+  }));
 
   // 1. Classificar automaticamente como Subprojeto (isSummary = true) toda tarefa que possuir subtarefas abaixo na EAP
   for (let i = 0; i < updatedTasks.length; i++) {
@@ -316,13 +534,19 @@ export function recalculateSchedule(
     current.isMilestone = current.durationDays === 0 && !current.isSummary;
   }
 
-  // 2. Criar mapa de índice para tarefas para resolver predecessoras
+  // 2. Criar mapa de índice 1-based e conjunto de arestas cíclicas ignoradas (Prevenção de Loop Infinito - Regra 5)
   const taskMap = new Map<number, Task>();
   updatedTasks.forEach((t, idx) => {
-    taskMap.set(idx + 1, t); // 1-based index conforme tabela do MS Project
+    taskMap.set(idx + 1, t);
   });
+  const ignoredCycleEdges = getSafeCycleEdges(updatedTasks);
 
-  // 3. Propagação de Agendamento via Predecessoras, Calendário do Subprojeto e Exceções Globais
+  // Mapear configuração de agendamento efetiva por índice de tarefa
+  const scheduleConfigs = updatedTasks.map((_, idx) =>
+    getEffectiveScheduleConfig(updatedTasks, idx, projectScheduleDirection, projectTargetEndDate)
+  );
+
+  // 3A. Propagação de Agendamento FORWARD (Padrão: "A partir da Data de Início" - ASAP)
   const maxPasses = Math.max(15, updatedTasks.length + 2);
   let scheduleChanged = true;
   let pass = 0;
@@ -331,36 +555,38 @@ export function recalculateSchedule(
     pass++;
 
     updatedTasks.forEach((task, idx) => {
+      if (task.isSummary) return;
+      const cfg = scheduleConfigs[idx];
+      if (cfg.direction === 'backward' && cfg.targetEndDate) return; // Calculado no motor ALAP reverso (3B)
+
       const currentTaskNum = idx + 1;
       const taskActiveDays = getEffectiveActiveWeekDays(updatedTasks, idx, activeWeekDays);
 
-      if (!task.isSummary && task.predecessorText && task.predecessorText.trim() !== '') {
+      if (task.predecessorText && task.predecessorText.trim() !== '') {
         const parsedPreds = parsePredecessors(task.predecessorText);
         if (parsedPreds.length > 0) {
           let maxReqStart: Date | null = null;
           let maxReqEnd: Date | null = null;
 
           for (const { predId, type } of parsedPreds) {
-            if (predId === currentTaskNum) continue; // Evita auto-referência
+            if (predId === currentTaskNum) continue;
+            if (ignoredCycleEdges.has(`${currentTaskNum}->${predId}`)) continue;
             const predTask = taskMap.get(predId);
             if (!predTask) continue;
 
             if (type === 'II') {
-              // Início-Início: a tarefa deve iniciar junto com o início da tarefa referenciada
               const predStart = parseISODate(predTask.startDate);
               const reqStart = toWorkDay(predStart, taskActiveDays, exceptions);
               if (!maxReqStart || reqStart > maxReqStart) {
                 maxReqStart = reqStart;
               }
             } else if (type === 'TT') {
-              // Término-Término: a tarefa deve finalizar junto com o término da tarefa referenciada
               const predEnd = parseISODate(predTask.endDate);
               const reqEnd = toPrevWorkDay(predEnd, taskActiveDays, exceptions);
               if (!maxReqEnd || reqEnd > maxReqEnd) {
                 maxReqEnd = reqEnd;
               }
             } else if (type === 'IT') {
-              // Início-Término: a tarefa finaliza no início da predecessora
               const predStart = parseISODate(predTask.startDate);
               const reqEnd = toPrevWorkDay(predStart, taskActiveDays, exceptions);
               if (!maxReqEnd || reqEnd > maxReqEnd) {
@@ -382,32 +608,33 @@ export function recalculateSchedule(
           let newEndDate = task.endDate;
 
           if (maxReqEnd && !maxReqStart) {
-            // Apenas restrição TT: finaliza junto com o término referenciado
             const finalEnd = maxReqEnd;
-            const finalStart = task.durationDays === 0
-              ? finalEnd
-              : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, exceptions);
+            const finalStart =
+              task.durationDays === 0
+                ? finalEnd
+                : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, exceptions);
             newStartDate = toISODate(finalStart);
             newEndDate = toISODate(finalEnd);
           } else if (maxReqStart && !maxReqEnd) {
-            // Apenas restrição TI ou II: inicia junto ou após
             const finalStart = maxReqStart;
-            const finalEnd = task.durationDays === 0
-              ? finalStart
-              : addWorkDays(finalStart, task.durationDays, taskActiveDays, exceptions);
+            const finalEnd =
+              task.durationDays === 0
+                ? finalStart
+                : addWorkDays(finalStart, task.durationDays, taskActiveDays, exceptions);
             newStartDate = toISODate(finalStart);
             newEndDate = toISODate(finalEnd);
           } else if (maxReqStart && maxReqEnd) {
-            // Combinação de restrições de início e término
             const tentativeStart = maxReqStart;
-            const tentativeEnd = task.durationDays === 0
-              ? tentativeStart
-              : addWorkDays(tentativeStart, task.durationDays, taskActiveDays, exceptions);
+            const tentativeEnd =
+              task.durationDays === 0
+                ? tentativeStart
+                : addWorkDays(tentativeStart, task.durationDays, taskActiveDays, exceptions);
             if (tentativeEnd < maxReqEnd) {
               const finalEnd = maxReqEnd;
-              const finalStart = task.durationDays === 0
-                ? finalEnd
-                : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, exceptions);
+              const finalStart =
+                task.durationDays === 0
+                  ? finalEnd
+                  : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, exceptions);
               newStartDate = toISODate(finalStart);
               newEndDate = toISODate(finalEnd);
             } else {
@@ -425,21 +652,195 @@ export function recalculateSchedule(
         }
       }
 
-      if (!task.isSummary) {
-        // Tarefas sem predecessoras (manuais ou automáticas): valida início em dia útil do seu Subprojeto e recalcula término conforme duração e exceções globais
-        const start = toWorkDay(parseISODate(task.startDate), taskActiveDays, exceptions);
-        const newStartDate = toISODate(start);
-        const newEndDate = task.durationDays === 0
+      // Tarefas sem predecessoras em modo Forward: valida início em dia útil e recalcula término
+      const start = toWorkDay(parseISODate(task.startDate), taskActiveDays, exceptions);
+      const newStartDate = toISODate(start);
+      const newEndDate =
+        task.durationDays === 0
           ? newStartDate
           : toISODate(addWorkDays(start, task.durationDays, taskActiveDays, exceptions));
-        if (newStartDate !== task.startDate || newEndDate !== task.endDate) {
-          task.startDate = newStartDate;
-          task.endDate = newEndDate;
-          scheduleChanged = true;
-        }
+      if (newStartDate !== task.startDate || newEndDate !== task.endDate) {
+        task.startDate = newStartDate;
+        task.endDate = newEndDate;
+        scheduleChanged = true;
       }
     });
   }
+
+  // 3B. Propagação de Agendamento REVERSO (De Trás para Frente: "A partir da Data de Término" - ALAP)
+  // Agrupa tarefas executáveis por escopo reverso (Subprojeto reverso ou Projeto reverso)
+  const backwardScopes = new Map<
+    string,
+    { targetEndDate: string; taskIndices: number[]; summaryIndex: number | null }
+  >();
+
+  updatedTasks.forEach((task, idx) => {
+    if (task.isSummary) return;
+    const cfg = scheduleConfigs[idx];
+    if (cfg.direction === 'backward' && cfg.targetEndDate) {
+      const existing = backwardScopes.get(cfg.scopeKey);
+      if (existing) {
+        existing.taskIndices.push(idx);
+      } else {
+        backwardScopes.set(cfg.scopeKey, {
+          targetEndDate: cfg.targetEndDate,
+          taskIndices: [idx],
+          summaryIndex: cfg.scopeSummaryIndex,
+        });
+      }
+    }
+  });
+
+  backwardScopes.forEach(({ targetEndDate, taskIndices }) => {
+    const scopeRowNums = new Set<number>(taskIndices.map((i) => i + 1));
+
+    // Nota técnica (Regra 3): Mapear o inverso na memória — descobrir quem são as Sucessoras de cada tarefa
+    const successorsMap = new Map<
+      number,
+      { succRowNum: number; type: 'TI' | 'II' | 'TT' | 'IT' }[]
+    >();
+    taskIndices.forEach((idx) => {
+      successorsMap.set(idx + 1, []);
+    });
+
+    taskIndices.forEach((idx) => {
+      const succRowNum = idx + 1;
+      const task = updatedTasks[idx];
+      if (!task.predecessorText || !task.predecessorText.trim()) return;
+      const preds = parsePredecessors(task.predecessorText);
+      for (const { predId, type } of preds) {
+        if (predId === succRowNum) continue;
+        if (ignoredCycleEdges.has(`${succRowNum}->${predId}`)) continue;
+        if (scopeRowNums.has(predId)) {
+          const list = successorsMap.get(predId) || [];
+          list.push({ succRowNum, type });
+          successorsMap.set(predId, list);
+        }
+      }
+    });
+
+    // Inicializar todas as tarefas Finais/Âncora (Regra 1: ninguém depende delas) na Data Limite do Projeto
+    taskIndices.forEach((idx) => {
+      const task = updatedTasks[idx];
+      const taskActiveDays = getEffectiveActiveWeekDays(updatedTasks, idx, activeWeekDays);
+      const anchorEnd = toPrevWorkDay(parseISODate(targetEndDate), taskActiveDays, exceptions);
+      const anchorStart =
+        task.durationDays === 0
+          ? anchorEnd
+          : subtractWorkDays(anchorEnd, task.durationDays, taskActiveDays, exceptions);
+      task.endDate = toISODate(anchorEnd);
+      task.startDate = toISODate(anchorStart);
+    });
+
+    // Propagar de trás para frente (da última tarefa até a primeira) respeitando Regra 1, 2, 3 e 4 (Gargalo)
+    let backChanged = true;
+    let backPass = 0;
+    const maxBackPasses = Math.max(15, taskIndices.length + 2);
+
+    while (backChanged && backPass < maxBackPasses) {
+      backChanged = false;
+      backPass++;
+
+      // Percorre de trás para frente
+      for (let k = taskIndices.length - 1; k >= 0; k--) {
+        const idx = taskIndices[k];
+        const rowNum = idx + 1;
+        const task = updatedTasks[idx];
+        const taskActiveDays = getEffectiveActiveWeekDays(updatedTasks, idx, activeWeekDays);
+        const succs = successorsMap.get(rowNum) || [];
+
+        if (succs.length === 0) {
+          // Regra 1 — Tarefa Final (Âncora): termina exatamente na Data Limite do Projeto/Subprojeto
+          const anchorEnd = toPrevWorkDay(parseISODate(targetEndDate), taskActiveDays, exceptions);
+          const anchorStart =
+            task.durationDays === 0
+              ? anchorEnd
+              : subtractWorkDays(anchorEnd, task.durationDays, taskActiveDays, exceptions);
+          const nextStartStr = toISODate(anchorStart);
+          const nextEndStr = toISODate(anchorEnd);
+          if (task.startDate !== nextStartStr || task.endDate !== nextEndStr) {
+            task.startDate = nextStartStr;
+            task.endDate = nextEndStr;
+            backChanged = true;
+          }
+          continue;
+        }
+
+        // Regra 3 & Regra 4 (Múltiplas Dependentes / Regra do Gargalo):
+        // Se a Tarefa A for predecessora de duas ou mais tarefas (ex: B e C), A precisa terminar
+        // antes daquela que começar mais cedo (menor data máxima permitida).
+        let minAllowedEnd: Date | null = null;
+
+        for (const { succRowNum, type } of succs) {
+          const succTask = taskMap.get(succRowNum);
+          if (!succTask) continue;
+
+          let candidateMaxEnd: Date;
+
+          if (type === 'TT') {
+            // Término-Término: A termina junto ou antes do término de B
+            const succEnd = parseISODate(succTask.endDate);
+            candidateMaxEnd = toPrevWorkDay(succEnd, taskActiveDays, exceptions);
+          } else if (type === 'II') {
+            // Início-Início: A começa no máximo no início de B
+            const succStart = parseISODate(succTask.startDate);
+            const maxStart = toPrevWorkDay(succStart, taskActiveDays, exceptions);
+            candidateMaxEnd =
+              task.durationDays === 0
+                ? maxStart
+                : addWorkDays(maxStart, task.durationDays, taskActiveDays, exceptions);
+          } else if (type === 'IT') {
+            // Início-Término: A começa no máximo no término de B
+            const succEnd = parseISODate(succTask.endDate);
+            const maxStart = toPrevWorkDay(succEnd, taskActiveDays, exceptions);
+            candidateMaxEnd =
+              task.durationDays === 0
+                ? maxStart
+                : addWorkDays(maxStart, task.durationDays, taskActiveDays, exceptions);
+          } else {
+            // Regra 3 — Vínculo Fim-Início (TI / Padrão):
+            // A Tarefa A precisa terminar 1 dia útil antes de a Tarefa B começar.
+            const succStart = parseISODate(succTask.startDate);
+            const dayBefore = new Date(succStart);
+            dayBefore.setDate(dayBefore.getDate() - 1);
+            candidateMaxEnd = toPrevWorkDay(dayBefore, taskActiveDays, exceptions);
+          }
+
+          if (!minAllowedEnd || candidateMaxEnd < minAllowedEnd) {
+            minAllowedEnd = candidateMaxEnd;
+          }
+        }
+
+        if (minAllowedEnd) {
+          // Regra 2 — Cálculo da Duração (Inclusivo): o próprio dia de início/fim conta como 1 dia trabalhado
+          const finalEnd = minAllowedEnd;
+          const finalStart =
+            task.durationDays === 0
+              ? finalEnd
+              : subtractWorkDays(finalEnd, task.durationDays, taskActiveDays, exceptions);
+          const nextStartStr = toISODate(finalStart);
+          const nextEndStr = toISODate(finalEnd);
+
+          if (task.startDate !== nextStartStr || task.endDate !== nextEndStr) {
+            task.startDate = nextStartStr;
+            task.endDate = nextEndStr;
+            backChanged = true;
+          }
+        }
+      }
+    }
+  });
+
+  // 3C. Alerta de Prazo Estourado (Item 4 de UX/UI):
+  // Se o cálculo de trás para frente resultar em uma data de início anterior à data de hoje, sinalizar inviabilidade
+  const todayIso = toISODate(new Date());
+  updatedTasks.forEach((task, idx) => {
+    if (task.isSummary) return;
+    const cfg = scheduleConfigs[idx];
+    if (cfg.direction === 'backward' && task.startDate < todayIso && task.progress < 100) {
+      task.isOverdueStart = true;
+    }
+  });
 
   // 4. Calcular Subprojetos / Tarefas Agrupadoras (De baixo para cima)
   for (let i = updatedTasks.length - 1; i >= 0; i--) {
@@ -453,6 +854,7 @@ export function recalculateSchedule(
       let totalChildCost = 0;
       let minBaseStart: Date | null = null;
       let maxBaseEnd: Date | null = null;
+      let hasChildOverdueStart = false;
 
       for (let j = i + 1; j < updatedTasks.length; j++) {
         const child = updatedTasks[j];
@@ -463,6 +865,7 @@ export function recalculateSchedule(
 
         if (!minStart || cStart < minStart) minStart = cStart;
         if (!maxEnd || cEnd > maxEnd) maxEnd = cEnd;
+        if (child.isOverdueStart) hasChildOverdueStart = true;
 
         if (child.baselineEndDate) {
           const bStart = parseISODate(child.baselineStartDate || child.startDate);
@@ -480,11 +883,34 @@ export function recalculateSchedule(
 
       if (minStart && maxEnd) {
         task.startDate = toISODate(minStart);
-        task.endDate = toISODate(maxEnd);
-        task.durationDays = getWorkDaysDifference(minStart, maxEnd, summaryActiveDays, exceptions);
+        if (task.scheduleDirection === 'backward' && task.targetEndDate) {
+          const lockedEnd = toPrevWorkDay(
+            parseISODate(task.targetEndDate),
+            summaryActiveDays,
+            exceptions
+          );
+          task.endDate = toISODate(lockedEnd > maxEnd ? lockedEnd : maxEnd);
+        } else {
+          task.endDate = toISODate(maxEnd);
+        }
+        task.durationDays = getWorkDaysDifference(
+          minStart,
+          parseISODate(task.endDate),
+          summaryActiveDays,
+          exceptions
+        );
         task.progress = totalDuration > 0 ? Math.round(weightedProgress / totalDuration) : 0;
         if (totalChildCost > 0) {
           task.cost = totalChildCost;
+        }
+
+        const cfg = scheduleConfigs[i];
+        if (
+          (task.scheduleDirection === 'backward' || cfg.direction === 'backward') &&
+          (task.startDate < todayIso || hasChildOverdueStart) &&
+          task.progress < 100
+        ) {
+          task.isOverdueStart = true;
         }
       }
 
