@@ -154,6 +154,9 @@ export const Ribbon: React.FC<RibbonProps> = ({
 
         {/* Zona 2 (Centro): Marca + Título do Projeto Ativo (Editável Inline) + Indicador Salvo */}
         <div className="title-center-group">
+          <div className="app-icon" title="Pivot">
+            <img src="/logo-pivot.svg" alt="Pivot Logo" className="app-logo-img" />
+          </div>
           <span className="window-title">Pivot.sh</span>
           <span className="title-divider-dot">•</span>
 

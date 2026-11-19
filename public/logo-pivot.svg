@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Fundo Azul Vibrante Flat (#0E2841) - Sem gradientes, sombras ou texturas -->
+  <rect width="512" height="512" fill="#0E2841" />
+
+  <!-- Isotipo Pivot: Silhueta estilizada de um "P" construída exclusivamente com círculos tangentes
+       em Proporção Áurea (raios Fibonacci proporcionais 377 : 89 : 55 : 21),
+       totalmente preenchida em Branco Puro (#FFFFFF), voltada para a direita em ângulo ascendente -->
+  <path
+    d="M 165.531 366.462 A 278.980 278.980 0 0 1 232.433 154.274 A 65.860 65.860 0 1 1 268.199 261.850 A 40.700 40.700 0 0 0 219.432 294.972 A 278.980 278.980 0 0 1 194.953 371.650 A 15.540 15.540 0 0 1 165.531 366.462 Z"
+    fill="#FFFFFF"
+  />
+</svg>

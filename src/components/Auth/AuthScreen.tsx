@@ -81,6 +81,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
         <div className="auth-brand-header">
           <div className="auth-brand-top-row">
             <div className="auth-brand-title-group">
+              <div className="auth-brand-logo-mark" title="Pivot">
+                <img src="/logo-pivot.svg" alt="Pivot Logo" className="auth-brand-logo-img" />
+              </div>
               <span className="auth-brand-logo-text">Pivot.sh</span>
               <span className="auth-cloud-badge">
                 <Cloud size={12} />

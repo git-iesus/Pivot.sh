@@ -86,11 +86,13 @@ input, select, button {
   justify-content: center;
   width: 22px;
   height: 22px;
-  background: #133c44;
-  border-radius: 4px;
-  margin-right: 6px;
+  background: #0E2841;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  margin-right: 2px;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+  box-shadow: none;
+  flex-shrink: 0;
 }
 
 .app-logo-img {
@@ -6849,7 +6851,7 @@ input, select, button {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: radial-gradient(circle at top, #133123 0%, #0b1912 100%);
+  background: radial-gradient(circle at top, #163e64 0%, #0E2841 100%);
   color: #e2e8f0;
   font-size: 14px;
   font-weight: 500;
@@ -6862,7 +6864,7 @@ input, select, button {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: radial-gradient(circle at 50% 0%, #194d33 0%, #0d261a 55%, #07140e 100%);
+  background: radial-gradient(circle at 50% 0%, #163e64 0%, #0E2841 58%, #081828 100%);
 }
 
 .auth-card-container {
@@ -6894,13 +6896,32 @@ input, select, button {
 .auth-brand-title-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+
+.auth-brand-logo-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: #0E2841;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.auth-brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .auth-brand-logo-text {
   font-size: 22px;
   font-weight: 800;
-  color: #0f172a;
+  color: #0E2841;
   letter-spacing: -0.02em;
 }
 
@@ -7132,8 +7153,8 @@ input, select, button {
 
 .auth-input:focus {
   outline: none;
-  border-color: #194d33;
-  box-shadow: 0 0 0 3px rgba(25, 77, 51, 0.14);
+  border-color: #0E2841;
+  box-shadow: 0 0 0 3px rgba(14, 40, 65, 0.14);
 }
 
 .auth-eye-btn {
@@ -7150,7 +7171,7 @@ input, select, button {
 
 .auth-submit-btn {
   height: 40px;
-  background: linear-gradient(180deg, #236343 0%, #194d33 100%);
+  background: linear-gradient(180deg, #163e64 0%, #0E2841 100%);
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -7192,7 +7213,7 @@ input, select, button {
 .auth-link-btn {
   background: none;
   border: none;
-  color: #194d33;
+  color: #0E2841;
   font-weight: 700;
   cursor: pointer;
   padding: 0;
@@ -8134,7 +8155,13 @@ input, select, button {
 }
 
 .app-icon {
-  background: #091b2c !important;
+  background: #0E2841 !important;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  box-shadow: none !important;
+  width: 22px;
+  height: 22px;
+  margin-right: 2px;
 }
 
 .ribbon-tab-btn.nexo-tab-highlight {
