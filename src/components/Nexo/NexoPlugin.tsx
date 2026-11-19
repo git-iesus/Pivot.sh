@@ -16,6 +16,9 @@ import {
   toWorkDay,
   toPrevWorkDay,
   parsePredecessors,
+  resolveLagWorkDays,
+  offsetWorkDays,
+  ParsedPredecessor,
 } from '../../utils/scheduler';
 import {
   Target,
@@ -255,20 +258,47 @@ function computeNexoSchedule(
         }
 
         let maxStart: Date | null = null;
-        for (const { predId } of preds) {
-          const predM = updated[predId - 1];
+        let maxEnd: Date | null = null;
+        for (const pred of preds) {
+          const predM = updated[pred.predId - 1];
           if (!predM || !predM.deadline) continue;
-          const nextDay = parseISODate(predM.deadline);
-          nextDay.setDate(nextDay.getDate() + 1);
-          const reqStart = toWorkDay(nextDay, activeWeekDays, exceptions);
-          if (!maxStart || reqStart > maxStart) {
-            maxStart = reqStart;
+          const lagDays = resolveLagWorkDays(pred, predM.leadTimeDays);
+          if (pred.type === 'II') {
+            const pStart = parseISODate(predM.startDate || predM.deadline);
+            const reqStart = offsetWorkDays(pStart, lagDays, activeWeekDays, exceptions, 'next');
+            if (!maxStart || reqStart > maxStart) maxStart = reqStart;
+          } else if (pred.type === 'TT') {
+            const pEnd = parseISODate(predM.deadline);
+            const reqEnd = offsetWorkDays(pEnd, lagDays, activeWeekDays, exceptions, 'prev');
+            if (!maxEnd || reqEnd > maxEnd) maxEnd = reqEnd;
+          } else if (pred.type === 'IT') {
+            const pStart = parseISODate(predM.startDate || predM.deadline);
+            const reqEnd = offsetWorkDays(pStart, lagDays, activeWeekDays, exceptions, 'prev');
+            if (!maxEnd || reqEnd > maxEnd) maxEnd = reqEnd;
+          } else {
+            const pEnd = parseISODate(predM.deadline);
+            const reqStart = offsetWorkDays(pEnd, 1 + lagDays, activeWeekDays, exceptions, 'prev');
+            if (!maxStart || reqStart > maxStart) maxStart = reqStart;
           }
         }
 
-        if (maxStart) {
-          const en = addWorkDays(maxStart, m.leadTimeDays, activeWeekDays, exceptions);
-          const sIso = toISODate(maxStart);
+        if (maxEnd && !maxStart) {
+          const st = subtractWorkDays(maxEnd, m.leadTimeDays, activeWeekDays, exceptions);
+          const sIso = toISODate(st);
+          const eIso = toISODate(maxEnd);
+          if (m.startDate !== sIso || m.deadline !== eIso) {
+            m.startDate = sIso;
+            m.deadline = eIso;
+            changed = true;
+          }
+        } else if (maxStart) {
+          let en = addWorkDays(maxStart, m.leadTimeDays, activeWeekDays, exceptions);
+          let st = maxStart;
+          if (maxEnd && en < maxEnd) {
+            en = maxEnd;
+            st = subtractWorkDays(en, m.leadTimeDays, activeWeekDays, exceptions);
+          }
+          const sIso = toISODate(st);
           const eIso = toISODate(en);
           if (m.startDate !== sIso || m.deadline !== eIso) {
             m.startDate = sIso;
@@ -286,16 +316,16 @@ function computeNexoSchedule(
   const anchorLimit = toPrevWorkDay(parseISODate(targetEndDate), activeWeekDays, exceptions);
 
   // Regra 3 — Mapear o inverso na memória (Sucessoras de cada Milestone)
-  const successorsMap = new Map<number, number[]>();
+  const successorsMap = new Map<number, { succNum: number; predLink: ParsedPredecessor }[]>();
   for (let i = 1; i <= n; i++) successorsMap.set(i, []);
 
   for (let i = 0; i < n; i++) {
     const succNum = i + 1;
     const preds = getPredsForIndex(i);
-    for (const { predId } of preds) {
-      const arr = successorsMap.get(predId) || [];
-      if (!arr.includes(succNum)) arr.push(succNum);
-      successorsMap.set(predId, arr);
+    for (const predLink of preds) {
+      const arr = successorsMap.get(predLink.predId) || [];
+      arr.push({ succNum, predLink });
+      successorsMap.set(predLink.predId, arr);
     }
   }
 
@@ -332,15 +362,35 @@ function computeNexoSchedule(
       }
 
       // Regra 3 & Regra 4 (Múltiplas Dependentes / Regra do Gargalo):
-      // Termina 1 dia útil antes da sucessora que começar mais cedo
       let minAllowedEnd: Date | null = null;
-      for (const succNum of succs) {
+      for (const { succNum, predLink } of succs) {
         const succM = updated[succNum - 1];
         if (!succM) continue;
-        const succStart = parseISODate(succM.startDate || succM.deadline);
-        const dayBefore = new Date(succStart);
-        dayBefore.setDate(dayBefore.getDate() - 1);
-        const candidateEnd = toPrevWorkDay(dayBefore, activeWeekDays, exceptions);
+        const lagDays = resolveLagWorkDays(predLink, m.leadTimeDays);
+        let candidateEnd: Date;
+
+        if (predLink.type === 'TT') {
+          const succEnd = parseISODate(succM.deadline);
+          candidateEnd = offsetWorkDays(succEnd, -lagDays, activeWeekDays, exceptions, 'prev');
+        } else if (predLink.type === 'II') {
+          const succStart = parseISODate(succM.startDate || succM.deadline);
+          const maxStart = offsetWorkDays(succStart, -lagDays, activeWeekDays, exceptions, 'prev');
+          candidateEnd = addWorkDays(maxStart, m.leadTimeDays, activeWeekDays, exceptions);
+        } else if (predLink.type === 'IT') {
+          const succEnd = parseISODate(succM.deadline);
+          const maxStart = offsetWorkDays(succEnd, -lagDays, activeWeekDays, exceptions, 'prev');
+          candidateEnd = addWorkDays(maxStart, m.leadTimeDays, activeWeekDays, exceptions);
+        } else {
+          const succStart = parseISODate(succM.startDate || succM.deadline);
+          candidateEnd = offsetWorkDays(
+            succStart,
+            -(1 + lagDays),
+            activeWeekDays,
+            exceptions,
+            'prev'
+          );
+        }
+
         if (!minAllowedEnd || candidateEnd < minAllowedEnd) {
           minAllowedEnd = candidateEnd;
         }
@@ -1769,7 +1819,7 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
                             </div>
                             <div
                               className="lead-time-box pred-box"
-                              title="Predecessoras deste Milestone (ex: 1, ou 1, 2). Deixe vazio se não depender de nenhum anterior."
+                              title="Predecessoras (MS Project): [ID][TI|FS|II|SS|TT|FF|IT|SF][+/-dias ou %] — Ex: 1; 2TI+2d; 3II+50%; 4TT-1d"
                             >
                               <Link2 size={11} />
                               <span>Pred:</span>
@@ -1782,7 +1832,7 @@ export const NexoPlugin: React.FC<NexoPluginProps> = ({
                                     predecessorText: e.target.value,
                                   })
                                 }
-                                placeholder="Nenhuma"
+                                placeholder="Ex: 1;2II+50%"
                               />
                             </div>
                             <input

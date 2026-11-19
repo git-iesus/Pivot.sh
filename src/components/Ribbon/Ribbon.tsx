@@ -399,11 +399,19 @@ export const Ribbon: React.FC<RibbonProps> = ({
             {/* Grupo: Dependências */}
             <div className="ribbon-group">
               <div className="group-content">
-                <button className="large-tool-btn" onClick={onLinkTasks} title="Vincular Tarefas Selecionadas">
+                <button
+                  className="large-tool-btn"
+                  onClick={onLinkTasks}
+                  title="Vincular Tarefas Selecionadas em Cascata Término-Início (Atalho: Ctrl + F2)"
+                >
                   <Link2 size={26} className="tool-icon primary-color" />
                   <span>Vincular</span>
                 </button>
-                <button className="large-tool-btn" onClick={onUnlinkTasks} title="Desvincular Tarefas">
+                <button
+                  className="large-tool-btn"
+                  onClick={onUnlinkTasks}
+                  title="Desvincular Tarefas Selecionadas em Lote (Atalho: Ctrl + Shift + F2)"
+                >
                   <Unlink2 size={26} className="tool-icon" />
                   <span>Desvincular</span>
                 </button>

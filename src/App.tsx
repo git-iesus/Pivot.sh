@@ -21,6 +21,7 @@ import {
   getVisibleTasks,
   getEffectiveActiveWeekDays,
   getEffectiveExceptions,
+  parsePredecessors,
   detectCircularDependency,
   remapPredecessorsForNewTaskOrder,
   formatDatePTBR,
@@ -670,9 +671,9 @@ export const App: React.FC = () => {
     setSelectedDetailTaskId(subprojectTask.id);
   };
 
-  // Seleção Múltipla com suporte a Shift-Click em sequência (Intervalo)
+  // Seleção Múltipla com suporte a Ctrl+Clique (não adjacentes) e Shift+Clique em sequência (Intervalo)
   const handleToggleCheckTask = useCallback(
-    (taskId: string, shiftKey: boolean) => {
+    (taskId: string, shiftKey: boolean, ctrlKey: boolean = false) => {
       const visible = getVisibleTasks(scheduledTasks);
       const anchorId = lastCheckedTaskIdRef.current || selectedTaskId;
 
@@ -697,6 +698,11 @@ export const App: React.FC = () => {
       }
 
       setCheckedTaskIds((prev) => {
+        // Quando usuário clica em uma tarefa (selectedTaskId) e segura Ctrl clicando em outra,
+        // garante que a tarefa âncora anterior também entre na seleção múltipla.
+        if (ctrlKey && prev.length === 0 && selectedTaskId && selectedTaskId !== taskId) {
+          return [selectedTaskId, taskId];
+        }
         const exists = prev.includes(taskId);
         return exists ? prev.filter((id) => id !== taskId) : [...prev, taskId];
       });
@@ -765,23 +771,140 @@ export const App: React.FC = () => {
     pushTaskState(newTasks);
   };
 
-  const handleLinkTasks = () => {
-    if (!selectedTaskId) return;
-    const idx = scheduledTasks.findIndex((t) => t.id === selectedTaskId);
-    if (idx > 0) {
-      const predId = idx; // Tarefa anterior (1-based)
-      const current = scheduledTasks[idx];
-      const newPreds = current.predecessorText
-        ? `${current.predecessorText}, ${predId}`
-        : `${predId}`;
-      handleUpdateTask(selectedTaskId, { predecessorText: newPreds });
-    }
-  };
+  const handleLinkTasks = useCallback(() => {
+    const rowNumMap = new Map<string, number>();
+    scheduledTasks.forEach((t, idx) => rowNumMap.set(t.id, idx + 1));
 
-  const handleUnlinkTasks = () => {
-    if (!selectedTaskId) return;
-    handleUpdateTask(selectedTaskId, { predecessorText: '' });
-  };
+    // Caso 1: 2 ou mais tarefas marcadas/selecionadas -> Vincular em cascata (Término a Início)
+    if (checkedTaskIds.length >= 2) {
+      const checkedSet = new Set(checkedTaskIds);
+      const chain = scheduledTasks
+        .filter((t) => checkedSet.has(t.id) && !t.isSummary)
+        .sort((a, b) => (rowNumMap.get(a.id) || 0) - (rowNumMap.get(b.id) || 0));
+
+      if (chain.length < 2) {
+        showToast('Selecione pelo menos 2 tarefas (não Subprojetos) para vincular em cascata.');
+        return;
+      }
+
+      const workingTasks = [...scheduledTasks];
+      let linksAdded = 0;
+
+      for (let i = 1; i < chain.length; i++) {
+        const prevTask = chain[i - 1];
+        const currTask = chain[i];
+        const prevRowNum = rowNumMap.get(prevTask.id);
+        const currRowNum = rowNumMap.get(currTask.id);
+        if (!prevRowNum || !currRowNum) continue;
+
+        const currIdx = currRowNum - 1;
+        const currentExisting = workingTasks[currIdx];
+        const existingPreds = parsePredecessors(currentExisting.predecessorText);
+        if (existingPreds.some((p) => p.predId === prevRowNum)) continue;
+
+        const rawPrev = (currentExisting.predecessorText || '').trim();
+        const sep = rawPrev.includes(',') && !rawPrev.includes(';') ? ', ' : ';';
+        const nextPredText = rawPrev ? `${rawPrev}${sep}${prevRowNum}` : `${prevRowNum}`;
+
+        const cycleCheck = detectCircularDependency(workingTasks, currTask.id, nextPredText);
+        if (cycleCheck.hasCycle) {
+          showToast(
+            cycleCheck.message ||
+              'Referência circular bloqueada ao tentar vincular tarefas em cascata.'
+          );
+          return;
+        }
+
+        workingTasks[currIdx] = { ...currentExisting, predecessorText: nextPredText };
+        linksAdded++;
+      }
+
+      if (linksAdded === 0) {
+        showToast('As tarefas selecionadas já possuem estes vínculos Término-Início.');
+        return;
+      }
+
+      pushTaskState(workingTasks);
+      showToast(
+        `Vínculo Término-Início (TI) em cascata aplicado a ${chain.length} tarefas! (Ctrl+F2)`
+      );
+      return;
+    }
+
+    // Caso 2: 1 tarefa selecionada -> Vincular à tarefa executável imediatamente anterior
+    const singleId = checkedTaskIds.length === 1 ? checkedTaskIds[0] : selectedTaskId;
+    if (!singleId) return;
+
+    const idx = scheduledTasks.findIndex((t) => t.id === singleId);
+    if (idx <= 0) return;
+
+    const current = scheduledTasks[idx];
+    if (current.isSummary) {
+      showToast('Subprojetos são agrupadores EAP; selecione tarefas para vincular.');
+      return;
+    }
+
+    let prevExecIdx = -1;
+    for (let p = idx - 1; p >= 0; p--) {
+      if (!scheduledTasks[p].isSummary) {
+        prevExecIdx = p;
+        break;
+      }
+    }
+    if (prevExecIdx < 0) return;
+
+    const predRowNum = prevExecIdx + 1;
+    const existingPreds = parsePredecessors(current.predecessorText);
+    if (existingPreds.some((p) => p.predId === predRowNum)) {
+      showToast(`A Tarefa #${idx + 1} já depende da Tarefa #${predRowNum}.`);
+      return;
+    }
+
+    const rawPrev = (current.predecessorText || '').trim();
+    const sep = rawPrev.includes(',') && !rawPrev.includes(';') ? ', ' : ';';
+    const newPreds = rawPrev ? `${rawPrev}${sep}${predRowNum}` : `${predRowNum}`;
+
+    const cycleCheck = detectCircularDependency(scheduledTasks, current.id, newPreds);
+    if (cycleCheck.hasCycle) {
+      showToast(
+        cycleCheck.message ||
+          'Referência circular bloqueada: remova a dependência mútua entre as tarefas.'
+      );
+      return;
+    }
+
+    const updated = scheduledTasks.map((t) =>
+      t.id === singleId ? { ...t, predecessorText: newPreds } : t
+    );
+    pushTaskState(updated);
+    showToast(`Tarefa #${idx + 1} vinculada à #${predRowNum} (TI)!`);
+  }, [checkedTaskIds, selectedTaskId, scheduledTasks, pushTaskState, showToast]);
+
+  const handleUnlinkTasks = useCallback(() => {
+    const targetIds =
+      checkedTaskIds.length > 0
+        ? new Set(checkedTaskIds)
+        : selectedTaskId
+          ? new Set([selectedTaskId])
+          : null;
+    if (!targetIds || targetIds.size === 0) return;
+
+    const linkedTargets = scheduledTasks.filter(
+      (t) => targetIds.has(t.id) && (t.predecessorText || '').trim() !== ''
+    );
+    if (linkedTargets.length === 0) {
+      showToast('As tarefas selecionadas não possuem predecessoras para desvincular.');
+      return;
+    }
+
+    const updated = scheduledTasks.map((t) =>
+      targetIds.has(t.id) ? { ...t, predecessorText: '' } : t
+    );
+    pushTaskState(updated);
+    showToast(
+      `Vínculos removidos de ${linkedTargets.length} ${linkedTargets.length === 1 ? 'tarefa' : 'tarefas'}! (Ctrl+Shift+F2)`
+    );
+  }, [checkedTaskIds, selectedTaskId, scheduledTasks, pushTaskState, showToast]);
 
   const handleSetProgress = (progress: number) => {
     if (checkedTaskIds.length > 0) {
@@ -996,18 +1119,19 @@ export const App: React.FC = () => {
 
         let predText = '';
         if (m.predecessorText !== undefined) {
+          const sep = m.predecessorText.includes(';') ? ';' : ', ';
           predText = m.predecessorText
-            .split(',')
+            .split(/[;,]+/)
             .map((part) => {
               const trimmed = part.trim();
-              const match = trimmed.match(/^(\d+)\s*([a-zA-Z]*)$/);
+              const match = trimmed.match(/^(\d+)\s*(.*)$/);
               if (!match) return '';
               const nexoNum = parseInt(match[1], 10);
               if (isNaN(nexoNum) || nexoNum < 1 || nexoNum > targetState.milestones.length) return '';
-              return `${baseRowNumber + nexoNum - 1}${match[2] || ''}`;
+              return `${baseRowNumber + nexoNum - 1}${(match[2] || '').trim()}`;
             })
             .filter(Boolean)
-            .join(', ');
+            .join(sep);
         } else if (idx > 0) {
           predText = String(baseRowNumber + idx - 1);
         }
@@ -1088,7 +1212,7 @@ export const App: React.FC = () => {
     [metadata, scheduledTasks, resources, saveToStorage, showToast]
   );
 
-  // Atalhos de teclado
+  // Atalhos de teclado globais (Ctrl+S, Ctrl+Z, Ctrl+Y, Ctrl+F2 Vincular em Cascata, Ctrl+Shift+F2 Desvincular)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -1100,11 +1224,18 @@ export const App: React.FC = () => {
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
         e.preventDefault();
         handleRedo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'F2') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleUnlinkTasks();
+        } else {
+          handleLinkTasks();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo, handleManualSave]);
+  }, [handleUndo, handleRedo, handleManualSave, handleLinkTasks, handleUnlinkTasks]);
 
   const selectedTaskObj = scheduledTasks.find((t) => t.id === selectedTaskId);
 
@@ -1291,6 +1422,8 @@ export const App: React.FC = () => {
                   onBulkSetProgress={handleSetProgress}
                   onBulkIndentTasks={handleIndentTask}
                   onBulkOutdentTasks={handleOutdentTask}
+                  onBulkLinkTasks={handleLinkTasks}
+                  onBulkUnlinkTasks={handleUnlinkTasks}
                   onUpdateTask={handleUpdateTask}
                   onToggleCollapse={(id) => {
                     const t = scheduledTasks.find((item) => item.id === id);
@@ -1348,6 +1481,8 @@ export const App: React.FC = () => {
                   onBulkSetProgress={handleSetProgress}
                   onBulkIndentTasks={handleIndentTask}
                   onBulkOutdentTasks={handleOutdentTask}
+                  onBulkLinkTasks={handleLinkTasks}
+                  onBulkUnlinkTasks={handleUnlinkTasks}
                   onUpdateTask={handleUpdateTask}
                   onToggleCollapse={(id) => {
                     const t = scheduledTasks.find((item) => item.id === id);
@@ -1394,6 +1529,8 @@ export const App: React.FC = () => {
               onBulkSetProgress={handleSetProgress}
               onBulkIndentTasks={handleIndentTask}
               onBulkOutdentTasks={handleOutdentTask}
+              onBulkLinkTasks={handleLinkTasks}
+              onBulkUnlinkTasks={handleUnlinkTasks}
               onUpdateTask={handleUpdateTask}
               onToggleCollapse={(id) => {
                 const t = scheduledTasks.find((item) => item.id === id);

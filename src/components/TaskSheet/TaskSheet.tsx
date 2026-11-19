@@ -16,6 +16,8 @@ import {
   CheckSquare,
   Layers,
   SlidersHorizontal,
+  Link2,
+  Unlink2,
 } from 'lucide-react';
 import {
   formatDatePTBR,
@@ -24,6 +26,7 @@ import {
   getEffectiveActiveWeekDays,
   formatActiveWeekDaysShort,
   getBaselineVarianceDays,
+  formatPredecessorTooltip,
 } from '../../utils/scheduler';
 
 interface TaskSheetProps {
@@ -34,13 +37,15 @@ interface TaskSheetProps {
   selectedTaskId: string | null;
   checkedTaskIds?: string[];
   onSelectTask: (taskId: string) => void;
-  onToggleCheckTask?: (taskId: string, shiftKey: boolean) => void;
+  onToggleCheckTask?: (taskId: string, shiftKey: boolean, ctrlKey?: boolean) => void;
   onSelectAllTasks?: (taskIds: string[]) => void;
   onClearCheckedTasks?: () => void;
   onBulkDeleteTasks?: () => void;
   onBulkSetProgress?: (progress: number) => void;
   onBulkIndentTasks?: () => void;
   onBulkOutdentTasks?: () => void;
+  onBulkLinkTasks?: () => void;
+  onBulkUnlinkTasks?: () => void;
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
   onToggleCollapse: (taskId: string) => void;
   onAddTask: () => void;
@@ -79,7 +84,7 @@ const COLUMNS: ColumnDef[] = [
   {
     key: 'select',
     label: '',
-    title: 'Selecionar tarefas (Segure Shift + Clique para selecionar um intervalo em sequência)',
+    title: 'Selecionar tarefas (Ctrl + Clique para não adjacentes • Shift + Clique para intervalo em sequência)',
     minWidth: 30,
     className: 'col-select',
   },
@@ -125,6 +130,8 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
   onBulkSetProgress,
   onBulkIndentTasks,
   onBulkOutdentTasks,
+  onBulkLinkTasks,
+  onBulkUnlinkTasks,
   onUpdateTask,
   onToggleCollapse,
   onAddTask,
@@ -136,10 +143,17 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
 }) => {
   const [editingCell, setEditingCell] = useState<{ taskId: string; field: keyof Task } | null>(null);
 
-  // Atalho F2 para renomear a tarefa selecionada inline (padrão Excel / MS Project)
+  // Atalho F2 (somente F2 puro, sem Ctrl/Shift) para renomear a tarefa selecionada inline (padrão Excel / MS Project)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'F2' && selectedTaskId && !editingCell) {
+      if (
+        e.key === 'F2' &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.shiftKey &&
+        selectedTaskId &&
+        !editingCell
+      ) {
         const activeTag = document.activeElement?.tagName;
         if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
         e.preventDefault();
@@ -287,10 +301,36 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
               <strong>{checkedTaskIds.length}</strong>{' '}
               {checkedTaskIds.length === 1 ? 'tarefa selecionada' : 'tarefas selecionadas'}
             </span>
-            <span className="bulk-shift-hint">(Dica: Segure Shift + Clique para selecionar intervalo)</span>
+            <span className="bulk-shift-hint">
+              (Dica: Ctrl+Clique: não adjacentes • Shift+Clique: intervalo • Ctrl+F2: vincular)
+            </span>
           </div>
 
           <div className="bulk-actions-buttons">
+            {onBulkLinkTasks && (
+              <button
+                type="button"
+                className="bulk-action-btn"
+                onClick={onBulkLinkTasks}
+                title="Vincular tarefas selecionadas em cascata Término-Início (Ctrl + F2)"
+              >
+                <Link2 size={13} />
+                <span>Vincular (Ctrl+F2)</span>
+              </button>
+            )}
+
+            {onBulkUnlinkTasks && (
+              <button
+                type="button"
+                className="bulk-action-btn"
+                onClick={onBulkUnlinkTasks}
+                title="Remover vínculos de predecessoras das tarefas selecionadas (Ctrl + Shift + F2)"
+              >
+                <Unlink2 size={13} />
+                <span>Desvincular</span>
+              </button>
+            )}
+
             {onBulkSetProgress && (
               <>
                 <button
@@ -441,22 +481,24 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
               }}
               onClick={(e) => {
                 if (e.shiftKey && onToggleCheckTask) {
-                  onToggleCheckTask(task.id, true);
+                  onToggleCheckTask(task.id, true, false);
+                } else if ((e.ctrlKey || e.metaKey) && onToggleCheckTask) {
+                  onToggleCheckTask(task.id, false, true);
                 } else {
                   onSelectTask(task.id);
                 }
               }}
             >
-              {/* Caixa de Seleção (Checkbox com suporte a Shift-Click em sequência) */}
+              {/* Caixa de Seleção (Ctrl+Clique não adjacentes | Shift+Clique intervalo) */}
               <div
                 className="sheet-cell col-select"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (onToggleCheckTask) {
-                    onToggleCheckTask(task.id, e.shiftKey);
+                    onToggleCheckTask(task.id, e.shiftKey, e.ctrlKey || e.metaKey);
                   }
                 }}
-                title="Clique para selecionar. Segure Shift + Clique para selecionar todas as tarefas no intervalo."
+                title="Clique para selecionar. Ctrl + Clique para não adjacentes. Shift + Clique para selecionar intervalo em sequência."
               >
                 <input
                   type="checkbox"
@@ -868,11 +910,18 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                 )}
               </div>
 
-              {/* Predecessoras */}
+              {/* Predecessoras (Estrutura MS Project: [ID][TI|II|TT|IT][+/-dias ou %], ex: 2;4II+50%;7TT-1d) */}
               <div
                 className="sheet-cell col-pred"
                 onDoubleClick={() =>
                   !task.isSummary && setEditingCell({ taskId: task.id, field: 'predecessorText' })
+                }
+                title={
+                  !task.isSummary
+                    ? task.predecessorText
+                      ? `${formatPredecessorTooltip(task.predecessorText)} — Duplo clique para editar (Ex: 2;4TI+3d;5II+50%;7TT-1d)`
+                      : 'Duplo clique para digitar predecessoras — Ex: 5, 4TI+3d, 4II+50%, 2;4II;7TT-1d'
+                    : undefined
                 }
               >
                 {isEditing('predecessorText') ? (
@@ -881,7 +930,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                     className="cell-input"
                     defaultValue={task.predecessorText}
                     autoFocus
-                    placeholder="Ex: 1, 2ii, 3tt"
+                    placeholder="Ex: 2;4II+50%;7TT-1d"
                     onBlur={(e) => {
                       onUpdateTask(task.id, { predecessorText: e.target.value });
                       handleCellBlur();
@@ -892,11 +941,15 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                           predecessorText: (e.target as HTMLInputElement).value,
                         });
                         handleCellBlur();
+                      } else if (e.key === 'Escape') {
+                        handleCellBlur();
                       }
                     }}
                   />
                 ) : (
-                  <span>{task.predecessorText || ''}</span>
+                  <span title={formatPredecessorTooltip(task.predecessorText)}>
+                    {task.predecessorText || ''}
+                  </span>
                 )}
               </div>
 

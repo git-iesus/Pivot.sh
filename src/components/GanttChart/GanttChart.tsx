@@ -12,6 +12,7 @@ import {
   getEffectiveExceptions,
   formatActiveWeekDaysShort,
   getBaselineVarianceDays,
+  formatPredecessorTooltip,
 } from '../../utils/scheduler';
 
 interface GanttChartProps {
@@ -436,6 +437,13 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                   const p2y = toCoord.y;
                   const rightX = Math.max(p1x, p2x) + 12;
                   pathData = `M ${p1x} ${p1y} L ${rightX} ${p1y} L ${rightX} ${p2y} L ${p2x} ${p2y}`;
+                } else if (type === 'IT') {
+                  const p1x = fromCoord.startX;
+                  const p1y = fromCoord.y;
+                  const p2x = toCoord.endX;
+                  const p2y = toCoord.y;
+                  const offsetY = p2y > p1y ? 14 : -14;
+                  pathData = `M ${p1x} ${p1y} L ${p1x - 10} ${p1y} L ${p1x - 10} ${p1y + offsetY} L ${p2x + 10} ${p1y + offsetY} L ${p2x + 10} ${p2y} L ${p2x} ${p2y}`;
                 } else {
                   const p1x = fromCoord.endX;
                   const p1y = fromCoord.y;
@@ -604,6 +612,14 @@ export const GanttChart: React.FC<GanttChartProps> = ({
           <div className="tooltip-row">
             <span>Progresso:</span> <strong>{hoveredTask.progress}%</strong>
           </div>
+          {hoveredTask.predecessorText && (
+            <div className="tooltip-row">
+              <span>Predecessoras:</span>{' '}
+              <strong title={formatPredecessorTooltip(hoveredTask.predecessorText)}>
+                {hoveredTask.predecessorText}
+              </strong>
+            </div>
+          )}
           {hoveredTask.resourceNames.length > 0 && (
             <div className="tooltip-row">
               <span>Recursos:</span> <strong>{hoveredTask.resourceNames.join(', ')}</strong>

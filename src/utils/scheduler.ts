@@ -349,43 +349,151 @@ export function parseISODate(isoStr: string): Date {
 export interface ParsedPredecessor {
   predId: number;
   type: 'TI' | 'II' | 'TT' | 'IT';
+  lagValue: number; // Positivo para atraso (+), negativo para avanço (-), 0 por padrão
+  lagUnit: 'days' | 'percent';
+  rawToken: string;
 }
 
+const PREDECESSOR_TOKEN_REGEX =
+  /^(\d+)\s*(TI|FS|II|SS|TT|FF|IT|SF)?\s*(?:([+-])\s*(\d+(?:[.,]\d+)?)\s*(%|d|dias?|days?|s|sem|semanas?|w|wks?)?)?$/i;
+
 /**
- * Faz o parsing de strings de predecessoras no formato do MS Project
- * Suporta: "3", "3ii", "3II", "3tt", "3TT", "3ti", "3TI", "3it", "3IT", "3ss", "3ff", etc.
+ * Faz o parsing de strings de predecessoras no formato do MS Project:
+ * Estrutura: [ID da Tarefa][Sigla do Vínculo][+/- Latência]
+ * Suporta múltiplos vínculos separados por `;` (PT-BR) ou `,` (EN-US),
+ * siglas em Português (`TI`, `II`, `TT`, `IT`) ou Inglês (`FS`, `SS`, `FF`, `SF`) ou omitido (`TI`),
+ * e latência (`+`) / antecipação (`-`) em dias úteis (`+3d`, `-2d`) ou porcentagem (`+50%`, `-25%`).
  */
 export function parsePredecessors(predText?: string): ParsedPredecessor[] {
   if (!predText) return [];
-  const items = predText.split(',').map((s) => s.trim()).filter(Boolean);
+  const items = predText
+    .split(/[;,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
   const result: ParsedPredecessor[] = [];
 
   for (const item of items) {
-    const match = item.match(/^(\d+)\s*([a-zA-Z]*)/);
-    if (match) {
-      const predId = parseInt(match[1], 10);
-      if (isNaN(predId)) continue;
-      const rawType = (match[2] || '').toUpperCase();
-      let type: 'TI' | 'II' | 'TT' | 'IT' = 'TI';
-      if (rawType === 'II' || rawType === 'SS') {
-        type = 'II';
-      } else if (rawType === 'TT' || rawType === 'FF') {
-        type = 'TT';
-      } else if (rawType === 'IT' || rawType === 'SF') {
-        type = 'IT';
-      } else {
-        type = 'TI';
-      }
-      result.push({ predId, type });
+    const match = item.match(PREDECESSOR_TOKEN_REGEX);
+    if (!match) continue;
+
+    const predId = parseInt(match[1], 10);
+    if (isNaN(predId)) continue;
+
+    const rawType = (match[2] || '').toUpperCase();
+    let type: 'TI' | 'II' | 'TT' | 'IT' = 'TI';
+    if (rawType === 'II' || rawType === 'SS') {
+      type = 'II';
+    } else if (rawType === 'TT' || rawType === 'FF') {
+      type = 'TT';
+    } else if (rawType === 'IT' || rawType === 'SF') {
+      type = 'IT';
+    } else {
+      type = 'TI';
     }
+
+    let lagValue = 0;
+    let lagUnit: 'days' | 'percent' = 'days';
+
+    if (match[3] && match[4]) {
+      const sign = match[3] === '-' ? -1 : 1;
+      const numeric = parseFloat(match[4].replace(',', '.'));
+      const rawUnit = (match[5] || '').toLowerCase();
+
+      if (!isNaN(numeric)) {
+        if (rawUnit === '%') {
+          lagUnit = 'percent';
+          lagValue = sign * numeric;
+        } else if (rawUnit.startsWith('s') || rawUnit.startsWith('w')) {
+          lagUnit = 'days';
+          lagValue = sign * numeric * 5;
+        } else {
+          lagUnit = 'days';
+          lagValue = sign * numeric;
+        }
+      }
+    }
+
+    result.push({ predId, type, lagValue, lagUnit, rawToken: item });
   }
 
   return result;
 }
 
 /**
+ * Converte a latência/antecipação de uma predecessora em quantidade de dias úteis,
+ * considerando porcentagem sobre a duração da tarefa predecessora quando aplicável.
+ */
+export function resolveLagWorkDays(pred: ParsedPredecessor, predDurationDays: number): number {
+  if (!pred.lagValue) return 0;
+  if (pred.lagUnit === 'percent') {
+    return Math.round((Math.max(1, predDurationDays) * pred.lagValue) / 100);
+  }
+  return Math.round(pred.lagValue);
+}
+
+/**
+ * Desloca uma data em N dias úteis para frente (`+`) ou para trás (`-`),
+ * respeitando dias ativos da semana e exceções de calendário.
+ */
+export function offsetWorkDays(
+  baseDate: Date,
+  offsetDays: number,
+  activeWeekDays: number[] = [1, 2, 3, 4, 5],
+  exceptions: CalendarException[] = [],
+  snapMode: 'next' | 'prev' = 'next'
+): Date {
+  const result =
+    snapMode === 'prev'
+      ? toPrevWorkDay(baseDate, activeWeekDays, exceptions)
+      : toWorkDay(baseDate, activeWeekDays, exceptions);
+
+  const steps = Math.round(offsetDays);
+  if (steps === 0) return result;
+
+  const direction = steps > 0 ? 1 : -1;
+  let remaining = Math.abs(steps);
+  let safety = 0;
+
+  while (remaining > 0 && safety < 2000) {
+    result.setDate(result.getDate() + direction);
+    if (isWorkDay(result, activeWeekDays, exceptions)) {
+      remaining--;
+    }
+    safety++;
+  }
+
+  return result;
+}
+
+/**
+ * Formata uma string de predecessoras em descrição legível para tooltips.
+ */
+export function formatPredecessorTooltip(predText?: string): string {
+  const parsed = parsePredecessors(predText);
+  if (parsed.length === 0) return '';
+
+  const typeLabel: Record<'TI' | 'II' | 'TT' | 'IT', string> = {
+    TI: 'Término-Início',
+    II: 'Início-Início',
+    TT: 'Término-Término',
+    IT: 'Início-Término',
+  };
+
+  return parsed
+    .map((p) => {
+      const base = `#${p.predId} (${typeLabel[p.type]})`;
+      if (!p.lagValue) return base;
+      const sign = p.lagValue > 0 ? '+' : '';
+      const unit = p.lagUnit === 'percent' ? '%' : 'd';
+      return `${base.slice(0, -1)}, ${sign}${p.lagValue}${unit})`;
+    })
+    .join(' • ');
+}
+
+/**
  * Remapeia os índices 1-based em `predecessorText` quando tarefas são inseridas ou excluídas,
- * preservando os vínculos com as mesmas tarefas pelo ID e descartando referências excluídas ou auto-referências.
+ * preservando os vínculos com as mesmas tarefas pelo ID (incluindo siglas e latências/avanços)
+ * e descartando referências excluídas ou auto-referências.
  */
 export function remapPredecessorsForNewTaskOrder(oldTasks: Task[], newTasks: Task[]): Task[] {
   const oldRowToTaskId = new Map<number, string>();
@@ -402,23 +510,14 @@ export function remapPredecessorsForNewTaskOrder(oldTasks: Task[], newTasks: Tas
     const currentNewRowNum = idx + 1;
     if (!t.predecessorText || !t.predecessorText.trim()) return t;
 
+    const sep = t.predecessorText.includes(';') ? ';' : ', ';
     const remapped = t.predecessorText
-      .split(',')
+      .split(/[;,]+/)
       .map((s) => s.trim())
       .filter(Boolean)
       .map((item) => {
-        const match = item.match(/^(\d+)\s*([a-zA-Z]*)$/);
-        if (!match) {
-          const fallbackMatch = item.match(/^(\d+)\s*(.*)$/);
-          if (!fallbackMatch) return '';
-          const oldPredNum = parseInt(fallbackMatch[1], 10);
-          const predTaskId = oldRowToTaskId.get(oldPredNum);
-          if (!predTaskId) return '';
-          const newPredNum = taskIdToNewRow.get(predTaskId);
-          if (newPredNum === undefined || newPredNum === currentNewRowNum) return '';
-          const suffix = (fallbackMatch[2] || '').trim();
-          return `${newPredNum}${suffix}`;
-        }
+        const match = item.match(/^(\d+)\s*(.*)$/);
+        if (!match) return '';
         const oldPredNum = parseInt(match[1], 10);
         const predTaskId = oldRowToTaskId.get(oldPredNum);
         if (!predTaskId) return '';
@@ -428,7 +527,7 @@ export function remapPredecessorsForNewTaskOrder(oldTasks: Task[], newTasks: Tas
         return `${newPredNum}${suffix}`;
       })
       .filter(Boolean)
-      .join(', ');
+      .join(sep);
 
     return remapped === t.predecessorText ? t : { ...t, predecessorText: remapped };
   });
@@ -632,18 +731,18 @@ export function recalculateSchedule(
     const task = updatedTasks[i];
     const currentRowNum = i + 1;
     if (!task.predecessorText || !task.predecessorText.trim()) continue;
-    const cleanedItems = task.predecessorText
-      .split(',')
+    const rawItems = task.predecessorText
+      .split(/[;,]+/)
       .map((s) => s.trim())
-      .filter(Boolean)
-      .filter((item) => {
-        const match = item.match(/^(\d+)/);
-        if (!match) return true;
-        return parseInt(match[1], 10) !== currentRowNum;
-      });
-    const nextPredText = cleanedItems.join(', ');
-    if (nextPredText !== task.predecessorText.trim()) {
-      task.predecessorText = nextPredText;
+      .filter(Boolean);
+    const cleanedItems = rawItems.filter((item) => {
+      const match = item.match(/^(\d+)/);
+      if (!match) return true;
+      return parseInt(match[1], 10) !== currentRowNum;
+    });
+    if (cleanedItems.length !== rawItems.length) {
+      const sep = task.predecessorText.includes(';') ? ';' : ', ';
+      task.predecessorText = cleanedItems.join(sep);
     }
   }
 
@@ -682,36 +781,61 @@ export function recalculateSchedule(
           let maxReqStart: Date | null = null;
           let maxReqEnd: Date | null = null;
 
-          for (const { predId, type } of parsedPreds) {
+          for (const pred of parsedPreds) {
+            const { predId, type } = pred;
             if (predId === currentTaskNum) continue;
             if (ignoredCycleEdges.has(`${currentTaskNum}->${predId}`)) continue;
             const predTask = taskMap.get(predId);
             if (!predTask) continue;
 
+            const lagDays = resolveLagWorkDays(pred, predTask.durationDays);
+
             if (type === 'II') {
               const predStart = parseISODate(predTask.startDate);
-              const reqStart = toWorkDay(predStart, taskActiveDays, taskExceptions);
+              const reqStart = offsetWorkDays(
+                predStart,
+                lagDays,
+                taskActiveDays,
+                taskExceptions,
+                'next'
+              );
               if (!maxReqStart || reqStart > maxReqStart) {
                 maxReqStart = reqStart;
               }
             } else if (type === 'TT') {
               const predEnd = parseISODate(predTask.endDate);
-              const reqEnd = toPrevWorkDay(predEnd, taskActiveDays, taskExceptions);
+              const reqEnd = offsetWorkDays(
+                predEnd,
+                lagDays,
+                taskActiveDays,
+                taskExceptions,
+                'prev'
+              );
               if (!maxReqEnd || reqEnd > maxReqEnd) {
                 maxReqEnd = reqEnd;
               }
             } else if (type === 'IT') {
               const predStart = parseISODate(predTask.startDate);
-              const reqEnd = toPrevWorkDay(predStart, taskActiveDays, taskExceptions);
+              const reqEnd = offsetWorkDays(
+                predStart,
+                lagDays,
+                taskActiveDays,
+                taskExceptions,
+                'prev'
+              );
               if (!maxReqEnd || reqEnd > maxReqEnd) {
                 maxReqEnd = reqEnd;
               }
             } else {
-              // Padrão TI: Término-Início (começa no dia útil seguinte ao término)
+              // Padrão TI: Término-Início (começa no dia útil seguinte ao término + latência/antecipação)
               const predEnd = parseISODate(predTask.endDate);
-              const nextDay = new Date(predEnd);
-              nextDay.setDate(nextDay.getDate() + 1);
-              const reqStart = toWorkDay(nextDay, taskActiveDays, taskExceptions);
+              const reqStart = offsetWorkDays(
+                predEnd,
+                1 + lagDays,
+                taskActiveDays,
+                taskExceptions,
+                'prev'
+              );
               if (!maxReqStart || reqStart > maxReqStart) {
                 maxReqStart = reqStart;
               }
@@ -811,7 +935,7 @@ export function recalculateSchedule(
     // Nota técnica (Regra 3): Mapear o inverso na memória — descobrir quem são as Sucessoras de cada tarefa
     const successorsMap = new Map<
       number,
-      { succRowNum: number; type: 'TI' | 'II' | 'TT' | 'IT' }[]
+      { succRowNum: number; predLink: ParsedPredecessor }[]
     >();
     taskIndices.forEach((idx) => {
       successorsMap.set(idx + 1, []);
@@ -822,12 +946,13 @@ export function recalculateSchedule(
       const task = updatedTasks[idx];
       if (!task.predecessorText || !task.predecessorText.trim()) return;
       const preds = parsePredecessors(task.predecessorText);
-      for (const { predId, type } of preds) {
+      for (const predLink of preds) {
+        const { predId } = predLink;
         if (predId === succRowNum) continue;
         if (ignoredCycleEdges.has(`${succRowNum}->${predId}`)) continue;
         if (scopeRowNums.has(predId)) {
           const list = successorsMap.get(predId) || [];
-          list.push({ succRowNum, type });
+          list.push({ succRowNum, predLink });
           successorsMap.set(predId, list);
         }
       }
@@ -887,39 +1012,62 @@ export function recalculateSchedule(
         // antes daquela que começar mais cedo (menor data máxima permitida).
         let minAllowedEnd: Date | null = null;
 
-        for (const { succRowNum, type } of succs) {
+        for (const { succRowNum, predLink } of succs) {
           const succTask = taskMap.get(succRowNum);
           if (!succTask) continue;
 
+          const lagDays = resolveLagWorkDays(predLink, task.durationDays);
           let candidateMaxEnd: Date;
 
-          if (type === 'TT') {
-            // Término-Término: A termina junto ou antes do término de B
+          if (predLink.type === 'TT') {
+            // Término-Término: A termina considerando inverso da latência em relação ao término de B
             const succEnd = parseISODate(succTask.endDate);
-            candidateMaxEnd = toPrevWorkDay(succEnd, taskActiveDays, taskExceptions);
-          } else if (type === 'II') {
-            // Início-Início: A começa no máximo no início de B
+            candidateMaxEnd = offsetWorkDays(
+              succEnd,
+              -lagDays,
+              taskActiveDays,
+              taskExceptions,
+              'prev'
+            );
+          } else if (predLink.type === 'II') {
+            // Início-Início: A começa no máximo no início de B descontada a latência
             const succStart = parseISODate(succTask.startDate);
-            const maxStart = toPrevWorkDay(succStart, taskActiveDays, taskExceptions);
+            const maxStart = offsetWorkDays(
+              succStart,
+              -lagDays,
+              taskActiveDays,
+              taskExceptions,
+              'prev'
+            );
             candidateMaxEnd =
               task.durationDays === 0
                 ? maxStart
                 : addWorkDays(maxStart, task.durationDays, taskActiveDays, taskExceptions);
-          } else if (type === 'IT') {
-            // Início-Término: A começa no máximo no término de B
+          } else if (predLink.type === 'IT') {
+            // Início-Término: A começa no máximo no término de B descontada a latência
             const succEnd = parseISODate(succTask.endDate);
-            const maxStart = toPrevWorkDay(succEnd, taskActiveDays, taskExceptions);
+            const maxStart = offsetWorkDays(
+              succEnd,
+              -lagDays,
+              taskActiveDays,
+              taskExceptions,
+              'prev'
+            );
             candidateMaxEnd =
               task.durationDays === 0
                 ? maxStart
                 : addWorkDays(maxStart, task.durationDays, taskActiveDays, taskExceptions);
           } else {
             // Regra 3 — Vínculo Fim-Início (TI / Padrão):
-            // A Tarefa A precisa terminar 1 dia útil antes de a Tarefa B começar.
+            // A Tarefa A precisa terminar (1 + lagDays) dias úteis antes de a Tarefa B começar.
             const succStart = parseISODate(succTask.startDate);
-            const dayBefore = new Date(succStart);
-            dayBefore.setDate(dayBefore.getDate() - 1);
-            candidateMaxEnd = toPrevWorkDay(dayBefore, taskActiveDays, taskExceptions);
+            candidateMaxEnd = offsetWorkDays(
+              succStart,
+              -(1 + lagDays),
+              taskActiveDays,
+              taskExceptions,
+              'prev'
+            );
           }
 
           if (!minAllowedEnd || candidateMaxEnd < minAllowedEnd) {

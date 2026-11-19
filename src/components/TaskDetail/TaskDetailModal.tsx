@@ -605,7 +605,10 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     />
                   </label>
                   <label className="schedule-field-group pred-group">
-                    <span className="schedule-field-label">
+                    <span
+                      className="schedule-field-label"
+                      title="Sintaxe MS Project: [ID][TI|FS|II|SS|TT|FF|IT|SF][+/-dias ou %]. Separe múltiplas por ; ou ,"
+                    >
                       <Link2 size={12} /> Predecessoras
                     </span>
                     <input
@@ -616,7 +619,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         setPredecessorText(e.target.value);
                         if (cycleErrorMsg) setCycleErrorMsg(null);
                       }}
-                      placeholder="Ex: 2, 3TI"
+                      placeholder="Ex: 2;4TI+3d;5II+50%;7TT-1d"
+                      title="Códigos: TI/FS (padrão), II/SS, TT/FF, IT/SF • Atraso/Avanço: +3d, -2d, +50% • Separe múltiplos vínculos com ; ou ,"
                     />
                   </label>
                 </div>
