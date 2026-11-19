@@ -415,6 +415,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
               if (!toCoord) return null;
 
               return preds.map(({ predId, type }) => {
+                if (predId === rowNum) return null;
                 const fromCoord = taskCoordinates.get(predId);
                 if (!fromCoord) return null;
 

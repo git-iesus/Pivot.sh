@@ -384,6 +384,57 @@ export function parsePredecessors(predText?: string): ParsedPredecessor[] {
 }
 
 /**
+ * Remapeia os índices 1-based em `predecessorText` quando tarefas são inseridas ou excluídas,
+ * preservando os vínculos com as mesmas tarefas pelo ID e descartando referências excluídas ou auto-referências.
+ */
+export function remapPredecessorsForNewTaskOrder(oldTasks: Task[], newTasks: Task[]): Task[] {
+  const oldRowToTaskId = new Map<number, string>();
+  oldTasks.forEach((t, idx) => {
+    oldRowToTaskId.set(idx + 1, t.id);
+  });
+
+  const taskIdToNewRow = new Map<string, number>();
+  newTasks.forEach((t, idx) => {
+    taskIdToNewRow.set(t.id, idx + 1);
+  });
+
+  return newTasks.map((t, idx) => {
+    const currentNewRowNum = idx + 1;
+    if (!t.predecessorText || !t.predecessorText.trim()) return t;
+
+    const remapped = t.predecessorText
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((item) => {
+        const match = item.match(/^(\d+)\s*([a-zA-Z]*)$/);
+        if (!match) {
+          const fallbackMatch = item.match(/^(\d+)\s*(.*)$/);
+          if (!fallbackMatch) return '';
+          const oldPredNum = parseInt(fallbackMatch[1], 10);
+          const predTaskId = oldRowToTaskId.get(oldPredNum);
+          if (!predTaskId) return '';
+          const newPredNum = taskIdToNewRow.get(predTaskId);
+          if (newPredNum === undefined || newPredNum === currentNewRowNum) return '';
+          const suffix = (fallbackMatch[2] || '').trim();
+          return `${newPredNum}${suffix}`;
+        }
+        const oldPredNum = parseInt(match[1], 10);
+        const predTaskId = oldRowToTaskId.get(oldPredNum);
+        if (!predTaskId) return '';
+        const newPredNum = taskIdToNewRow.get(predTaskId);
+        if (newPredNum === undefined || newPredNum === currentNewRowNum) return '';
+        const suffix = (match[2] || '').trim();
+        return `${newPredNum}${suffix}`;
+      })
+      .filter(Boolean)
+      .join(', ');
+
+    return remapped === t.predecessorText ? t : { ...t, predecessorText: remapped };
+  });
+}
+
+/**
  * Regra 5 — Prevenção de Loop Infinito:
  * Verifica se há referência circular (direta ou indireta, auto-referência ou dependência em Subprojeto pai)
  * caso `targetTaskId` receba `candidatePredecessorText` (ou no estado atual das tarefas).
@@ -398,6 +449,9 @@ export function detectCircularDependency(
   message?: string;
 } {
   if (!tasks || tasks.length === 0) return { hasCycle: false };
+  if (candidatePredecessorText !== undefined && candidatePredecessorText.trim() === '') {
+    return { hasCycle: false };
+  }
 
   const virtualTasks = tasks.map((t, i) => {
     const isSummary =
@@ -412,8 +466,12 @@ export function detectCircularDependency(
     };
   });
 
-  // 1. Checar auto-referência e dependência de Subprojeto ancestral/descendente
-  for (let idx = 0; idx < virtualTasks.length; idx++) {
+  const targetIdx = targetTaskId ? virtualTasks.findIndex((t) => t.id === targetTaskId) : -1;
+  const indicesToCheck =
+    targetIdx >= 0 ? [targetIdx] : virtualTasks.map((_, i) => i);
+
+  // 1. Checar auto-referência e dependência de Subprojeto ancestral/descendente (apenas na tarefa editada quando targetTaskId for informado)
+  for (const idx of indicesToCheck) {
     const task = virtualTasks[idx];
     const rowNum = idx + 1;
     if (!task.predecessorText || !task.predecessorText.trim()) continue;
@@ -486,7 +544,9 @@ export function detectCircularDependency(
     return { found: false };
   };
 
-  for (let i = 1; i <= n; i++) {
+  const startNodes =
+    targetIdx >= 0 ? [targetIdx + 1] : Array.from({ length: n }, (_, i) => i + 1);
+  for (const i of startNodes) {
     if (state[i] === 0) {
       const res = dfs(i);
       if (res.found && res.cycle) {
@@ -565,6 +625,26 @@ export function recalculateSchedule(
       current.isSummary = false;
     }
     current.isMilestone = current.durationDays === 0 && !current.isSummary;
+  }
+
+  // 1B. Auto-Saneamento de auto-referências em predecessorText (ex: "4" na linha 4 causado por deslocamento legado)
+  for (let i = 0; i < updatedTasks.length; i++) {
+    const task = updatedTasks[i];
+    const currentRowNum = i + 1;
+    if (!task.predecessorText || !task.predecessorText.trim()) continue;
+    const cleanedItems = task.predecessorText
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .filter((item) => {
+        const match = item.match(/^(\d+)/);
+        if (!match) return true;
+        return parseInt(match[1], 10) !== currentRowNum;
+      });
+    const nextPredText = cleanedItems.join(', ');
+    if (nextPredText !== task.predecessorText.trim()) {
+      task.predecessorText = nextPredText;
+    }
   }
 
   // 2. Criar mapa de índice 1-based e conjunto de arestas cíclicas ignoradas (Prevenção de Loop Infinito - Regra 5)

@@ -22,6 +22,7 @@ import {
   getEffectiveActiveWeekDays,
   getEffectiveExceptions,
   detectCircularDependency,
+  remapPredecessorsForNewTaskOrder,
   formatDatePTBR,
 } from './utils/scheduler';
 import { exportToXLSX, exportToCSV } from './utils/exportImport';
@@ -421,8 +422,14 @@ export const App: React.FC = () => {
     const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
     const exceptions = metadata.exceptions || [];
 
-    // Regra 5 — Prevenção de Loop Infinito: bloquear referência circular antes de atualizar predecessoras
-    if (updates.predecessorText !== undefined) {
+    const existingTask = scheduledTasks.find((t) => t.id === taskId);
+
+    // Regra 5 — Prevenção de Loop Infinito: bloquear referência circular somente quando predecessorText for alterado e não estiver vazio
+    if (
+      updates.predecessorText !== undefined &&
+      updates.predecessorText.trim() !== '' &&
+      updates.predecessorText.trim() !== (existingTask?.predecessorText || '').trim()
+    ) {
       const cycleCheck = detectCircularDependency(
         scheduledTasks,
         taskId,
@@ -587,7 +594,7 @@ export const App: React.FC = () => {
       newTasks = [...scheduledTasks, newTask];
     }
 
-    pushTaskState(newTasks);
+    pushTaskState(remapPredecessorsForNewTaskOrder(scheduledTasks, newTasks));
     setSelectedTaskId(newTask.id);
   };
 
@@ -713,7 +720,7 @@ export const App: React.FC = () => {
       const toRemove = new Set(checkedTaskIds);
       const count = toRemove.size;
       const newTasks = scheduledTasks.filter((t) => !toRemove.has(t.id));
-      pushTaskState(newTasks);
+      pushTaskState(remapPredecessorsForNewTaskOrder(scheduledTasks, newTasks));
       setCheckedTaskIds([]);
       lastCheckedTaskIdRef.current = null;
       if (selectedTaskId && toRemove.has(selectedTaskId)) {
@@ -724,7 +731,7 @@ export const App: React.FC = () => {
     }
     if (!selectedTaskId) return;
     const newTasks = scheduledTasks.filter((t) => t.id !== selectedTaskId);
-    pushTaskState(newTasks);
+    pushTaskState(remapPredecessorsForNewTaskOrder(scheduledTasks, newTasks));
     setSelectedTaskId(null);
   };
 
