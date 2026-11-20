@@ -18,6 +18,17 @@ export interface SubTask {
   done: boolean;
 }
 
+export interface TaskAttachment {
+  id: string;
+  name: string;
+  size: number; // bytes
+  mimeType: string;
+  extension: string; // ex: 'pdf', 'docx', 'xlsx', 'pptx'
+  storageProvider: 'supabase' | 'indexeddb';
+  storagePath: string; // '{userId}/{taskId}/{id}_{safeName}' no Supabase ou '{id}' no IndexedDB
+  uploadedAt: string; // ISO timestamp
+}
+
 export interface Task {
   id: string;
   rowNumber?: number; // Índice 1-based real na planilha (preservado mesmo quando tarefas estão recolhidas)
@@ -46,6 +57,7 @@ export interface Task {
   baselineDurationDays?: number;
   cost?: number;
   subTasks?: SubTask[]; // Checklist de sub-tarefas internas
+  attachments?: TaskAttachment[]; // Documentos anexados na Tarefa ou Subprojeto
 }
 
 export interface Resource {
@@ -84,7 +96,14 @@ export interface ProjectMetadata {
   currency: 'BRL' | 'USD' | 'EUR';
 }
 
-export type ViewMode = 'gantt' | 'taskSheet' | 'networkDiagram' | 'resourceSheet' | 'week' | 'nexo';
+export type ViewMode =
+  | 'gantt'
+  | 'taskSheet'
+  | 'networkDiagram'
+  | 'resourceSheet'
+  | 'week'
+  | 'nexo'
+  | 'drafts';
 
 export type ZoomLevel = 'days' | 'weeks' | 'months';
 
@@ -145,4 +164,77 @@ export interface NexoProjectState {
   roleView: NexoRoleView;
   isFocusModeNewProject: boolean; // Escurece menu lateral ao clicar em "Novo Projeto" na Fase 1
   retrospectives: NexoRetrospectiveLog[];
+}
+
+// =========================================================
+// Tipos do Plugin DRAFTS (Quadro Branco Interativo estilo Miro)
+// =========================================================
+
+export type DraftTool =
+  | 'select'
+  | 'pan'
+  | 'text'
+  | 'sticky'
+  | 'rect'
+  | 'triangle'
+  | 'ellipse'
+  | 'connector'
+  | 'image';
+
+export type DraftElementType = 'sticky' | 'shape' | 'text' | 'image';
+
+export type DraftShapeKind = 'rectangle' | 'triangle' | 'ellipse';
+
+export type DraftAnchorSide = 'top' | 'right' | 'bottom' | 'left';
+
+export interface DraftTextStyle {
+  fontSize: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+  textAlign?: 'left' | 'center' | 'right';
+  textColor?: string;
+}
+
+export interface DraftElement {
+  id: string;
+  type: DraftElementType;
+  shapeKind?: DraftShapeKind;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fillColor: string;
+  strokeColor?: string;
+  strokeWidth?: number;
+  htmlContent?: string;
+  textStyle?: DraftTextStyle;
+  imageUrl?: string;
+  imageStorageProvider?: 'supabase' | 'indexeddb' | 'inline';
+  imageStoragePath?: string;
+  imageName?: string;
+  zIndex: number;
+}
+
+export interface DraftConnector {
+  id: string;
+  fromElementId?: string;
+  fromAnchor?: DraftAnchorSide;
+  fromPoint: { x: number; y: number };
+  toElementId?: string;
+  toAnchor?: DraftAnchorSide;
+  toPoint: { x: number; y: number };
+  color: string;
+  strokeWidth: number;
+  dashed?: boolean;
+  startArrow?: boolean;
+  endArrow?: boolean;
+}
+
+export interface DraftsState {
+  boardTitle: string;
+  elements: DraftElement[];
+  connectors: DraftConnector[];
+  viewport: { x: number; y: number; zoom: number };
 }

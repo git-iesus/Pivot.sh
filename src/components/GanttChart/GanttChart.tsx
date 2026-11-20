@@ -620,6 +620,15 @@ export const GanttChart: React.FC<GanttChartProps> = ({
               </strong>
             </div>
           )}
+          {hoveredTask.attachments && hoveredTask.attachments.length > 0 && (
+            <div className="tooltip-row">
+              <span>Anexos:</span>{' '}
+              <strong>
+                {hoveredTask.attachments.length}{' '}
+                {hoveredTask.attachments.length === 1 ? 'arquivo' : 'arquivos'}
+              </strong>
+            </div>
+          )}
           {hoveredTask.resourceNames.length > 0 && (
             <div className="tooltip-row">
               <span>Recursos:</span> <strong>{hoveredTask.resourceNames.join(', ')}</strong>

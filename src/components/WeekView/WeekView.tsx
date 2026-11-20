@@ -11,6 +11,7 @@ import {
   User,
   ListTodo,
   Layers,
+  Paperclip,
 } from 'lucide-react';
 import {
   toISODate,
@@ -359,12 +360,24 @@ export const WeekView: React.FC<WeekViewProps> = ({
                           {task.name}
                         </h4>
 
-                        {/* Checklist info se houver */}
+                        {/* Checklist e Anexos info se houver */}
                         {hasSubtasks && (
                           <div className="task-card-subtasks-preview">
                             <ListTodo size={12} />
                             <span>
                               {subtasksDone}/{totalSubtasks} sub-tarefas
+                            </span>
+                          </div>
+                        )}
+                        {task.attachments && task.attachments.length > 0 && (
+                          <div
+                            className="task-card-attachments-preview"
+                            title={task.attachments.map((a) => a.name).join(', ')}
+                          >
+                            <Paperclip size={11} />
+                            <span>
+                              {task.attachments.length}{' '}
+                              {task.attachments.length === 1 ? 'anexo' : 'anexos'}
                             </span>
                           </div>
                         )}

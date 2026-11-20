@@ -9,6 +9,7 @@ import {
   NexoProjectState,
   NexoPhase,
   NexoRoleView,
+  DraftsState,
 } from './types/project';
 import { defaultTasks, defaultResources, defaultMetadata } from './data/sampleProjects';
 import {
@@ -40,7 +41,13 @@ import { CalendarExceptionsModal } from './components/CalendarExceptions/Calenda
 import { BaselineModal } from './components/Baseline/BaselineModal';
 import { WeekView } from './components/WeekView/WeekView';
 import { NexoPlugin, defaultNexoState } from './components/Nexo/NexoPlugin';
+import {
+  DraftsPlugin,
+  defaultDraftsState,
+  DraftsExternalCommand,
+} from './components/Drafts/DraftsPlugin';
 import { AuthScreen } from './components/Auth/AuthScreen';
+import { deleteTaskAttachmentsBatch } from './services/attachmentsService';
 import {
   AuthUser,
   getActiveSessionUser,
@@ -157,6 +164,29 @@ export const App: React.FC = () => {
     return defaultNexoState;
   });
 
+  // Estado do Plugin DRAFTS (Quadro Branco Interativo estilo Miro)
+  const [draftsState, setDraftsState] = useState<DraftsState>(() => {
+    const saved = localStorage.getItem('pivot_drafts_local_fallback');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...defaultDraftsState,
+          ...parsed,
+          elements: Array.isArray(parsed.elements) ? parsed.elements : defaultDraftsState.elements,
+          connectors: Array.isArray(parsed.connectors)
+            ? parsed.connectors
+            : defaultDraftsState.connectors,
+          viewport: parsed.viewport || defaultDraftsState.viewport,
+        };
+      } catch {
+        // fallback
+      }
+    }
+    return defaultDraftsState;
+  });
+  const [draftsCommand, setDraftsCommand] = useState<DraftsExternalCommand | null>(null);
+
   // Alturas individuais das linhas estilo Excel
   const [rowHeights, setRowHeights] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem('ms_project_row_heights');
@@ -180,6 +210,7 @@ export const App: React.FC = () => {
           metadata: latestProjectRef.current.metadata,
           nexoState: latestProjectRef.current.nexoState,
           rowHeights: next,
+          draftsState: latestProjectRef.current.draftsState,
         }).catch(() => {});
       }
       return next;
@@ -271,6 +302,7 @@ export const App: React.FC = () => {
     metadata,
     nexoState,
     rowHeights,
+    draftsState,
   });
   useEffect(() => {
     latestProjectRef.current = {
@@ -279,8 +311,9 @@ export const App: React.FC = () => {
       metadata,
       nexoState,
       rowHeights,
+      draftsState,
     };
-  }, [scheduledTasks, resources, metadata, nexoState, rowHeights]);
+  }, [scheduledTasks, resources, metadata, nexoState, rowHeights, draftsState]);
 
   const handleAuthenticated = useCallback(
     async (user: AuthUser) => {
@@ -299,6 +332,9 @@ export const App: React.FC = () => {
         setResources(payload.resources);
         setNexoState(payload.nexoState);
         setRowHeights(payload.rowHeights || {});
+        if (payload.draftsState) {
+          setDraftsState(payload.draftsState);
+        }
         setHistory([]);
         setFuture([]);
 
@@ -363,6 +399,7 @@ export const App: React.FC = () => {
             metadata: newMeta,
             nexoState: latestProjectRef.current.nexoState,
             rowHeights: latestProjectRef.current.rowHeights,
+            draftsState: latestProjectRef.current.draftsState,
           });
         } catch {
           // fallback silencioso
@@ -724,6 +761,12 @@ export const App: React.FC = () => {
   const handleDeleteSelected = () => {
     if (checkedTaskIds.length > 0) {
       const toRemove = new Set(checkedTaskIds);
+      const removedAttachments = scheduledTasks
+        .filter((t) => toRemove.has(t.id))
+        .flatMap((t) => t.attachments || []);
+      if (removedAttachments.length > 0) {
+        deleteTaskAttachmentsBatch(removedAttachments).catch(() => {});
+      }
       const count = toRemove.size;
       const newTasks = scheduledTasks.filter((t) => !toRemove.has(t.id));
       pushTaskState(remapPredecessorsForNewTaskOrder(scheduledTasks, newTasks));
@@ -736,6 +779,10 @@ export const App: React.FC = () => {
       return;
     }
     if (!selectedTaskId) return;
+    const removedTask = scheduledTasks.find((t) => t.id === selectedTaskId);
+    if (removedTask?.attachments && removedTask.attachments.length > 0) {
+      deleteTaskAttachmentsBatch(removedTask.attachments).catch(() => {});
+    }
     const newTasks = scheduledTasks.filter((t) => t.id !== selectedTaskId);
     pushTaskState(remapPredecessorsForNewTaskOrder(scheduledTasks, newTasks));
     setSelectedTaskId(null);
@@ -1012,13 +1059,14 @@ export const App: React.FC = () => {
   const handleUpdateNexoState = useCallback((next: NexoProjectState) => {
     setSaveStatus('saving');
     setNexoState(next);
-    if ( currentUserRef.current ) {
+    if (currentUserRef.current) {
       saveUserProjectToCloud(currentUserRef.current, {
         tasks: latestProjectRef.current.tasks,
         resources: latestProjectRef.current.resources,
         metadata: latestProjectRef.current.metadata,
         nexoState: next,
         rowHeights: latestProjectRef.current.rowHeights,
+        draftsState: latestProjectRef.current.draftsState,
       }).catch(() => {});
     }
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -1028,6 +1076,45 @@ export const App: React.FC = () => {
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       setLastSavedTime(timeStr);
     }, 350);
+  }, []);
+
+  // Atualizador do Plugin DRAFTS com Auto-Save (nuvem + cache local)
+  const handleUpdateDraftsState = useCallback((next: DraftsState) => {
+    setSaveStatus('saving');
+    setDraftsState(next);
+    try {
+      localStorage.setItem('pivot_drafts_local_fallback', JSON.stringify(next));
+    } catch {
+      // ignore quota
+    }
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(async () => {
+      if (currentUserRef.current) {
+        try {
+          await saveUserProjectToCloud(currentUserRef.current, {
+            tasks: latestProjectRef.current.tasks,
+            resources: latestProjectRef.current.resources,
+            metadata: latestProjectRef.current.metadata,
+            nexoState: latestProjectRef.current.nexoState,
+            rowHeights: latestProjectRef.current.rowHeights,
+            draftsState: next,
+          });
+        } catch {
+          // fallback silencioso
+        }
+      }
+      setSaveStatus('saved');
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      setLastSavedTime(timeStr);
+    }, 450);
+  }, []);
+
+  const handleDraftsCommand = useCallback((action: DraftsExternalCommand['action']) => {
+    setDraftsCommand((prev) => ({
+      seq: (prev?.seq || 0) + 1,
+      action,
+    }));
   }, []);
 
   const handleStartNewNexoProject = useCallback(() => {
@@ -1219,12 +1306,15 @@ export const App: React.FC = () => {
         e.preventDefault();
         handleManualSave();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (viewMode === 'drafts') return; // Drafts possui seu próprio histórico Undo/Redo
         e.preventDefault();
         handleUndo();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        if (viewMode === 'drafts') return;
         e.preventDefault();
         handleRedo();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'F2') {
+        if (viewMode === 'drafts' || viewMode === 'nexo') return;
         e.preventDefault();
         if (e.shiftKey) {
           handleUnlinkTasks();
@@ -1235,7 +1325,7 @@ export const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo, handleManualSave, handleLinkTasks, handleUnlinkTasks]);
+  }, [handleUndo, handleRedo, handleManualSave, handleLinkTasks, handleUnlinkTasks, viewMode]);
 
   const selectedTaskObj = scheduledTasks.find((t) => t.id === selectedTaskId);
 
@@ -1358,12 +1448,14 @@ export const App: React.FC = () => {
         onToggleNexoRoleView={handleToggleNexoRoleView}
         onStartNewNexoProject={handleStartNewNexoProject}
         onSyncNexoToGantt={handleSyncNexoToGantt}
+        onDraftsCommand={handleDraftsCommand}
         userEmail={currentUser.email}
         onLogout={handleLogout}
       />
 
       {/* Alerta Visual de Prazo Estourado no Agendamento Reverso (De Trás para Frente) */}
       {viewMode !== 'nexo' &&
+        viewMode !== 'drafts' &&
         (() => {
           const overdueSummaries = scheduledTasks.filter(
             (t) => t.isSummary && t.scheduleDirection === 'backward' && t.isOverdueStart
@@ -1392,9 +1484,16 @@ export const App: React.FC = () => {
           );
         })()}
 
-      {/* Área Principal de Trabalho (Split Panes: Planilha de Tarefas, Gráfico de Gantt, Minha Semana ou Plugin Nexo) */}
+      {/* Área Principal de Trabalho (Split Panes: Planilha de Tarefas, Gráfico de Gantt, Minha Semana, Nexo ou Drafts) */}
       <div className="workspace-container">
-        {viewMode === 'nexo' ? (
+        {viewMode === 'drafts' ? (
+          <DraftsPlugin
+            draftsState={draftsState}
+            onUpdateDraftsState={handleUpdateDraftsState}
+            currentUserId={currentUser.id}
+            externalCommand={draftsCommand}
+          />
+        ) : viewMode === 'nexo' ? (
           <NexoPlugin
             nexoState={nexoState}
             onUpdateNexoState={handleUpdateNexoState}
@@ -1655,6 +1754,7 @@ export const App: React.FC = () => {
         resources={resources}
         projectActiveWeekDays={metadata.activeWeekDays || [1, 2, 3, 4, 5]}
         exceptions={metadata.exceptions || []}
+        currentUserId={currentUser.id}
         isOpen={selectedDetailTaskId !== null}
         onClose={() => setSelectedDetailTaskId(null)}
         onUpdateTask={handleUpdateTask}

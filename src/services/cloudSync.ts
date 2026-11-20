@@ -4,9 +4,11 @@ import {
   Resource,
   ProjectMetadata,
   NexoProjectState,
+  DraftsState,
 } from '../types/project';
 import { defaultTasks, defaultResources, defaultMetadata } from '../data/sampleProjects';
 import { defaultNexoState } from '../components/Nexo/NexoPlugin';
+import { defaultDraftsState } from '../components/Drafts/DraftsPlugin';
 
 export interface AuthUser {
   id: string;
@@ -20,6 +22,7 @@ export interface ProjectCloudPayload {
   metadata: ProjectMetadata;
   nexoState: NexoProjectState;
   rowHeights: Record<string, number>;
+  draftsState?: DraftsState;
   updatedAt?: string;
 }
 
@@ -34,6 +37,8 @@ const LOCAL_FALLBACK_USERS_KEY = 'pivot_local_auth_users';
 const LOCAL_FALLBACK_SESSION_KEY = 'pivot_local_auth_session_jwt';
 const LOCAL_FALLBACK_DB_PREFIX = 'pivot_cloud_db_user_';
 const USER_CACHE_PREFIX = 'pivot_user_cache_';
+const DRAFTS_CACHE_PREFIX = 'pivot_drafts_user_';
+let supabaseSupportsDraftsColumn = true;
 
 // Chaves legadas do localStorage (usadas antes do sistema de contas para migração automática)
 const LEGACY_KEYS = {
@@ -382,6 +387,26 @@ export function clearLegacyLocalData(): void {
   localStorage.removeItem(LEGACY_KEYS.rowHeights);
 }
 
+export function loadCachedDraftsState(userId?: string): DraftsState {
+  if (!userId) return defaultDraftsState;
+  try {
+    const raw = localStorage.getItem(`${DRAFTS_CACHE_PREFIX}${userId}`);
+    if (!raw) return defaultDraftsState;
+    const parsed = JSON.parse(raw);
+    return {
+      ...defaultDraftsState,
+      ...parsed,
+      elements: Array.isArray(parsed?.elements) ? parsed.elements : defaultDraftsState.elements,
+      connectors: Array.isArray(parsed?.connectors)
+        ? parsed.connectors
+        : defaultDraftsState.connectors,
+      viewport: parsed?.viewport || defaultDraftsState.viewport,
+    };
+  } catch {
+    return defaultDraftsState;
+  }
+}
+
 export function createDefaultPayload(): ProjectCloudPayload {
   return {
     tasks: defaultTasks,
@@ -393,13 +418,27 @@ export function createDefaultPayload(): ProjectCloudPayload {
     },
     nexoState: defaultNexoState,
     rowHeights: {},
+    draftsState: defaultDraftsState,
     updatedAt: new Date().toISOString(),
   };
 }
 
-function normalizeCloudPayload(raw: any): ProjectCloudPayload {
+function normalizeCloudPayload(raw: any, fallbackUserId?: string): ProjectCloudPayload {
   const parsedMeta = raw?.metadata || {};
   const parsedNexo = raw?.nexo_state || raw?.nexoState || {};
+  const rawDrafts = raw?.drafts_state || raw?.draftsState;
+  const hasCloudDrafts =
+    rawDrafts && typeof rawDrafts === 'object' && Array.isArray(rawDrafts.elements);
+
+  const normalizedDrafts: DraftsState = hasCloudDrafts
+    ? {
+        ...defaultDraftsState,
+        ...rawDrafts,
+        elements: Array.isArray(rawDrafts.elements) ? rawDrafts.elements : [],
+        connectors: Array.isArray(rawDrafts.connectors) ? rawDrafts.connectors : [],
+        viewport: rawDrafts.viewport || defaultDraftsState.viewport,
+      }
+    : loadCachedDraftsState(fallbackUserId);
 
   return {
     tasks: Array.isArray(raw?.tasks) ? raw.tasks : defaultTasks,
@@ -421,6 +460,7 @@ function normalizeCloudPayload(raw: any): ProjectCloudPayload {
       raw?.row_heights || raw?.rowHeights
         ? (raw.row_heights || raw.rowHeights)
         : {},
+    draftsState: normalizedDrafts,
     updatedAt: raw?.updated_at || raw?.updatedAt || new Date().toISOString(),
   };
 }
@@ -436,33 +476,58 @@ export async function saveUserProjectToCloud(
   const nowIso = new Date().toISOString();
   const fullPayload: ProjectCloudPayload = {
     ...payload,
+    draftsState: payload.draftsState || defaultDraftsState,
     updatedAt: nowIso,
   };
 
   // Salva no cache isolado por user_id no navegador para resposta instantânea
   try {
     localStorage.setItem(`${USER_CACHE_PREFIX}${user.id}`, JSON.stringify(fullPayload));
+    if (fullPayload.draftsState) {
+      localStorage.setItem(
+        `${DRAFTS_CACHE_PREFIX}${user.id}`,
+        JSON.stringify(fullPayload.draftsState)
+      );
+    }
   } catch {
     // ignore quota errors
   }
 
   const supabase = getSupabaseClient();
   if (supabase) {
-    const { error } = await supabase.from('user_projects').upsert(
-      {
-        user_id: user.id,
-        email: user.email,
-        tasks: fullPayload.tasks,
-        resources: fullPayload.resources,
-        metadata: fullPayload.metadata,
-        nexo_state: fullPayload.nexoState,
-        row_heights: fullPayload.rowHeights,
-        updated_at: nowIso,
-      },
-      { onConflict: 'user_id' }
-    );
+    const baseRecord: Record<string, any> = {
+      user_id: user.id,
+      email: user.email,
+      tasks: fullPayload.tasks,
+      resources: fullPayload.resources,
+      metadata: fullPayload.metadata,
+      nexo_state: fullPayload.nexoState,
+      row_heights: fullPayload.rowHeights,
+      updated_at: nowIso,
+    };
+
+    if (supabaseSupportsDraftsColumn && fullPayload.draftsState) {
+      baseRecord.drafts_state = fullPayload.draftsState;
+    }
+
+    const { error } = await supabase
+      .from('user_projects')
+      .upsert(baseRecord, { onConflict: 'user_id' });
 
     if (error) {
+      if (
+        supabaseSupportsDraftsColumn &&
+        (error.message?.includes('drafts_state') || error.code === 'PGRST204')
+      ) {
+        supabaseSupportsDraftsColumn = false;
+        delete baseRecord.drafts_state;
+        const retry = await supabase
+          .from('user_projects')
+          .upsert(baseRecord, { onConflict: 'user_id' });
+        if (!retry.error) return;
+        console.error('Erro ao sincronizar projeto no Supabase:', retry.error.message);
+        throw new Error(retry.error.message);
+      }
       console.error('Erro ao sincronizar projeto no Supabase:', error.message);
       throw new Error(error.message);
     }
@@ -485,7 +550,7 @@ export async function loadOrMigrateUserProject(user: AuthUser): Promise<LoadProj
 
     if (!error && data) {
       // Usuário já possui dados na nuvem -> carrega os dados da nuvem!
-      const cloudPayload = normalizeCloudPayload(data);
+      const cloudPayload = normalizeCloudPayload(data, user.id);
       localStorage.setItem(`${USER_CACHE_PREFIX}${user.id}`, JSON.stringify(cloudPayload));
       // Se havia dados legados não-autenticados, limpa para evitar conflito futuro
       clearLegacyLocalData();
@@ -530,7 +595,7 @@ export async function loadOrMigrateUserProject(user: AuthUser): Promise<LoadProj
   // Modo Fallback Local (quando .env ainda não foi configurado)
   const existingUserDb = localStorage.getItem(`${LOCAL_FALLBACK_DB_PREFIX}${user.id}`);
   if (existingUserDb) {
-    const parsed = normalizeCloudPayload(JSON.parse(existingUserDb));
+    const parsed = normalizeCloudPayload(JSON.parse(existingUserDb), user.id);
     clearLegacyLocalData();
     return {
       payload: parsed,

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Task,
   SubTask,
+  TaskAttachment,
   Resource,
   CalendarException,
   ExceptionCategory,
@@ -29,8 +30,31 @@ import {
   AlertTriangle,
   ArrowRight,
   ArrowLeft,
+  Paperclip,
+  Upload,
+  FileText,
+  FileSpreadsheet,
+  Presentation,
+  Image as ImageIcon,
+  Archive,
+  Eye,
+  Download,
+  CloudUpload,
+  Cloud,
+  HardDrive,
 } from 'lucide-react';
 import { HybridNotesEditor } from './HybridNotesEditor';
+import {
+  ATTACHMENT_ACCEPT_ATTR,
+  uploadTaskAttachment,
+  syncLocalAttachmentToCloud,
+  openOrPreviewTaskAttachment,
+  downloadTaskAttachment,
+  deleteTaskAttachment,
+  formatFileSize,
+  getAttachmentExtCategory,
+  isPreviewableAttachment,
+} from '../../services/attachmentsService';
 import {
   getEffectiveActiveWeekDays,
   getEffectiveExceptions,
@@ -51,6 +75,7 @@ interface TaskDetailModalProps {
   resources?: Resource[];
   exceptions?: CalendarException[];
   projectActiveWeekDays?: number[];
+  currentUserId?: string;
   isOpen: boolean;
   onClose: () => void;
   onUpdateTask: (taskId: string, updates: Partial<Task>) => void;
@@ -90,6 +115,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   resources = [],
   exceptions = [],
   projectActiveWeekDays = [1, 2, 3, 4, 5],
+  currentUserId,
   isOpen,
   onClose,
   onUpdateTask,
@@ -118,6 +144,18 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     useState<ScheduleDirection>('forward');
   const [subprojectTargetEndDate, setSubprojectTargetEndDate] = useState<string>('');
   const [cycleErrorMsg, setCycleErrorMsg] = useState<string | null>(null);
+
+  // Estados da seção Anexos / Documentos (Tarefas e Subprojetos)
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [uploadingFilesCount, setUploadingFilesCount] = useState(0);
+  const [attachmentNotice, setAttachmentNotice] = useState<{
+    type: 'error' | 'warning' | 'success';
+    text: string;
+  } | null>(null);
+  const [busyAttachmentId, setBusyAttachmentId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const lastModalSessionRef = useRef<string | null>(null);
 
   // Reordenação via Drag and Drop
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -154,36 +192,49 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   }, [tasks, taskIndex, exceptions]);
 
   useEffect(() => {
-    if (task) {
-      setTaskName(task.name || '');
-      setStartDate(task.startDate || '');
-      setEndDate(task.endDate || '');
-      setDurationDays(task.isMilestone ? 0 : Math.max(1, task.durationDays || 1));
-      setPredecessorText(task.predecessorText || '');
-      setResourceNames(task.resourceNames ? [...task.resourceNames] : []);
-      setCustomResourceInput('');
-      setCost(task.cost ?? 0);
-      setLocalProgress(task.progress ?? 0);
-      setSubTasks(task.subTasks || []);
-      setNotes(task.notes || '');
-      setBaselineEndDate(task.baselineEndDate || '');
-      setSubprojectActiveDays(
-        task.activeWeekDays && task.activeWeekDays.length > 0 ? [...task.activeWeekDays] : undefined
-      );
-      setSubprojectExceptions(task.exceptions ? [...task.exceptions] : []);
-      setNewExcDate(task.startDate || toISODate(new Date()));
-      setNewExcEndDate(task.startDate || toISODate(new Date()));
-      setNewExcName('');
-      setNewExcType('Feriado');
-      setNewExcIsWorking(false);
-      setSubprojectScheduleDirection(task.scheduleDirection || 'forward');
-      setSubprojectTargetEndDate(task.targetEndDate || task.endDate || '');
-      setCycleErrorMsg(null);
-      setEditingSubTaskId(null);
-      setEditingSubTaskTitle('');
-      setDraggedIndex(null);
-      setDragOverIndex(null);
+    if (!isOpen || !task) {
+      lastModalSessionRef.current = null;
+      return;
     }
+    setAttachments(task.attachments ? [...task.attachments] : []);
+
+    if (lastModalSessionRef.current === task.id) {
+      return;
+    }
+    lastModalSessionRef.current = task.id;
+
+    setTaskName(task.name || '');
+    setStartDate(task.startDate || '');
+    setEndDate(task.endDate || '');
+    setDurationDays(task.isMilestone ? 0 : Math.max(1, task.durationDays || 1));
+    setPredecessorText(task.predecessorText || '');
+    setResourceNames(task.resourceNames ? [...task.resourceNames] : []);
+    setCustomResourceInput('');
+    setCost(task.cost ?? 0);
+    setLocalProgress(task.progress ?? 0);
+    setSubTasks(task.subTasks || []);
+    setNotes(task.notes || '');
+    setBaselineEndDate(task.baselineEndDate || '');
+    setSubprojectActiveDays(
+      task.activeWeekDays && task.activeWeekDays.length > 0 ? [...task.activeWeekDays] : undefined
+    );
+    setSubprojectExceptions(task.exceptions ? [...task.exceptions] : []);
+    setNewExcDate(task.startDate || toISODate(new Date()));
+    setNewExcEndDate(task.startDate || toISODate(new Date()));
+    setNewExcName('');
+    setNewExcType('Feriado');
+    setNewExcIsWorking(false);
+    setSubprojectScheduleDirection(task.scheduleDirection || 'forward');
+    setSubprojectTargetEndDate(task.targetEndDate || task.endDate || '');
+    setCycleErrorMsg(null);
+    setAttachmentNotice(null);
+    setIsDraggingFiles(false);
+    setUploadingFilesCount(0);
+    setBusyAttachmentId(null);
+    setEditingSubTaskId(null);
+    setEditingSubTaskTitle('');
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   }, [task, isOpen]);
 
   if (!isOpen || !task) return null;
@@ -389,12 +440,140 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setLocalProgress((prev) => (prev === 100 ? 0 : 100));
   };
 
+  // =========================================================
+  // Handlers de Anexos / Documentos (persistência imediata)
+  // =========================================================
+  const handleUploadAttachmentFiles = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
+
+    setAttachmentNotice(null);
+    setUploadingFilesCount((prev) => prev + files.length);
+
+    let workingList = [...attachments];
+    let uploadedCount = 0;
+    let fallbackCount = 0;
+    const errors: string[] = [];
+
+    for (const file of files) {
+      try {
+        const res = await uploadTaskAttachment(currentUserId, task.id, file);
+        workingList = [...workingList, res.attachment];
+        uploadedCount++;
+        if (res.usedFallback) fallbackCount++;
+      } catch (err: any) {
+        errors.push(err?.message || `Erro ao enviar "${file.name}".`);
+      }
+    }
+
+    setUploadingFilesCount((prev) => Math.max(0, prev - files.length));
+
+    if (uploadedCount > 0) {
+      setAttachments(workingList);
+      onUpdateTask(task.id, { attachments: workingList });
+    }
+
+    if (errors.length > 0) {
+      setAttachmentNotice({ type: 'error', text: errors[0] });
+    } else if (fallbackCount > 0) {
+      setAttachmentNotice({
+        type: 'warning',
+        text: `${uploadedCount} ${uploadedCount === 1 ? 'arquivo anexado' : 'arquivos anexados'} localmente no navegador (execute o SQL do bucket "task-attachments" no Supabase para sincronizar na nuvem).`,
+      });
+    } else if (uploadedCount > 0) {
+      setAttachmentNotice({
+        type: 'success',
+        text: `${uploadedCount} ${uploadedCount === 1 ? 'documento salvo na nuvem' : 'documentos salvos na nuvem'} com sucesso.`,
+      });
+    }
+  };
+
+  const handlePreviewAttachment = async (att: TaskAttachment) => {
+    setBusyAttachmentId(att.id);
+    setAttachmentNotice(null);
+    try {
+      await openOrPreviewTaskAttachment(att);
+    } catch (err: any) {
+      setAttachmentNotice({
+        type: 'error',
+        text: err?.message || `Não foi possível visualizar "${att.name}".`,
+      });
+    } finally {
+      setBusyAttachmentId(null);
+    }
+  };
+
+  const handleDownloadAttachment = async (att: TaskAttachment) => {
+    setBusyAttachmentId(att.id);
+    setAttachmentNotice(null);
+    try {
+      await downloadTaskAttachment(att);
+    } catch (err: any) {
+      setAttachmentNotice({
+        type: 'error',
+        text: err?.message || `Não foi possível baixar "${att.name}".`,
+      });
+    } finally {
+      setBusyAttachmentId(null);
+    }
+  };
+
+  const handleSyncAttachment = async (att: TaskAttachment) => {
+    setBusyAttachmentId(att.id);
+    setAttachmentNotice(null);
+    try {
+      const synced = await syncLocalAttachmentToCloud(currentUserId, task.id, att);
+      const next = attachments.map((item) => (item.id === att.id ? synced : item));
+      setAttachments(next);
+      onUpdateTask(task.id, { attachments: next });
+      setAttachmentNotice({
+        type: 'success',
+        text: `"${att.name}" sincronizado para a nuvem!`,
+      });
+    } catch (err: any) {
+      setAttachmentNotice({
+        type: 'error',
+        text: err?.message || `Não foi possível enviar "${att.name}" para a nuvem.`,
+      });
+    } finally {
+      setBusyAttachmentId(null);
+    }
+  };
+
+  const handleRemoveAttachment = async (att: TaskAttachment) => {
+    setBusyAttachmentId(att.id);
+    setAttachmentNotice(null);
+    try {
+      await deleteTaskAttachment(att);
+      const next = attachments.filter((item) => item.id !== att.id);
+      setAttachments(next);
+      onUpdateTask(task.id, { attachments: next });
+    } catch (err: any) {
+      setAttachmentNotice({
+        type: 'error',
+        text: err?.message || `Erro ao remover "${att.name}".`,
+      });
+    } finally {
+      setBusyAttachmentId(null);
+    }
+  };
+
+  const renderAttachmentIcon = (ext: string) => {
+    const cat = getAttachmentExtCategory(ext);
+    if (cat === 'excel') return <FileSpreadsheet size={16} />;
+    if (cat === 'ppt') return <Presentation size={16} />;
+    if (cat === 'image') return <ImageIcon size={16} />;
+    if (cat === 'archive') return <Archive size={16} />;
+    return <FileText size={16} />;
+  };
+
   const handleSave = () => {
     const finalName = taskName.trim() || task.name;
     if (isSubproject) {
       onUpdateTask(task.id, {
         name: finalName,
         notes,
+        attachments,
         activeWeekDays: subprojectActiveDays,
         exceptions: subprojectExceptions,
         scheduleDirection: subprojectScheduleDirection,
@@ -431,6 +610,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       predecessorText: trimmedPred,
       resourceNames,
       subTasks,
+      attachments,
       progress: newProgress,
       notes,
       cost,
@@ -1280,6 +1460,178 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               </div>
             </>
           )}
+
+          {/* Anexos / Documentos (Tarefas e Subprojetos) */}
+          <div className="attachments-section-container">
+            <div className="attachments-header-row">
+              <div className="attachments-title-group">
+                <Paperclip size={15} className="attachments-header-icon" />
+                <span>
+                  Anexos / Documentos ({attachments.length})
+                </span>
+              </div>
+              <button
+                type="button"
+                className="attachments-upload-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingFilesCount > 0}
+              >
+                <Upload size={13} />
+                <span>
+                  {uploadingFilesCount > 0
+                    ? `Enviando (${uploadingFilesCount})...`
+                    : 'Anexar arquivo'}
+                </span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={ATTACHMENT_ACCEPT_ATTR}
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  if (e.target.files) {
+                    handleUploadAttachmentFiles(e.target.files);
+                    e.target.value = '';
+                  }
+                }}
+              />
+            </div>
+
+            <div
+              className={`attachments-dropzone ${isDraggingFiles ? 'drag-over' : ''}`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isDraggingFiles) setIsDraggingFiles(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingFiles(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingFiles(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  handleUploadAttachmentFiles(e.dataTransfer.files);
+                }
+              }}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload size={16} />
+              <span>
+                Arraste e solte documentos aqui ou clique para selecionar (<code>.pdf</code>,{' '}
+                <code>.docx</code>, <code>.xlsx</code>, <code>.pptx</code>, imagens,{' '}
+                <code>.zip</code> — máx. 10 MB)
+              </span>
+            </div>
+
+            {attachmentNotice && (
+              <div className={`attachments-notice-banner ${attachmentNotice.type}`}>
+                <span>{attachmentNotice.text}</span>
+                <button
+                  type="button"
+                  className="notice-dismiss-btn"
+                  onClick={() => setAttachmentNotice(null)}
+                  title="Dispensar aviso"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            )}
+
+            {attachments.length > 0 && (
+              <div className="attachments-list">
+                {attachments.map((att) => {
+                  const cat = getAttachmentExtCategory(att.extension);
+                  const previewable = isPreviewableAttachment(att);
+                  const isBusy = busyAttachmentId === att.id;
+                  return (
+                    <div key={att.id} className="attachment-card">
+                      <div className={`attachment-ext-badge ext-${cat}`}>
+                        {renderAttachmentIcon(att.extension)}
+                        <span>{(att.extension || 'ARQ').toUpperCase()}</span>
+                      </div>
+
+                      <div className="attachment-info">
+                        <span className="attachment-name" title={att.name}>
+                          {att.name}
+                        </span>
+                        <div className="attachment-meta-row">
+                          <span className="attachment-size">{formatFileSize(att.size)}</span>
+                          <span
+                            className={`attachment-storage-badge ${
+                              att.storageProvider === 'supabase' ? 'cloud' : 'local'
+                            }`}
+                            title={
+                              att.storageProvider === 'supabase'
+                                ? 'Sincronizado na nuvem (Supabase Storage)'
+                                : 'Salvo localmente neste navegador (IndexedDB)'
+                            }
+                          >
+                            {att.storageProvider === 'supabase' ? (
+                              <>
+                                <Cloud size={10} /> Nuvem
+                              </>
+                            ) : (
+                              <>
+                                <HardDrive size={10} /> Local
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="attachment-actions">
+                        {previewable && (
+                          <button
+                            type="button"
+                            className="att-action-btn preview"
+                            disabled={isBusy}
+                            onClick={() => handlePreviewAttachment(att)}
+                            title="Visualizar em nova aba"
+                          >
+                            <Eye size={14} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="att-action-btn download"
+                          disabled={isBusy}
+                          onClick={() => handleDownloadAttachment(att)}
+                          title="Baixar arquivo"
+                        >
+                          <Download size={14} />
+                        </button>
+                        {att.storageProvider === 'indexeddb' && currentUserId && (
+                          <button
+                            type="button"
+                            className="att-action-btn sync"
+                            disabled={isBusy}
+                            onClick={() => handleSyncAttachment(att)}
+                            title="Enviar este arquivo local para a nuvem"
+                          >
+                            <CloudUpload size={14} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="att-action-btn remove"
+                          disabled={isBusy}
+                          onClick={() => handleRemoveAttachment(att)}
+                          title="Remover anexo"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Notas / Observações com Editor Híbrido Live Markdown / WYSIWYG */}
           <div className="notes-section-container">

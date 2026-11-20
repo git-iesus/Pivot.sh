@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   Link2,
   Unlink2,
+  Paperclip,
 } from 'lucide-react';
 import {
   formatDatePTBR,
@@ -705,6 +706,20 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                         <span>
                           {task.subTasks.filter((s) => s.done).length}/{task.subTasks.length}
                         </span>
+                      </span>
+                    )}
+                    {task.attachments && task.attachments.length > 0 && (
+                      <span
+                        className="attachment-pill-badge"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectTask(task.id);
+                          onOpenTaskDetail(task.id);
+                        }}
+                        title={`Anexos (${task.attachments.length}): ${task.attachments.map((a) => a.name).join(', ')} — Clique para abrir documentos`}
+                      >
+                        <Paperclip size={10} className="attachment-pill-icon" />
+                        <span>{task.attachments.length}</span>
                       </span>
                     )}
                     <button

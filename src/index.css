@@ -8948,3 +8948,992 @@ input, select, button {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* ==========================================================================
+   ATUALIZAÇÃO 1 — ANEXOS / DOCUMENTOS EM TAREFAS E SUBPROJETOS
+   ========================================================================== */
+
+.attachments-section-container {
+  margin-top: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+}
+
+.attachments-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.attachments-title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0E2841;
+}
+
+.attachments-header-icon {
+  color: #0E2841;
+}
+
+.attachments-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 7px;
+  border: 1px solid #0E2841;
+  background: #0E2841;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.attachments-upload-btn:hover:not(:disabled) {
+  background: #163e64;
+}
+
+.attachments-upload-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.attachments-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1.5px dashed #94a3b8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 11.5px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.attachments-dropzone:hover,
+.attachments-dropzone.drag-over {
+  border-color: #0E2841;
+  background: #eff6ff;
+  color: #0E2841;
+}
+
+.attachments-dropzone code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #0E2841;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.attachments-notice-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.attachments-notice-banner.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.attachments-notice-banner.warning {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.attachments-notice-banner.success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.notice-dismiss-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+  padding: 2px;
+}
+
+.notice-dismiss-btn:hover {
+  opacity: 1;
+}
+
+.attachments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.attachment-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.attachment-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(14, 40, 65, 0.06);
+}
+
+.attachment-ext-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 64px;
+  justify-content: center;
+  padding: 5px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+.attachment-ext-badge.ext-pdf {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.attachment-ext-badge.ext-word {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.attachment-ext-badge.ext-excel {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.attachment-ext-badge.ext-ppt {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.attachment-ext-badge.ext-image {
+  background: #faf5ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+.attachment-ext-badge.ext-archive,
+.attachment-ext-badge.ext-text {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.attachment-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.attachment-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.attachment-size {
+  font-size: 10.5px;
+  color: #64748b;
+}
+
+.attachment-storage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.attachment-storage-badge.cloud {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.attachment-storage-badge.local {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.attachment-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.att-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.att-action-btn:hover:not(:disabled) {
+  background: #0E2841;
+  border-color: #0E2841;
+  color: #ffffff;
+}
+
+.att-action-btn.remove:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+
+.att-action-btn:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+
+/* Pílulas de Anexo na Planilha (TaskSheet) e na Minha Semana (WeekView) */
+.attachment-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #0E2841;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.14s ease;
+}
+
+.attachment-pill-badge:hover {
+  background: #0E2841;
+  border-color: #0E2841;
+  color: #ffffff;
+}
+
+.task-card-attachments-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  margin-top: 2px;
+  margin-bottom: 4px;
+  border-radius: 5px;
+  background: #f1f5f9;
+  color: #0E2841;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   ATUALIZAÇÃO 2 — PLUGIN DRAFTS (QUADRO BRANCO INTERATIVO ESTILO MIRO)
+   ========================================================================== */
+
+.ribbon-tab.drafts-ribbon-tab {
+  color: #0E2841;
+  font-weight: 700;
+}
+
+.ribbon-tab.drafts-ribbon-tab.active {
+  color: #0E2841;
+  border-top: 2px solid #0E2841;
+}
+
+.drafts-workspace {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  overflow: hidden;
+  background: #f8fafc;
+  user-select: none;
+}
+
+.drafts-canvas-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  outline: none;
+}
+
+.drafts-canvas-viewport.cursor-grab {
+  cursor: grab;
+}
+
+.drafts-canvas-viewport.cursor-grabbing {
+  cursor: grabbing;
+}
+
+.drafts-canvas-viewport.cursor-crosshair {
+  cursor: crosshair;
+}
+
+.drafts-canvas-viewport.cursor-default {
+  cursor: default;
+}
+
+.drafts-world-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+}
+
+.drafts-connectors-svg {
+  position: absolute;
+  left: -4000px;
+  top: -4000px;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 2;
+}
+
+/* Pílulas Flutuantes Superiores */
+.drafts-top-pill {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(14, 40, 65, 0.08);
+}
+
+.drafts-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #0E2841;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.drafts-title-input {
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+  padding: 3px 6px;
+  border-radius: 5px;
+  min-width: 170px;
+  outline: none;
+}
+
+.drafts-title-input:hover {
+  background: #f1f5f9;
+}
+
+.drafts-title-input:focus {
+  background: #ffffff;
+  border-color: #0E2841;
+}
+
+.drafts-stats-pill {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.drafts-top-hint-pill {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 500;
+  box-shadow: 0 4px 14px rgba(14, 40, 65, 0.06);
+  pointer-events: none;
+}
+
+.drafts-uploading-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #0E2841;
+  font-weight: 700;
+}
+
+.drafts-notice-pill {
+  position: absolute;
+  top: 56px;
+  right: 16px;
+  z-index: 35;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #0E2841;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Barra de Ferramentas Principal na Lateral Esquerda */
+.drafts-left-dock {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.drafts-left-toolbar,
+.drafts-history-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(14, 40, 65, 0.1);
+}
+
+.drafts-tool-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.drafts-tool-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0E2841;
+}
+
+.drafts-tool-btn.active {
+  background: #0E2841;
+  color: #ffffff;
+}
+
+.drafts-tool-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.drafts-sticky-dot-indicator {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.35);
+}
+
+.drafts-toolbar-sep {
+  width: 24px;
+  height: 1px;
+  background: #e2e8f0;
+  margin: 2px 0;
+}
+
+.drafts-tool-popover-anchor {
+  position: relative;
+}
+
+.drafts-side-popover {
+  position: absolute;
+  left: 48px;
+  top: 0;
+  z-index: 40;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 10px 26px rgba(14, 40, 65, 0.16);
+  min-width: 170px;
+}
+
+.drafts-popover-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.drafts-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.drafts-swatch-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(15, 23, 42, 0.22);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.drafts-swatch-btn.small {
+  width: 18px;
+  height: 18px;
+}
+
+.drafts-swatch-btn:hover {
+  transform: scale(1.12);
+}
+
+.drafts-swatch-btn.selected {
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #0E2841;
+}
+
+.drafts-shapes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.drafts-shape-pick-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0E2841;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.drafts-shape-pick-btn:hover,
+.drafts-shape-pick-btn.active {
+  background: #0E2841;
+  border-color: #0E2841;
+  color: #ffffff;
+}
+
+/* Menu Flutuante Contextual acima do item selecionado */
+.drafts-floating-menu {
+  position: absolute;
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(14, 40, 65, 0.16);
+  white-space: nowrap;
+}
+
+.drafts-fm-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.drafts-fm-sep {
+  width: 1px;
+  height: 20px;
+  background: #e2e8f0;
+  margin: 0 4px;
+}
+
+.drafts-fm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 5px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.drafts-fm-btn:hover {
+  background: #f1f5f9;
+  color: #0E2841;
+}
+
+.drafts-fm-btn.active {
+  background: #dbeafe;
+  color: #0E2841;
+}
+
+.drafts-fm-btn.danger:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.drafts-fm-font-val {
+  min-width: 22px;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.drafts-fm-color-anchor {
+  position: relative;
+}
+
+.drafts-fm-color-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.drafts-fm-color-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+}
+
+.drafts-fm-color-popover {
+  position: absolute;
+  top: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 10px 26px rgba(14, 40, 65, 0.18);
+  min-width: 190px;
+  white-space: normal;
+}
+
+/* Elementos do Quadro (Post-it, Forma, Texto, Imagem) */
+.drafts-element {
+  position: absolute;
+  box-sizing: border-box;
+  cursor: move;
+}
+
+.drafts-element.editing {
+  cursor: text;
+}
+
+.drafts-sticky-surface {
+  width: 100%;
+  height: 100%;
+  padding: 14px;
+  border-radius: 4px;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14), 0 1px 3px rgba(15, 23, 42, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.drafts-text-surface {
+  width: 100%;
+  height: 100%;
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+}
+
+.drafts-shape-surface {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.drafts-shape-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.drafts-shape-text-overlay {
+  position: absolute;
+  inset: 10%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.drafts-rich-text-content {
+  width: 100%;
+  outline: none;
+  word-break: break-word;
+  line-height: 1.35;
+  user-select: text;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Tahoma, Arial, sans-serif;
+}
+
+.drafts-rich-text-content.text-mode {
+  min-height: 1.3em;
+}
+
+.drafts-image-surface {
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+}
+
+.drafts-image-tag {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+}
+
+.drafts-image-loading {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+/* Caixa de Contorno (Bounding Box) & Alças + Pontos de Ancoragem */
+.drafts-bbox {
+  position: absolute;
+  inset: -2px;
+  border: 2px solid #2563eb;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.drafts-resize-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #ffffff;
+  border: 2px solid #2563eb;
+  border-radius: 2px;
+  pointer-events: auto;
+}
+
+.drafts-resize-handle.nw {
+  top: -6px;
+  left: -6px;
+  cursor: nwse-resize;
+}
+
+.drafts-resize-handle.ne {
+  top: -6px;
+  right: -6px;
+  cursor: nesw-resize;
+}
+
+.drafts-resize-handle.sw {
+  bottom: -6px;
+  left: -6px;
+  cursor: nesw-resize;
+}
+
+.drafts-resize-handle.se {
+  bottom: -6px;
+  right: -6px;
+  cursor: nwse-resize;
+}
+
+.drafts-anchor-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 999px;
+  background: #2563eb;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
+  pointer-events: auto;
+  cursor: crosshair;
+  transition: transform 0.12s ease;
+}
+
+.drafts-anchor-dot:hover {
+  transform: scale(1.3);
+  background: #0E2841;
+}
+
+.drafts-anchor-dot.top {
+  top: -18px;
+  left: 50%;
+  margin-left: -5px;
+}
+
+.drafts-anchor-dot.right {
+  right: -18px;
+  top: 50%;
+  margin-top: -5px;
+}
+
+.drafts-anchor-dot.bottom {
+  bottom: -18px;
+  left: 50%;
+  margin-left: -5px;
+}
+
+.drafts-anchor-dot.left {
+  left: -18px;
+  top: 50%;
+  margin-top: -5px;
+}
+
+/* Barra Flutuante de Zoom Inferior Direita */
+.drafts-zoom-pill {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(14, 40, 65, 0.1);
+}
+
+.drafts-zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
+}
+
+.drafts-zoom-btn:hover {
+  background: #f1f5f9;
+  color: #0E2841;
+}
+
+.drafts-zoom-percent-btn {
+  min-width: 44px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.drafts-zoom-percent-btn:hover {
+  background: #f1f5f9;
+}

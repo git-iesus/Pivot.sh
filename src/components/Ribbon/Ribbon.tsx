@@ -30,8 +30,18 @@ import {
   LogOut,
   UserCheck,
   Pencil,
+  PenTool,
+  StickyNote,
+  Square,
+  Triangle,
+  Circle,
+  Type,
+  MoveUpRight,
+  ImagePlus,
+  Maximize2,
 } from 'lucide-react';
 import { ViewMode, ZoomLevel, NexoPhase, NexoRoleView } from '../../types/project';
+import { DraftsExternalCommand } from '../Drafts/DraftsPlugin';
 
 interface RibbonProps {
   projectTitle?: string;
@@ -79,6 +89,7 @@ interface RibbonProps {
   onToggleNexoRoleView?: (role: NexoRoleView) => void;
   onStartNewNexoProject?: () => void;
   onSyncNexoToGantt?: () => void;
+  onDraftsCommand?: (action: DraftsExternalCommand['action']) => void;
   userEmail?: string;
   onLogout?: () => void;
 }
@@ -121,10 +132,13 @@ export const Ribbon: React.FC<RibbonProps> = ({
   onSelectNexoPhase,
   onStartNewNexoProject,
   onSyncNexoToGantt,
+  onDraftsCommand,
   userEmail,
   onLogout,
 }) => {
-  const [activeTab, setActiveTab] = useState<'tarefa' | 'recursos' | 'exibir' | 'formato' | 'nexo'>('tarefa');
+  const [activeTab, setActiveTab] = useState<
+    'tarefa' | 'recursos' | 'exibir' | 'formato' | 'nexo' | 'drafts'
+  >('tarefa');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(projectTitle);
 
@@ -245,7 +259,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
           className={`ribbon-tab ${activeTab === 'tarefa' ? 'active' : ''}`}
           onClick={() => {
             setActiveTab('tarefa');
-            if (viewMode === 'nexo') setViewMode('gantt');
+            if (viewMode === 'nexo' || viewMode === 'drafts') setViewMode('gantt');
           }}
         >
           Tarefa
@@ -254,7 +268,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
           className={`ribbon-tab ${activeTab === 'recursos' ? 'active' : ''}`}
           onClick={() => {
             setActiveTab('recursos');
-            if (viewMode === 'nexo') setViewMode('gantt');
+            if (viewMode === 'nexo' || viewMode === 'drafts') setViewMode('gantt');
           }}
         >
           Recursos
@@ -263,7 +277,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
           className={`ribbon-tab ${activeTab === 'exibir' ? 'active' : ''}`}
           onClick={() => {
             setActiveTab('exibir');
-            if (viewMode === 'nexo') setViewMode('gantt');
+            if (viewMode === 'nexo' || viewMode === 'drafts') setViewMode('gantt');
           }}
         >
           Exibição
@@ -272,7 +286,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
           className={`ribbon-tab ${activeTab === 'formato' ? 'active' : ''}`}
           onClick={() => {
             setActiveTab('formato');
-            if (viewMode === 'nexo') setViewMode('gantt');
+            if (viewMode === 'nexo' || viewMode === 'drafts') setViewMode('gantt');
           }}
         >
           Formato
@@ -287,6 +301,17 @@ export const Ribbon: React.FC<RibbonProps> = ({
         >
           <Compass size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />
           Nexo
+        </button>
+        <button
+          className={`ribbon-tab drafts-ribbon-tab ${activeTab === 'drafts' || viewMode === 'drafts' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('drafts');
+            setViewMode('drafts');
+          }}
+          title="Abrir Plugin Drafts — Quadro Branco Interativo de Ideias"
+        >
+          <PenTool size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />
+          Drafts
         </button>
       </div>
 
@@ -623,6 +648,132 @@ export const Ribbon: React.FC<RibbonProps> = ({
                 </button>
               </div>
               <div className="group-label">Arquitetura &amp; Gantt</div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'drafts' && (
+          <div className="ribbon-tab-content">
+            {/* Grupo: Inserir Elementos no Quadro Branco */}
+            <div className="ribbon-group">
+              <div className="group-content">
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('drafts');
+                    onDraftsCommand?.('add-sticky');
+                  }}
+                  title="Adicionar Nota Adesiva (Post-it) no centro do quadro"
+                >
+                  <StickyNote size={24} className="tool-icon accent-color" />
+                  <span>Post-it</span>
+                </button>
+                <div className="small-tools-column">
+                  <button
+                    className="small-tool-btn"
+                    onClick={() => {
+                      setViewMode('drafts');
+                      onDraftsCommand?.('add-rect');
+                    }}
+                    title="Inserir Quadrado / Retângulo"
+                  >
+                    <Square size={13} className="primary-color" />
+                    <span>Retângulo</span>
+                  </button>
+                  <button
+                    className="small-tool-btn"
+                    onClick={() => {
+                      setViewMode('drafts');
+                      onDraftsCommand?.('add-triangle');
+                    }}
+                    title="Inserir Triângulo"
+                  >
+                    <Triangle size={13} className="primary-color" />
+                    <span>Triângulo</span>
+                  </button>
+                  <button
+                    className="small-tool-btn"
+                    onClick={() => {
+                      setViewMode('drafts');
+                      onDraftsCommand?.('add-ellipse');
+                    }}
+                    title="Inserir Elipse / Círculo"
+                  >
+                    <Circle size={13} className="primary-color" />
+                    <span>Elipse</span>
+                  </button>
+                </div>
+              </div>
+              <div className="group-label">Notas &amp; Formas</div>
+            </div>
+
+            {/* Grupo: Texto, Conectores & Mídia */}
+            <div className="ribbon-group">
+              <div className="group-content">
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('drafts');
+                    onDraftsCommand?.('add-text');
+                  }}
+                  title="Inserir Caixa de Texto com Formatação Rica"
+                >
+                  <Type size={24} className="tool-icon primary-color" />
+                  <span>Texto</span>
+                </button>
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('drafts');
+                    onDraftsCommand?.('tool-connector');
+                  }}
+                  title="Ferramenta Linha / Conector entre elementos"
+                >
+                  <MoveUpRight size={24} className="tool-icon primary-color" />
+                  <span>Conector</span>
+                </button>
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('drafts');
+                    onDraftsCommand?.('upload-image');
+                  }}
+                  title="Inserir Imagem via Upload (ou cole direto com Ctrl+V)"
+                >
+                  <ImagePlus size={24} className="tool-icon success-color" />
+                  <span>Imagem</span>
+                </button>
+              </div>
+              <div className="group-label">Texto, Linhas &amp; Mídia</div>
+            </div>
+
+            {/* Grupo: Quadro */}
+            <div className="ribbon-group">
+              <div className="group-content">
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('drafts');
+                    onDraftsCommand?.('fit-view');
+                  }}
+                  title="Enquadrar todos os elementos do quadro na tela"
+                >
+                  <Maximize2 size={24} className="tool-icon primary-color" />
+                  <span>Enquadrar</span>
+                </button>
+                <button
+                  className="large-tool-btn danger"
+                  onClick={() => {
+                    setViewMode('drafts');
+                    onDraftsCommand?.('clear-board');
+                  }}
+                  title="Limpar todos os itens do quadro branco"
+                >
+                  <Trash2 size={24} />
+                  <span>Limpar Quadro</span>
+                </button>
+              </div>
+              <div className="group-label">Visualização</div>
             </div>
           </div>
         )}

@@ -37,3 +37,43 @@ create policy "Usuarios podem atualizar seu proprio projeto"
   on public.user_projects for update
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- Coluna opcional para sincronização em nuvem do quadro branco Drafts
+alter table public.user_projects
+  add column if not exists drafts_state jsonb not null default '{}'::jsonb;
+
+-- =============================================================================
+-- STORAGE: BUCKET PRIVADO DE ANEXOS DAS TAREFAS E IMAGENS DO DRAFTS (10 MB)
+-- =============================================================================
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('task-attachments', 'task-attachments', false, 10485760)
+on conflict (id) do update
+  set public = false,
+      file_size_limit = 10485760;
+
+drop policy if exists "Usuarios podem ler seus proprios anexos" on storage.objects;
+create policy "Usuarios podem ler seus proprios anexos"
+  on storage.objects for select
+  to authenticated
+  using (
+    bucket_id = 'task-attachments'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "Usuarios podem enviar seus proprios anexos" on storage.objects;
+create policy "Usuarios podem enviar seus proprios anexos"
+  on storage.objects for insert
+  to authenticated
+  with check (
+    bucket_id = 'task-attachments'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "Usuarios podem excluir seus proprios anexos" on storage.objects;
+create policy "Usuarios podem excluir seus proprios anexos"
+  on storage.objects for delete
+  to authenticated
+  using (
+    bucket_id = 'task-attachments'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
