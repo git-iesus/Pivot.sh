@@ -12,6 +12,15 @@ export interface TaskDependency {
   lagDays?: number;
 }
 
+export type ProjectMethodology = 'linear' | 'agile';
+
+export type KanbanStatus =
+  | 'icebox'
+  | 'backlog'
+  | 'sprint_todo'
+  | 'in_progress'
+  | 'done';
+
 export interface SubTask {
   id: string;
   title: string;
@@ -58,6 +67,15 @@ export interface Task {
   cost?: number;
   subTasks?: SubTask[]; // Checklist de sub-tarefas internas
   attachments?: TaskAttachment[]; // Documentos anexados na Tarefa ou Subprojeto
+  methodology?: ProjectMethodology; // Metodologia do Subprojeto ('linear' padrão ou 'agile' no Scrumble)
+  kanbanStatus?: KanbanStatus; // Coluna atual no quadro Kanban do Scrumble
+  sprintId?: string; // ID da Sprint associada no Scrumble
+  storyPoints?: number; // Pontos de esforço / complexidade no Scrumble
+  isBlocked?: boolean; // Sinalizador de impedimento na Daily / Kanban
+  blockerNote?: string; // Descrição curta do impedimento
+  pomodorosEstimated?: number; // Estimativa em blocos Pomodoro
+  pomodorosCompleted?: number; // Blocos Pomodoro concluídos nesta tarefa
+  completedAt?: string; // Data ISO (YYYY-MM-DD) da conclusão para histórico da Daily
 }
 
 export interface Resource {
@@ -103,7 +121,8 @@ export type ViewMode =
   | 'resourceSheet'
   | 'week'
   | 'nexo'
-  | 'drafts';
+  | 'drafts'
+  | 'scrumble';
 
 export type ZoomLevel = 'days' | 'weeks' | 'months';
 
@@ -237,4 +256,60 @@ export interface DraftsState {
   elements: DraftElement[];
   connectors: DraftConnector[];
   viewport: { x: number; y: number; zoom: number };
+}
+
+// =========================================================
+// Tipos do Plugin SCRUMBLE (Scrum Solo + Kanban + Timeboxing)
+// =========================================================
+
+export interface ScrumbleSprintReview {
+  deliveredSummary: string;
+  whatWorked: string;
+  whatToImprove: string;
+  completedCount: number;
+  plannedCount: number;
+  pomodorosCompleted: number;
+  closedAt: string;
+}
+
+export interface ScrumbleSprint {
+  id: string;
+  number: number;
+  name: string;
+  goal: string;
+  startDate: string; // YYYY-MM-DD (preferencialmente Segunda-feira)
+  endDate: string; // YYYY-MM-DD (Sexta-feira da semana 1 ou 2)
+  durationWeeks: 1 | 2;
+  status: 'planning' | 'active' | 'completed';
+  review?: ScrumbleSprintReview;
+}
+
+export interface ScrumbleDailyLog {
+  id: string;
+  date: string; // YYYY-MM-DD
+  sprintId?: string;
+  yesterdaySummary: string;
+  todayFocus: string;
+  blockers: string;
+  durationSecondsSpent?: number;
+  createdAt: string;
+}
+
+export interface ScrumblePomodoroConfig {
+  workMinutes: number; // Padrão: 25 min
+  shortBreakMinutes: number; // Padrão: 5 min
+  longBreakMinutes: number; // Padrão: 15 min
+  cyclesBeforeLongBreak: number; // Padrão: 4 ciclos
+}
+
+export interface ScrumbleState {
+  activeSubprojectId: string | 'all' | 'agile_only';
+  wipLimitInProgress: number;
+  showIceboxColumn: boolean;
+  currentSprint: ScrumbleSprint | null;
+  sprintHistory: ScrumbleSprint[];
+  dailyLogs: ScrumbleDailyLog[];
+  pomodoroConfig: ScrumblePomodoroConfig;
+  totalPomodorosCompleted: number;
+  activePomodoroTaskId?: string | null;
 }

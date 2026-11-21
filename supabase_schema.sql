@@ -42,6 +42,10 @@ create policy "Usuarios podem atualizar seu proprio projeto"
 alter table public.user_projects
   add column if not exists drafts_state jsonb not null default '{}'::jsonb;
 
+-- Coluna opcional para sincronização em nuvem do quadro Scrumble (Scrum Solo + Kanban)
+alter table public.user_projects
+  add column if not exists scrumble_state jsonb not null default '{}'::jsonb;
+
 -- =============================================================================
 -- STORAGE: BUCKET PRIVADO DE ANEXOS DAS TAREFAS E IMAGENS DO DRAFTS (10 MB)
 -- =============================================================================

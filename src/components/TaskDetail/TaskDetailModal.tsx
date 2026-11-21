@@ -7,6 +7,7 @@ import {
   CalendarException,
   ExceptionCategory,
   ScheduleDirection,
+  ProjectMethodology,
 } from '../../types/project';
 import {
   X,
@@ -42,6 +43,7 @@ import {
   CloudUpload,
   Cloud,
   HardDrive,
+  Zap,
 } from 'lucide-react';
 import { HybridNotesEditor } from './HybridNotesEditor';
 import {
@@ -143,6 +145,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   const [subprojectScheduleDirection, setSubprojectScheduleDirection] =
     useState<ScheduleDirection>('forward');
   const [subprojectTargetEndDate, setSubprojectTargetEndDate] = useState<string>('');
+  const [subprojectMethodology, setSubprojectMethodology] =
+    useState<ProjectMethodology>('linear');
   const [cycleErrorMsg, setCycleErrorMsg] = useState<string | null>(null);
 
   // Estados da seção Anexos / Documentos (Tarefas e Subprojetos)
@@ -226,6 +230,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     setNewExcIsWorking(false);
     setSubprojectScheduleDirection(task.scheduleDirection || 'forward');
     setSubprojectTargetEndDate(task.targetEndDate || task.endDate || '');
+    setSubprojectMethodology(task.methodology || 'linear');
     setCycleErrorMsg(null);
     setAttachmentNotice(null);
     setIsDraggingFiles(false);
@@ -574,6 +579,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         name: finalName,
         notes,
         attachments,
+        methodology: subprojectMethodology,
         activeWeekDays: subprojectActiveDays,
         exceptions: subprojectExceptions,
         scheduleDirection: subprojectScheduleDirection,
@@ -602,6 +608,27 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const newProgress = hasSubTasks
       ? Math.round((subTasks.filter((st) => st.done).length / subTasks.length) * 100)
       : localProgress;
+    const syncedKanbanFields: Partial<Task> =
+      newProgress === 100
+        ? {
+            kanbanStatus: task.kanbanStatus === 'icebox' ? 'icebox' : 'done',
+            completedAt: task.completedAt || toISODate(new Date()),
+            isBlocked: false,
+            blockerNote: undefined,
+          }
+        : task.progress === 100 && newProgress < 100
+          ? {
+              kanbanStatus: newProgress > 0 ? 'in_progress' : 'sprint_todo',
+              completedAt: undefined,
+            }
+          : newProgress > 0 &&
+              newProgress < 100 &&
+              (!task.kanbanStatus ||
+                task.kanbanStatus === 'backlog' ||
+                task.kanbanStatus === 'sprint_todo')
+            ? { kanbanStatus: 'in_progress' }
+            : {};
+
     onUpdateTask(task.id, {
       name: finalName,
       startDate,
@@ -612,6 +639,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       subTasks,
       attachments,
       progress: newProgress,
+      ...syncedKanbanFields,
       notes,
       cost,
       baselineEndDate: baselineEndDate || undefined,
@@ -988,6 +1016,46 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     className="progress-bar-fill"
                     style={{ width: `${computedProgress}%`, background: progressColor }}
                   />
+                </div>
+              </div>
+
+              {/* SEÇÃO 0: METODOLOGIA DO SUBPROJETO (LINEAR vs. ÁGIL - SCRUMBLE) */}
+              <div className="calendar-config-box subproject-methodology-config-box">
+                <div className="calendar-header-row">
+                  <div className="calendar-title">
+                    <Zap size={16} className="text-primary" />
+                    <strong>Metodologia do Subprojeto (Linear ↔ Ágil)</strong>
+                  </div>
+                </div>
+
+                <div className="schedule-direction-cards">
+                  <button
+                    type="button"
+                    className={`schedule-direction-card ${subprojectMethodology === 'linear' ? 'active' : ''}`}
+                    onClick={() => setSubprojectMethodology('linear')}
+                  >
+                    <div className="direction-card-header">
+                      <Calendar size={15} />
+                      <strong>Linear / Preditivo (Gantt &amp; Planilha)</strong>
+                    </div>
+                    <p>
+                      Foco em cronograma sequencial com dependências TI/II/TT/IT, Linha de Base e Caminho Crítico.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`schedule-direction-card scrumble-agile ${subprojectMethodology === 'agile' ? 'active' : ''}`}
+                    onClick={() => setSubprojectMethodology('agile')}
+                  >
+                    <div className="direction-card-header">
+                      <Zap size={15} />
+                      <strong>Ágil — Scrumble (Kanban + Sprints + Pomodoro)</strong>
+                    </div>
+                    <p>
+                      Foco em entregas semanais por Sprint, limite WIP, Daily rápida de 5 min e isolamento de ideias no Icebox. Você pode alternar a qualquer hora.
+                    </p>
+                  </button>
                 </div>
               </div>
 

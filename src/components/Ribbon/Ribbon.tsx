@@ -27,6 +27,11 @@ import {
   CalendarOff,
   Compass,
   Target,
+  Zap,
+  Snowflake,
+  Play,
+  Sun,
+  History,
   LogOut,
   UserCheck,
   Pencil,
@@ -42,6 +47,7 @@ import {
 } from 'lucide-react';
 import { ViewMode, ZoomLevel, NexoPhase, NexoRoleView } from '../../types/project';
 import { DraftsExternalCommand } from '../Drafts/DraftsPlugin';
+import { ScrumbleExternalCommand } from '../Scrumble/scrumbleDefaults';
 
 interface RibbonProps {
   projectTitle?: string;
@@ -90,6 +96,7 @@ interface RibbonProps {
   onStartNewNexoProject?: () => void;
   onSyncNexoToGantt?: () => void;
   onDraftsCommand?: (action: DraftsExternalCommand['action']) => void;
+  onScrumbleCommand?: (type: ScrumbleExternalCommand['type']) => void;
   userEmail?: string;
   onLogout?: () => void;
 }
@@ -133,12 +140,23 @@ export const Ribbon: React.FC<RibbonProps> = ({
   onStartNewNexoProject,
   onSyncNexoToGantt,
   onDraftsCommand,
+  onScrumbleCommand,
   userEmail,
   onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'tarefa' | 'recursos' | 'exibir' | 'formato' | 'nexo' | 'drafts'
+    'tarefa' | 'recursos' | 'exibir' | 'formato' | 'nexo' | 'drafts' | 'scrumble'
   >('tarefa');
+  const effectiveTab: 'tarefa' | 'recursos' | 'exibir' | 'formato' | 'nexo' | 'drafts' | 'scrumble' =
+    viewMode === 'scrumble'
+      ? 'scrumble'
+      : viewMode === 'nexo'
+        ? 'nexo'
+        : viewMode === 'drafts'
+          ? 'drafts'
+          : activeTab === 'scrumble' || activeTab === 'nexo' || activeTab === 'drafts'
+            ? 'tarefa'
+            : activeTab;
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(projectTitle);
 
@@ -256,43 +274,47 @@ export const Ribbon: React.FC<RibbonProps> = ({
           Arquivo
         </button>
         <button
-          className={`ribbon-tab ${activeTab === 'tarefa' ? 'active' : ''}`}
+          className={`ribbon-tab ${effectiveTab === 'tarefa' ? 'active' : ''}`}
           onClick={() => {
             setActiveTab('tarefa');
-            if (viewMode === 'nexo' || viewMode === 'drafts') setViewMode('gantt');
+            if (viewMode === 'nexo' || viewMode === 'drafts' || viewMode === 'scrumble')
+              setViewMode('gantt');
           }}
         >
           Tarefa
         </button>
         <button
-          className={`ribbon-tab ${activeTab === 'recursos' ? 'active' : ''}`}
+          className={`ribbon-tab ${effectiveTab === 'recursos' ? 'active' : ''}`}
           onClick={() => {
             setActiveTab('recursos');
-            if (viewMode === 'nexo' || viewMode === 'drafts') setViewMode('gantt');
+            if (viewMode === 'nexo' || viewMode === 'drafts' || viewMode === 'scrumble')
+              setViewMode('gantt');
           }}
         >
           Recursos
         </button>
         <button
-          className={`ribbon-tab ${activeTab === 'exibir' ? 'active' : ''}`}
+          className={`ribbon-tab ${effectiveTab === 'exibir' ? 'active' : ''}`}
           onClick={() => {
             setActiveTab('exibir');
-            if (viewMode === 'nexo' || viewMode === 'drafts') setViewMode('gantt');
+            if (viewMode === 'nexo' || viewMode === 'drafts' || viewMode === 'scrumble')
+              setViewMode('gantt');
           }}
         >
           Exibição
         </button>
         <button
-          className={`ribbon-tab ${activeTab === 'formato' ? 'active' : ''}`}
+          className={`ribbon-tab ${effectiveTab === 'formato' ? 'active' : ''}`}
           onClick={() => {
             setActiveTab('formato');
-            if (viewMode === 'nexo' || viewMode === 'drafts') setViewMode('gantt');
+            if (viewMode === 'nexo' || viewMode === 'drafts' || viewMode === 'scrumble')
+              setViewMode('gantt');
           }}
         >
           Formato
         </button>
         <button
-          className={`ribbon-tab nexo-ribbon-tab ${activeTab === 'nexo' || viewMode === 'nexo' ? 'active' : ''}`}
+          className={`ribbon-tab nexo-ribbon-tab ${effectiveTab === 'nexo' ? 'active' : ''}`}
           onClick={() => {
             setActiveTab('nexo');
             setViewMode('nexo');
@@ -303,7 +325,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
           Nexo
         </button>
         <button
-          className={`ribbon-tab drafts-ribbon-tab ${activeTab === 'drafts' || viewMode === 'drafts' ? 'active' : ''}`}
+          className={`ribbon-tab drafts-ribbon-tab ${effectiveTab === 'drafts' ? 'active' : ''}`}
           onClick={() => {
             setActiveTab('drafts');
             setViewMode('drafts');
@@ -313,11 +335,23 @@ export const Ribbon: React.FC<RibbonProps> = ({
           <PenTool size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />
           Drafts
         </button>
+
+        <button
+          className={`ribbon-tab scrumble-ribbon-tab ${effectiveTab === 'scrumble' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('scrumble');
+            setViewMode('scrumble');
+          }}
+          title="Abrir Plugin Scrumble — Quadro Kanban Ágil & Solo Scrum integrado ao Cronograma"
+        >
+          <Zap size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />
+          Scrumble
+        </button>
       </div>
 
       {/* Conteúdo da Faixa de Opções (Painel de Comandos) */}
       <div className="ribbon-panel">
-        {activeTab === 'tarefa' && (
+        {effectiveTab === 'tarefa' && (
           <div className="ribbon-tab-content">
             {/* Grupo: Modos de Exibição */}
             <div className="ribbon-group">
@@ -446,7 +480,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
           </div>
         )}
 
-        {activeTab === 'recursos' && (
+        {effectiveTab === 'recursos' && (
           <div className="ribbon-tab-content">
             <div className="ribbon-group">
               <div className="group-content">
@@ -464,7 +498,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
           </div>
         )}
 
-        {activeTab === 'exibir' && (
+        {effectiveTab === 'exibir' && (
           <div className="ribbon-tab-content">
             {/* Grupo Modos de Exibição */}
             <div className="ribbon-group">
@@ -539,7 +573,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
           </div>
         )}
 
-        {activeTab === 'formato' && (
+        {effectiveTab === 'formato' && (
           <div className="ribbon-tab-content">
             <div className="ribbon-group">
               <div className="group-content horizontal">
@@ -569,7 +603,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
           </div>
         )}
 
-        {activeTab === 'nexo' && (
+        {effectiveTab === 'nexo' && (
           <div className="ribbon-tab-content">
             {/* Grupo: As 4 Fases da Metodologia Nexo */}
             <div className="ribbon-group">
@@ -652,7 +686,7 @@ export const Ribbon: React.FC<RibbonProps> = ({
           </div>
         )}
 
-        {activeTab === 'drafts' && (
+        {effectiveTab === 'drafts' && (
           <div className="ribbon-tab-content">
             {/* Grupo: Inserir Elementos no Quadro Branco */}
             <div className="ribbon-group">
@@ -774,6 +808,119 @@ export const Ribbon: React.FC<RibbonProps> = ({
                 </button>
               </div>
               <div className="group-label">Visualização</div>
+            </div>
+          </div>
+        )}
+
+        {effectiveTab === 'scrumble' && (
+          <div className="ribbon-tab-content scrumble-ribbon-panel">
+            {/* Grupo: Ritos Solo Scrum */}
+            <div className="ribbon-group">
+              <div className="group-content">
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('scrumble');
+                    onScrumbleCommand?.('open_planning');
+                  }}
+                  title="Planning (Segunda-feira): definir meta e comprometer tarefas da Sprint"
+                >
+                  <Calendar size={24} className="tool-icon primary-color" />
+                  <span>Planning</span>
+                </button>
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('scrumble');
+                    onScrumbleCommand?.('open_daily');
+                  }}
+                  title="Daily Solo (máximo 5 minutos): ontem, foco de hoje e bloqueios"
+                >
+                  <Sun size={24} className="tool-icon warning-color" />
+                  <span>Daily (5m)</span>
+                </button>
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('scrumble');
+                    onScrumbleCommand?.('open_review');
+                  }}
+                  title="Review & Retrospectiva (Sexta-feira): revisar entregas e encerrar Sprint"
+                >
+                  <Flag size={24} className="tool-icon success-color" />
+                  <span>Review</span>
+                </button>
+              </div>
+              <div className="group-label">Ritos Solo Scrum</div>
+            </div>
+
+            {/* Grupo: Quadro Kanban & Foco */}
+            <div className="ribbon-group">
+              <div className="group-content">
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('scrumble');
+                    onScrumbleCommand?.('new_card');
+                  }}
+                  title="Adicionar novo cartão sincronizado com a Planilha"
+                >
+                  <Plus size={24} className="tool-icon primary-color" />
+                  <span>Novo Cartão</span>
+                </button>
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('scrumble');
+                    onScrumbleCommand?.('toggle_icebox');
+                  }}
+                  title="Mostrar ou ocultar coluna Talvez / Futuro (Icebox)"
+                >
+                  <Snowflake size={24} className="tool-icon primary-color" />
+                  <span>Talvez/Futuro</span>
+                </button>
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('scrumble');
+                    onScrumbleCommand?.('toggle_pomodoro');
+                  }}
+                  title="Iniciar ou pausar bloco Timeboxing Pomodoro"
+                >
+                  <Play size={24} className="tool-icon danger-color" />
+                  <span>Pomodoro</span>
+                </button>
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setViewMode('scrumble');
+                    onScrumbleCommand?.('open_history');
+                  }}
+                  title="Histórico de Sprints e Dailies"
+                >
+                  <History size={24} className="tool-icon primary-color" />
+                  <span>Histórico</span>
+                </button>
+              </div>
+              <div className="group-label">Kanban &amp; Timeboxing</div>
+            </div>
+
+            {/* Grupo: Alternar Metodologia */}
+            <div className="ribbon-group">
+              <div className="group-content">
+                <button
+                  className="large-tool-btn"
+                  onClick={() => {
+                    setActiveTab('tarefa');
+                    setViewMode('gantt');
+                  }}
+                  title="Alternar para visão Linear (Gráfico de Gantt + Planilha)"
+                >
+                  <BarChart3 size={24} className="tool-icon primary-color" />
+                  <span>Ir p/ Gantt</span>
+                </button>
+              </div>
+              <div className="group-label">Metodologia</div>
             </div>
           </div>
         )}

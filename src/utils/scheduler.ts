@@ -1,4 +1,4 @@
-import { Task, CalendarException, ScheduleDirection } from '../types/project';
+import { Task, CalendarException, ScheduleDirection, KanbanStatus } from '../types/project';
 
 /**
  * Utilitários de data e cálculo de cronograma do MS Project com suporte
@@ -1124,6 +1124,7 @@ export function recalculateSchedule(
       for (let j = i + 1; j < updatedTasks.length; j++) {
         const child = updatedTasks[j];
         if (child.outlineLevel <= task.outlineLevel) break; // Saiu da sub-árvore do Subprojeto
+        if (!child.isSummary && child.kanbanStatus === 'icebox') continue; // Isola tarefas "Talvez / Futuro" do cronograma Linear
 
         const cStart = parseISODate(child.startDate);
         const cEnd = parseISODate(child.endDate);
@@ -1199,6 +1200,7 @@ export function recalculateSchedule(
   // 5. Determinar Caminho Crítico (CPM) — apenas para tarefas executáveis (!isSummary)
   let projectEndDate: Date | null = null;
   updatedTasks.forEach((t) => {
+    if (!t.isSummary && t.kanbanStatus === 'icebox') return;
     const end = parseISODate(t.endDate);
     if (!projectEndDate || end > projectEndDate) {
       projectEndDate = end;
@@ -1210,7 +1212,7 @@ export function recalculateSchedule(
     const criticalIndices = new Set<number>();
 
     updatedTasks.forEach((t, idx) => {
-      if (!t.isSummary && t.endDate === projectEndStr) {
+      if (!t.isSummary && t.kanbanStatus !== 'icebox' && t.endDate === projectEndStr) {
         criticalIndices.add(idx + 1);
       }
     });
@@ -1233,7 +1235,7 @@ export function recalculateSchedule(
     }
 
     updatedTasks.forEach((t, idx) => {
-      t.isCritical = !t.isSummary && criticalIndices.has(idx + 1);
+      t.isCritical = !t.isSummary && t.kanbanStatus !== 'icebox' && criticalIndices.has(idx + 1);
     });
   }
 
@@ -1270,6 +1272,10 @@ export function getVisibleTasks(tasks: Task[]): Task[] {
       }
     }
 
+    if (!t.isSummary && t.kanbanStatus === 'icebox') {
+      continue;
+    }
+
     visible.push(t);
 
     if (t.isSummary && t.collapsed) {
@@ -1290,12 +1296,46 @@ export function getSubtreeTaskCount(tasks: Task[], summaryTaskId: string): numbe
   let count = 0;
   for (let j = idx + 1; j < tasks.length; j++) {
     if (tasks[j].outlineLevel > baseLevel) {
-      count++;
+      if (tasks[j].isSummary || tasks[j].kanbanStatus !== 'icebox') {
+        count++;
+      }
     } else {
       break;
     }
   }
   return count;
+}
+
+/**
+ * Conta quantas tarefas executáveis dentro de um Subprojeto estão isoladas no Icebox ("Talvez / Futuro").
+ */
+export function getSubtreeIceboxCount(tasks: Task[], summaryTaskId: string): number {
+  const idx = tasks.findIndex((t) => t.id === summaryTaskId);
+  if (idx < 0) return 0;
+  const baseLevel = tasks[idx].outlineLevel;
+  let count = 0;
+  for (let j = idx + 1; j < tasks.length; j++) {
+    if (tasks[j].outlineLevel > baseLevel) {
+      if (!tasks[j].isSummary && tasks[j].kanbanStatus === 'icebox') {
+        count++;
+      }
+    } else {
+      break;
+    }
+  }
+  return count;
+}
+
+/**
+ * Determina a coluna Kanban efetiva de uma tarefa executável com sincronização bidirecional
+ * em relação ao campo `progress` (funciona inclusive para tarefas criadas antes do Scrumble).
+ */
+export function deriveEffectiveKanbanStatus(task: Task): KanbanStatus {
+  if (task.kanbanStatus === 'icebox') return 'icebox';
+  if (task.progress >= 100) return 'done';
+  if (task.kanbanStatus) return task.kanbanStatus;
+  if (task.progress > 0) return 'in_progress';
+  return 'backlog';
 }
 
 

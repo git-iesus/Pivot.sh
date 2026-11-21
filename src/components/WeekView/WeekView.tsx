@@ -59,7 +59,7 @@ export const WeekView: React.FC<WeekViewProps> = ({
         effectiveExceptions: getEffectiveExceptions(tasks, idx, exceptions),
         parentSubproject: getParentSubproject(tasks, idx),
       }))
-      .filter((entry) => !entry.task.isSummary);
+      .filter((entry) => !entry.task.isSummary && entry.task.kanbanStatus !== 'icebox');
   }, [tasks, activeWeekDays, exceptions]);
 
   // Coleta os calendários e exceções de todos os Subprojetos para saber se o dia na coluna possui expediente em algum Subprojeto

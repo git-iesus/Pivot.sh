@@ -19,11 +19,14 @@ import {
   Link2,
   Unlink2,
   Paperclip,
+  Zap,
+  Snowflake,
 } from 'lucide-react';
 import {
   formatDatePTBR,
   getVisibleTasks,
   getSubtreeTaskCount,
+  getSubtreeIceboxCount,
   getEffectiveActiveWeekDays,
   formatActiveWeekDaysShort,
   getBaselineVarianceDays,
@@ -51,6 +54,7 @@ interface TaskSheetProps {
   onToggleCollapse: (taskId: string) => void;
   onAddTask: () => void;
   onOpenTaskDetail: (taskId: string) => void;
+  onOpenSubprojectInScrumble?: (subprojectId: string, openIcebox?: boolean) => void;
   rowHeights?: Record<string, number>;
   onUpdateRowHeight?: (taskId: string, height: number) => void;
   scrollTop: number;
@@ -137,6 +141,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
   onToggleCollapse,
   onAddTask,
   onOpenTaskDetail,
+  onOpenSubprojectInScrumble,
   rowHeights,
   onUpdateRowHeight,
   onScroll,
@@ -461,6 +466,7 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
           const displayRowNum = task.rowNumber ?? index + 1;
           const hiddenSubtaskCount =
             task.isSummary && task.collapsed ? getSubtreeTaskCount(tasks, task.id) : 0;
+          const iceboxSubtaskCount = task.isSummary ? getSubtreeIceboxCount(tasks, task.id) : 0;
 
           const fullTaskIdx = taskIndexMap.get(task.id) ?? index;
           const effectiveActiveDays = task.isSummary
@@ -678,6 +684,36 @@ export const TaskSheet: React.FC<TaskSheetProps> = ({
                           {task.isOverdueStart ? '⚠️ ' : '⏪ '}
                           Meta: {formatDatePTBR(task.targetEndDate || task.endDate)}
                         </span>
+                      </button>
+                    )}
+                    {task.isSummary && task.methodology === 'agile' && (
+                      <button
+                        type="button"
+                        className="subproject-agile-pill"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectTask(task.id);
+                          onOpenSubprojectInScrumble?.(task.id, false);
+                        }}
+                        title="Subprojeto em modo Ágil (Scrumble) — Clique para abrir no Quadro Kanban"
+                      >
+                        <Zap size={10} />
+                        <span>Ágil</span>
+                      </button>
+                    )}
+                    {task.isSummary && iceboxSubtaskCount > 0 && (
+                      <button
+                        type="button"
+                        className="subproject-icebox-pill"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectTask(task.id);
+                          onOpenSubprojectInScrumble?.(task.id, true);
+                        }}
+                        title={`${iceboxSubtaskCount} ${iceboxSubtaskCount === 1 ? 'tarefa em Talvez / Futuro' : 'tarefas em Talvez / Futuro'} (ocultas do Gantt) — Clique para gerenciar no Scrumble`}
+                      >
+                        <Snowflake size={10} />
+                        <span>{iceboxSubtaskCount} futuro</span>
                       </button>
                     )}
                     {hiddenSubtaskCount > 0 && (

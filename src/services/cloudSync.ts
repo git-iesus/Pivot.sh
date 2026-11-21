@@ -5,10 +5,12 @@ import {
   ProjectMetadata,
   NexoProjectState,
   DraftsState,
+  ScrumbleState,
 } from '../types/project';
 import { defaultTasks, defaultResources, defaultMetadata } from '../data/sampleProjects';
 import { defaultNexoState } from '../components/Nexo/NexoPlugin';
 import { defaultDraftsState } from '../components/Drafts/DraftsPlugin';
+import { defaultScrumbleState } from '../components/Scrumble/scrumbleDefaults';
 
 export interface AuthUser {
   id: string;
@@ -23,6 +25,7 @@ export interface ProjectCloudPayload {
   nexoState: NexoProjectState;
   rowHeights: Record<string, number>;
   draftsState?: DraftsState;
+  scrumbleState?: ScrumbleState;
   updatedAt?: string;
 }
 
@@ -38,7 +41,9 @@ const LOCAL_FALLBACK_SESSION_KEY = 'pivot_local_auth_session_jwt';
 const LOCAL_FALLBACK_DB_PREFIX = 'pivot_cloud_db_user_';
 const USER_CACHE_PREFIX = 'pivot_user_cache_';
 const DRAFTS_CACHE_PREFIX = 'pivot_drafts_user_';
+const SCRUMBLE_CACHE_PREFIX = 'pivot_scrumble_user_';
 let supabaseSupportsDraftsColumn = true;
+let supabaseSupportsScrumbleColumn = true;
 
 // Chaves legadas do localStorage (usadas antes do sistema de contas para migração automática)
 const LEGACY_KEYS = {
@@ -407,6 +412,27 @@ export function loadCachedDraftsState(userId?: string): DraftsState {
   }
 }
 
+export function loadCachedScrumbleState(userId?: string): ScrumbleState {
+  if (!userId) return defaultScrumbleState;
+  try {
+    const raw = localStorage.getItem(`${SCRUMBLE_CACHE_PREFIX}${userId}`);
+    if (!raw) return defaultScrumbleState;
+    const parsed = JSON.parse(raw);
+    return {
+      ...defaultScrumbleState,
+      ...parsed,
+      sprintHistory: Array.isArray(parsed?.sprintHistory) ? parsed.sprintHistory : [],
+      dailyLogs: Array.isArray(parsed?.dailyLogs) ? parsed.dailyLogs : [],
+      pomodoroConfig: {
+        ...defaultScrumbleState.pomodoroConfig,
+        ...(parsed?.pomodoroConfig || {}),
+      },
+    };
+  } catch {
+    return defaultScrumbleState;
+  }
+}
+
 export function createDefaultPayload(): ProjectCloudPayload {
   return {
     tasks: defaultTasks,
@@ -419,6 +445,7 @@ export function createDefaultPayload(): ProjectCloudPayload {
     nexoState: defaultNexoState,
     rowHeights: {},
     draftsState: defaultDraftsState,
+    scrumbleState: defaultScrumbleState,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -439,6 +466,30 @@ function normalizeCloudPayload(raw: any, fallbackUserId?: string): ProjectCloudP
         viewport: rawDrafts.viewport || defaultDraftsState.viewport,
       }
     : loadCachedDraftsState(fallbackUserId);
+
+  const rawScrumble = raw?.scrumble_state || raw?.scrumbleState;
+  const hasCloudScrumble =
+    rawScrumble &&
+    typeof rawScrumble === 'object' &&
+    ('pomodoroConfig' in rawScrumble ||
+      'sprintHistory' in rawScrumble ||
+      'currentSprint' in rawScrumble ||
+      'dailyLogs' in rawScrumble);
+
+  const normalizedScrumble: ScrumbleState = hasCloudScrumble
+    ? {
+        ...defaultScrumbleState,
+        ...rawScrumble,
+        sprintHistory: Array.isArray(rawScrumble.sprintHistory)
+          ? rawScrumble.sprintHistory
+          : [],
+        dailyLogs: Array.isArray(rawScrumble.dailyLogs) ? rawScrumble.dailyLogs : [],
+        pomodoroConfig: {
+          ...defaultScrumbleState.pomodoroConfig,
+          ...(rawScrumble.pomodoroConfig || {}),
+        },
+      }
+    : loadCachedScrumbleState(fallbackUserId);
 
   return {
     tasks: Array.isArray(raw?.tasks) ? raw.tasks : defaultTasks,
@@ -461,6 +512,7 @@ function normalizeCloudPayload(raw: any, fallbackUserId?: string): ProjectCloudP
         ? (raw.row_heights || raw.rowHeights)
         : {},
     draftsState: normalizedDrafts,
+    scrumbleState: normalizedScrumble,
     updatedAt: raw?.updated_at || raw?.updatedAt || new Date().toISOString(),
   };
 }
@@ -477,6 +529,7 @@ export async function saveUserProjectToCloud(
   const fullPayload: ProjectCloudPayload = {
     ...payload,
     draftsState: payload.draftsState || defaultDraftsState,
+    scrumbleState: payload.scrumbleState || defaultScrumbleState,
     updatedAt: nowIso,
   };
 
@@ -487,6 +540,12 @@ export async function saveUserProjectToCloud(
       localStorage.setItem(
         `${DRAFTS_CACHE_PREFIX}${user.id}`,
         JSON.stringify(fullPayload.draftsState)
+      );
+    }
+    if (fullPayload.scrumbleState) {
+      localStorage.setItem(
+        `${SCRUMBLE_CACHE_PREFIX}${user.id}`,
+        JSON.stringify(fullPayload.scrumbleState)
       );
     }
   } catch {
@@ -509,21 +568,40 @@ export async function saveUserProjectToCloud(
     if (supabaseSupportsDraftsColumn && fullPayload.draftsState) {
       baseRecord.drafts_state = fullPayload.draftsState;
     }
+    if (supabaseSupportsScrumbleColumn && fullPayload.scrumbleState) {
+      baseRecord.scrumble_state = fullPayload.scrumbleState;
+    }
 
     const { error } = await supabase
       .from('user_projects')
       .upsert(baseRecord, { onConflict: 'user_id' });
 
     if (error) {
-      if (
-        supabaseSupportsDraftsColumn &&
-        (error.message?.includes('drafts_state') || error.code === 'PGRST204')
-      ) {
-        supabaseSupportsDraftsColumn = false;
-        delete baseRecord.drafts_state;
-        const retry = await supabase
+      const msg = error.message || '';
+      const isSchemaMismatch =
+        msg.includes('drafts_state') ||
+        msg.includes('scrumble_state') ||
+        error.code === 'PGRST204';
+
+      if (isSchemaMismatch && (supabaseSupportsDraftsColumn || supabaseSupportsScrumbleColumn)) {
+        if (msg.includes('scrumble_state') || error.code === 'PGRST204') {
+          supabaseSupportsScrumbleColumn = false;
+          delete baseRecord.scrumble_state;
+        }
+        if (msg.includes('drafts_state')) {
+          supabaseSupportsDraftsColumn = false;
+          delete baseRecord.drafts_state;
+        }
+        let retry = await supabase
           .from('user_projects')
           .upsert(baseRecord, { onConflict: 'user_id' });
+        if (retry.error && (retry.error.message?.includes('drafts_state') || retry.error.code === 'PGRST204')) {
+          supabaseSupportsDraftsColumn = false;
+          delete baseRecord.drafts_state;
+          retry = await supabase
+            .from('user_projects')
+            .upsert(baseRecord, { onConflict: 'user_id' });
+        }
         if (!retry.error) return;
         console.error('Erro ao sincronizar projeto no Supabase:', retry.error.message);
         throw new Error(retry.error.message);

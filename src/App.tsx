@@ -10,6 +10,8 @@ import {
   NexoPhase,
   NexoRoleView,
   DraftsState,
+  ScrumbleState,
+  KanbanStatus,
 } from './types/project';
 import { defaultTasks, defaultResources, defaultMetadata } from './data/sampleProjects';
 import {
@@ -46,6 +48,11 @@ import {
   defaultDraftsState,
   DraftsExternalCommand,
 } from './components/Drafts/DraftsPlugin';
+import { ScrumblePlugin } from './components/Scrumble/ScrumblePlugin';
+import {
+  defaultScrumbleState,
+  ScrumbleExternalCommand,
+} from './components/Scrumble/scrumbleDefaults';
 import { AuthScreen } from './components/Auth/AuthScreen';
 import { deleteTaskAttachmentsBatch } from './services/attachmentsService';
 import {
@@ -187,6 +194,30 @@ export const App: React.FC = () => {
   });
   const [draftsCommand, setDraftsCommand] = useState<DraftsExternalCommand | null>(null);
 
+  // Estado do Plugin SCRUMBLE (Scrum Solo + Kanban + Timeboxing)
+  const [scrumbleState, setScrumbleState] = useState<ScrumbleState>(() => {
+    const saved = localStorage.getItem('pivot_scrumble_local_fallback');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...defaultScrumbleState,
+          ...parsed,
+          sprintHistory: Array.isArray(parsed.sprintHistory) ? parsed.sprintHistory : [],
+          dailyLogs: Array.isArray(parsed.dailyLogs) ? parsed.dailyLogs : [],
+          pomodoroConfig: {
+            ...defaultScrumbleState.pomodoroConfig,
+            ...(parsed.pomodoroConfig || {}),
+          },
+        };
+      } catch {
+        // fallback
+      }
+    }
+    return defaultScrumbleState;
+  });
+  const [scrumbleCommand, setScrumbleCommand] = useState<ScrumbleExternalCommand | null>(null);
+
   // Alturas individuais das linhas estilo Excel
   const [rowHeights, setRowHeights] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem('ms_project_row_heights');
@@ -303,6 +334,7 @@ export const App: React.FC = () => {
     nexoState,
     rowHeights,
     draftsState,
+    scrumbleState,
   });
   useEffect(() => {
     latestProjectRef.current = {
@@ -312,8 +344,9 @@ export const App: React.FC = () => {
       nexoState,
       rowHeights,
       draftsState,
+      scrumbleState,
     };
-  }, [scheduledTasks, resources, metadata, nexoState, rowHeights, draftsState]);
+  }, [scheduledTasks, resources, metadata, nexoState, rowHeights, draftsState, scrumbleState]);
 
   const handleAuthenticated = useCallback(
     async (user: AuthUser) => {
@@ -334,6 +367,9 @@ export const App: React.FC = () => {
         setRowHeights(payload.rowHeights || {});
         if (payload.draftsState) {
           setDraftsState(payload.draftsState);
+        }
+        if (payload.scrumbleState) {
+          setScrumbleState(payload.scrumbleState);
         }
         setHistory([]);
         setFuture([]);
@@ -400,6 +436,7 @@ export const App: React.FC = () => {
             nexoState: latestProjectRef.current.nexoState,
             rowHeights: latestProjectRef.current.rowHeights,
             draftsState: latestProjectRef.current.draftsState,
+            scrumbleState: latestProjectRef.current.scrumbleState,
           });
         } catch {
           // fallback silencioso
@@ -485,6 +522,32 @@ export const App: React.FC = () => {
     const updated = scheduledTasks.map((t, idx) => {
       if (t.id !== taskId) return t;
       const merged = { ...t, ...updates };
+
+      // Sincronização bidirecional automática entre % Concluída (Planilha) e Quadro Kanban (Scrumble)
+      if (!t.isSummary && updates.progress !== undefined && updates.kanbanStatus === undefined) {
+        if (updates.progress >= 100) {
+          if (merged.kanbanStatus !== 'icebox') {
+            merged.kanbanStatus = 'done';
+          }
+          merged.completedAt = merged.completedAt || toISODate(new Date());
+          merged.isBlocked = false;
+          merged.blockerNote = undefined;
+        } else if (t.progress >= 100 && updates.progress < 100) {
+          if (merged.kanbanStatus !== 'icebox') {
+            merged.kanbanStatus = updates.progress > 0 ? 'in_progress' : 'sprint_todo';
+          }
+          merged.completedAt = undefined;
+        } else if (
+          t.progress === 0 &&
+          updates.progress > 0 &&
+          updates.progress < 100 &&
+          (!merged.kanbanStatus ||
+            merged.kanbanStatus === 'backlog' ||
+            merged.kanbanStatus === 'sprint_todo')
+        ) {
+          merged.kanbanStatus = 'in_progress';
+        }
+      }
 
       // Se o usuário editou a Data de Término de um Subprojeto em modo Reverso, atualiza a Data Limite (targetEndDate)
       if (t.isSummary && updates.endDate && merged.scheduleDirection === 'backward') {
@@ -954,11 +1017,36 @@ export const App: React.FC = () => {
   }, [checkedTaskIds, selectedTaskId, scheduledTasks, pushTaskState, showToast]);
 
   const handleSetProgress = (progress: number) => {
+    const todayIso = toISODate(new Date());
     if (checkedTaskIds.length > 0) {
       const targetIds = new Set(checkedTaskIds);
-      const updated = scheduledTasks.map((t) =>
-        targetIds.has(t.id) && !t.isSummary ? { ...t, progress } : t
-      );
+      const updated = scheduledTasks.map((t) => {
+        if (!targetIds.has(t.id) || t.isSummary) return t;
+        const nextKanban: KanbanStatus | undefined =
+          t.kanbanStatus === 'icebox'
+            ? 'icebox'
+            : progress >= 100
+              ? 'done'
+              : t.progress >= 100
+                ? progress > 0
+                  ? 'in_progress'
+                  : 'sprint_todo'
+                : t.progress === 0 &&
+                    progress > 0 &&
+                    progress < 100 &&
+                    (!t.kanbanStatus ||
+                      t.kanbanStatus === 'backlog' ||
+                      t.kanbanStatus === 'sprint_todo')
+                  ? 'in_progress'
+                  : t.kanbanStatus;
+        return {
+          ...t,
+          progress,
+          kanbanStatus: nextKanban,
+          completedAt: progress >= 100 ? t.completedAt || todayIso : undefined,
+          ...(progress >= 100 ? { isBlocked: false, blockerNote: undefined } : {}),
+        };
+      });
       pushTaskState(updated);
       showToast(`Progresso atualizado (${progress}%) nas tarefas selecionadas!`);
       return;
@@ -1067,6 +1155,7 @@ export const App: React.FC = () => {
         nexoState: next,
         rowHeights: latestProjectRef.current.rowHeights,
         draftsState: latestProjectRef.current.draftsState,
+        scrumbleState: latestProjectRef.current.scrumbleState,
       }).catch(() => {});
     }
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -1098,6 +1187,7 @@ export const App: React.FC = () => {
             nexoState: latestProjectRef.current.nexoState,
             rowHeights: latestProjectRef.current.rowHeights,
             draftsState: next,
+            scrumbleState: latestProjectRef.current.scrumbleState,
           });
         } catch {
           // fallback silencioso
@@ -1116,6 +1206,136 @@ export const App: React.FC = () => {
       action,
     }));
   }, []);
+
+  // Atualizador do Plugin SCRUMBLE com Auto-Save (nuvem + cache local, compatível com StrictMode)
+  const handleUpdateScrumbleState = useCallback(
+    (updater: (prev: ScrumbleState) => ScrumbleState) => {
+      const next = updater(latestProjectRef.current.scrumbleState);
+      latestProjectRef.current.scrumbleState = next;
+      setScrumbleState(next);
+      setSaveStatus('saving');
+      try {
+        localStorage.setItem('pivot_scrumble_local_fallback', JSON.stringify(next));
+      } catch {
+        // ignore quota
+      }
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(async () => {
+        if (currentUserRef.current) {
+          try {
+            await saveUserProjectToCloud(currentUserRef.current, {
+              tasks: latestProjectRef.current.tasks,
+              resources: latestProjectRef.current.resources,
+              metadata: latestProjectRef.current.metadata,
+              nexoState: latestProjectRef.current.nexoState,
+              rowHeights: latestProjectRef.current.rowHeights,
+              draftsState: latestProjectRef.current.draftsState,
+              scrumbleState: next,
+            });
+          } catch {
+            // fallback silencioso
+          }
+        }
+        setSaveStatus('saved');
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        setLastSavedTime(timeStr);
+      }, 400);
+    },
+    []
+  );
+
+  const handleScrumbleCommand = useCallback((type: ScrumbleExternalCommand['type']) => {
+    setScrumbleCommand((prev) => ({
+      id: (prev?.id || 0) + 1,
+      type,
+    }));
+  }, []);
+
+  const handleBatchUpdateTasks = useCallback(
+    (updater: (prev: Task[]) => Task[]) => {
+      const nextTasks = updater(scheduledTasks);
+      pushTaskState(nextTasks);
+    },
+    [scheduledTasks, pushTaskState]
+  );
+
+  const handleAddQuickScrumbleTask = useCallback(
+    (
+      name: string,
+      opts: {
+        subprojectId?: string;
+        kanbanStatus: KanbanStatus;
+        sprintId?: string;
+        storyPoints?: number;
+      }
+    ) => {
+      const activeDays = metadata.activeWeekDays || [1, 2, 3, 4, 5];
+      const exceptions = metadata.exceptions || [];
+      const today = toWorkDay(new Date(), activeDays, exceptions);
+      const startStr = toISODate(today);
+      const endStr = toISODate(addWorkDays(today, 1, activeDays, exceptions));
+
+      let insertIdx = scheduledTasks.length;
+      let outlineLevel = 0;
+
+      if (opts.subprojectId) {
+        const subIdx = scheduledTasks.findIndex((t) => t.id === opts.subprojectId);
+        if (subIdx >= 0) {
+          const baseLevel = scheduledTasks[subIdx].outlineLevel;
+          outlineLevel = Math.min(5, baseLevel + 1);
+          insertIdx = subIdx + 1;
+          while (
+            insertIdx < scheduledTasks.length &&
+            scheduledTasks[insertIdx].outlineLevel > baseLevel
+          ) {
+            insertIdx++;
+          }
+        }
+      }
+
+      const newTask: Task = {
+        id: `task_${Date.now()}`,
+        wbsIndex: '',
+        name,
+        durationDays: 1,
+        startDate: startStr,
+        endDate: endStr,
+        progress: opts.kanbanStatus === 'in_progress' ? 25 : opts.kanbanStatus === 'done' ? 100 : 0,
+        mode: defaultTaskMode,
+        predecessorText: '',
+        resourceNames: [],
+        outlineLevel,
+        isSummary: false,
+        isMilestone: false,
+        cost: 0,
+        kanbanStatus: opts.kanbanStatus,
+        sprintId: opts.sprintId,
+        storyPoints: opts.storyPoints,
+      };
+
+      const nextList = [
+        ...scheduledTasks.slice(0, insertIdx),
+        newTask,
+        ...scheduledTasks.slice(insertIdx),
+      ];
+      pushTaskState(remapPredecessorsForNewTaskOrder(scheduledTasks, nextList));
+      setSelectedTaskId(newTask.id);
+    },
+    [scheduledTasks, metadata.activeWeekDays, metadata.exceptions, defaultTaskMode, pushTaskState]
+  );
+
+  const handleOpenSubprojectInScrumble = useCallback(
+    (subprojectId: string, openIcebox?: boolean) => {
+      handleUpdateScrumbleState((prev) => ({
+        ...prev,
+        activeSubprojectId: subprojectId,
+        ...(openIcebox !== undefined ? { showIceboxColumn: openIcebox || prev.showIceboxColumn } : {}),
+      }));
+      setViewMode('scrumble');
+    },
+    [handleUpdateScrumbleState]
+  );
 
   const handleStartNewNexoProject = useCallback(() => {
     handleUpdateNexoState({
@@ -1306,15 +1526,15 @@ export const App: React.FC = () => {
         e.preventDefault();
         handleManualSave();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        if (viewMode === 'drafts') return; // Drafts possui seu próprio histórico Undo/Redo
+        if (viewMode === 'drafts' || viewMode === 'scrumble') return; // Drafts e Scrumble possuem controle próprio de edição/desfazer
         e.preventDefault();
         handleUndo();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-        if (viewMode === 'drafts') return;
+        if (viewMode === 'drafts' || viewMode === 'scrumble') return;
         e.preventDefault();
         handleRedo();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'F2') {
-        if (viewMode === 'drafts' || viewMode === 'nexo') return;
+        if (viewMode === 'drafts' || viewMode === 'nexo' || viewMode === 'scrumble') return;
         e.preventDefault();
         if (e.shiftKey) {
           handleUnlinkTasks();
@@ -1449,6 +1669,7 @@ export const App: React.FC = () => {
         onStartNewNexoProject={handleStartNewNexoProject}
         onSyncNexoToGantt={handleSyncNexoToGantt}
         onDraftsCommand={handleDraftsCommand}
+        onScrumbleCommand={handleScrumbleCommand}
         userEmail={currentUser.email}
         onLogout={handleLogout}
       />
@@ -1456,6 +1677,7 @@ export const App: React.FC = () => {
       {/* Alerta Visual de Prazo Estourado no Agendamento Reverso (De Trás para Frente) */}
       {viewMode !== 'nexo' &&
         viewMode !== 'drafts' &&
+        viewMode !== 'scrumble' &&
         (() => {
           const overdueSummaries = scheduledTasks.filter(
             (t) => t.isSummary && t.scheduleDirection === 'backward' && t.isOverdueStart
@@ -1484,9 +1706,28 @@ export const App: React.FC = () => {
           );
         })()}
 
-      {/* Área Principal de Trabalho (Split Panes: Planilha de Tarefas, Gráfico de Gantt, Minha Semana, Nexo ou Drafts) */}
+      {/* Área Principal de Trabalho (Split Panes: Planilha de Tarefas, Gráfico de Gantt, Minha Semana, Nexo, Drafts ou Scrumble) */}
       <div className="workspace-container">
-        {viewMode === 'drafts' ? (
+        {viewMode === 'scrumble' ? (
+          <ScrumblePlugin
+            tasks={scheduledTasks}
+            resources={resources}
+            metadata={metadata}
+            scrumbleState={scrumbleState}
+            onUpdateScrumbleState={handleUpdateScrumbleState}
+            onUpdateTask={handleUpdateTask}
+            onBatchUpdateTasks={handleBatchUpdateTasks}
+            onAddQuickTask={handleAddQuickScrumbleTask}
+            onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
+            onSwitchToGantt={(subId) => {
+              if (subId) setSelectedTaskId(subId);
+              setViewMode('gantt');
+            }}
+            externalCommand={scrumbleCommand}
+            onClearExternalCommand={() => setScrumbleCommand(null)}
+            onShowToast={showToast}
+          />
+        ) : viewMode === 'drafts' ? (
           <DraftsPlugin
             draftsState={draftsState}
             onUpdateDraftsState={handleUpdateDraftsState}
@@ -1530,6 +1771,7 @@ export const App: React.FC = () => {
                   }}
                   onAddTask={handleAddTask}
                   onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
+                  onOpenSubprojectInScrumble={handleOpenSubprojectInScrumble}
                   rowHeights={rowHeights}
                   onUpdateRowHeight={handleUpdateRowHeight}
                   scrollTop={0}
@@ -1589,6 +1831,7 @@ export const App: React.FC = () => {
                   }}
                   onAddTask={handleAddTask}
                   onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
+                  onOpenSubprojectInScrumble={handleOpenSubprojectInScrumble}
                   rowHeights={rowHeights}
                   onUpdateRowHeight={handleUpdateRowHeight}
                   scrollTop={0}
@@ -1637,6 +1880,7 @@ export const App: React.FC = () => {
               }}
               onAddTask={handleAddTask}
               onOpenTaskDetail={(id) => setSelectedDetailTaskId(id)}
+              onOpenSubprojectInScrumble={handleOpenSubprojectInScrumble}
               rowHeights={rowHeights}
               onUpdateRowHeight={handleUpdateRowHeight}
               scrollTop={0}
