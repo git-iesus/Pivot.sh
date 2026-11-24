@@ -57,6 +57,7 @@ import { AuthScreen } from './components/Auth/AuthScreen';
 import { deleteTaskAttachmentsBatch } from './services/attachmentsService';
 import {
   AuthUser,
+  cacheDraftsStateLocally,
   getActiveSessionUser,
   loadOrMigrateUserProject,
   saveUserProjectToCloud,
@@ -1171,6 +1172,7 @@ export const App: React.FC = () => {
   const handleUpdateDraftsState = useCallback((next: DraftsState) => {
     setSaveStatus('saving');
     setDraftsState(next);
+    cacheDraftsStateLocally(currentUserRef.current?.id, next);
     try {
       localStorage.setItem('pivot_drafts_local_fallback', JSON.stringify(next));
     } catch {

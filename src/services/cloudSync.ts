@@ -412,6 +412,15 @@ export function loadCachedDraftsState(userId?: string): DraftsState {
   }
 }
 
+export function cacheDraftsStateLocally(userId: string | undefined, draftsState: DraftsState): void {
+  if (!userId) return;
+  try {
+    localStorage.setItem(`${DRAFTS_CACHE_PREFIX}${userId}`, JSON.stringify(draftsState));
+  } catch {
+    // ignore quota errors
+  }
+}
+
 export function loadCachedScrumbleState(userId?: string): ScrumbleState {
   if (!userId) return defaultScrumbleState;
   try {

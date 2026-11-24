@@ -205,6 +205,7 @@ interface RichTextEditableProps {
   className?: string;
   style: React.CSSProperties;
   registerRef: (id: string, node: HTMLDivElement | null) => void;
+  onInputChange: (elementId: string, html: string) => void;
   onCommit: (elementId: string, html: string) => void;
 }
 
@@ -215,6 +216,7 @@ const RichTextEditable: React.FC<RichTextEditableProps> = ({
   className = '',
   style,
   registerRef,
+  onInputChange,
   onCommit,
 }) => {
   const localRef = useRef<HTMLDivElement | null>(null);
@@ -228,8 +230,20 @@ const RichTextEditable: React.FC<RichTextEditableProps> = ({
   }, [htmlContent, isEditing]);
 
   useEffect(() => {
-    if (isEditing && localRef.current) {
-      localRef.current.focus();
+    const node = localRef.current;
+    if (!isEditing || !node) return;
+    node.focus();
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      range.collapse(false);
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    } catch {
+      // ignore selection fallback
     }
   }, [isEditing]);
 
@@ -243,6 +257,7 @@ const RichTextEditable: React.FC<RichTextEditableProps> = ({
       style={style}
       contentEditable={isEditing}
       suppressContentEditableWarning
+      onInput={(e) => onInputChange(elementId, e.currentTarget.innerHTML)}
       onBlur={(e) => onCommit(elementId, e.currentTarget.innerHTML)}
     />
   );
@@ -297,8 +312,47 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const editableRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const editingElementIdRef = useRef<string | null>(null);
+  const editInitialSnapshotRef = useRef<{
+    elementId: string;
+    htmlContent: string;
+    snapshot: { elements: DraftElement[]; connectors: DraftConnector[] };
+  } | null>(null);
   const stateRef = useRef(draftsState);
-  stateRef.current = draftsState;
+  const onUpdateDraftsStateRef = useRef(onUpdateDraftsState);
+
+  useEffect(() => {
+    stateRef.current = draftsState;
+  }, [draftsState]);
+
+  useEffect(() => {
+    editingElementIdRef.current = editingElementId;
+  }, [editingElementId]);
+
+  useEffect(() => {
+    onUpdateDraftsStateRef.current = onUpdateDraftsState;
+  }, [onUpdateDraftsState]);
+
+  useEffect(() => {
+    const editableNodesMap = editableRefs.current;
+    return () => {
+      const elId = editingElementIdRef.current;
+      if (!elId) return;
+      const domHtml = editableNodesMap[elId]?.innerHTML;
+      if (domHtml === undefined) return;
+      const currentEl = stateRef.current.elements.find((item) => item.id === elId);
+      if (currentEl && domHtml !== (currentEl.htmlContent || '')) {
+        const nextState: DraftsState = {
+          ...stateRef.current,
+          elements: stateRef.current.elements.map((item) =>
+            item.id === elId ? { ...item, htmlContent: domHtml } : item
+          ),
+        };
+        stateRef.current = nextState;
+        onUpdateDraftsStateRef.current(nextState);
+      }
+    };
+  }, []);
 
   // Refs de interação contínua
   const interactionRef = useRef<{
@@ -348,6 +402,14 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
     }, 3200);
   }, []);
 
+  const commitDraftsState = useCallback(
+    (next: DraftsState) => {
+      stateRef.current = next;
+      onUpdateDraftsState(next);
+    },
+    [onUpdateDraftsState]
+  );
+
   const pushBoardSnapshot = useCallback(
     (nextElements: DraftElement[], nextConnectors: DraftConnector[], recordHistory = true) => {
       if (recordHistory) {
@@ -357,13 +419,85 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
         ]);
         setRedoStack([]);
       }
-      onUpdateDraftsState({
+      commitDraftsState({
         ...stateRef.current,
         elements: nextElements,
         connectors: nextConnectors,
       });
     },
-    [onUpdateDraftsState]
+    [commitDraftsState]
+  );
+
+  const flushActiveTextEdit = useCallback(
+    (targetElementId?: string, explicitHtml?: string) => {
+      const elId = targetElementId || editingElementIdRef.current;
+      if (!elId) return;
+
+      const finalHtml =
+        explicitHtml !== undefined ? explicitHtml : editableRefs.current[elId]?.innerHTML;
+
+      if (finalHtml !== undefined) {
+        const currentEl = stateRef.current.elements.find((item) => item.id === elId);
+        if (currentEl && finalHtml !== (currentEl.htmlContent || '')) {
+          commitDraftsState({
+            ...stateRef.current,
+            elements: stateRef.current.elements.map((item) =>
+              item.id === elId ? { ...item, htmlContent: finalHtml } : item
+            ),
+          });
+        }
+      }
+
+      const initSnap = editInitialSnapshotRef.current;
+      if (initSnap && initSnap.elementId === elId) {
+        if (finalHtml !== undefined && finalHtml !== initSnap.htmlContent) {
+          setUndoStack((prev) => [...prev.slice(-39), initSnap.snapshot]);
+          setRedoStack([]);
+        }
+        editInitialSnapshotRef.current = null;
+      }
+
+      if (editingElementIdRef.current === elId) {
+        editingElementIdRef.current = null;
+        setEditingElementId((prev) => (prev === elId ? null : prev));
+      }
+    },
+    [commitDraftsState]
+  );
+
+  const startEditingElement = useCallback(
+    (elementId: string) => {
+      if (editingElementIdRef.current && editingElementIdRef.current !== elementId) {
+        flushActiveTextEdit();
+      }
+      const targetEl = stateRef.current.elements.find((item) => item.id === elementId);
+      editInitialSnapshotRef.current = {
+        elementId,
+        htmlContent: targetEl?.htmlContent || '',
+        snapshot: {
+          elements: stateRef.current.elements,
+          connectors: stateRef.current.connectors,
+        },
+      };
+      editingElementIdRef.current = elementId;
+      setEditingElementId(elementId);
+    },
+    [flushActiveTextEdit]
+  );
+
+  const handleRichTextInput = useCallback(
+    (elementId: string, html: string) => {
+      const currentEl = stateRef.current.elements.find((item) => item.id === elementId);
+      if (currentEl && html !== (currentEl.htmlContent || '')) {
+        commitDraftsState({
+          ...stateRef.current,
+          elements: stateRef.current.elements.map((item) =>
+            item.id === elementId ? { ...item, htmlContent: html } : item
+          ),
+        });
+      }
+    },
+    [commitDraftsState]
   );
 
   const handleUndo = useCallback(() => {
@@ -374,13 +508,15 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
       { elements: stateRef.current.elements, connectors: stateRef.current.connectors },
     ]);
     setUndoStack((u) => u.slice(0, -1));
+    editInitialSnapshotRef.current = null;
+    editingElementIdRef.current = null;
     setEditingElementId(null);
-    onUpdateDraftsState({
+    commitDraftsState({
       ...stateRef.current,
       elements: prevSnap.elements,
       connectors: prevSnap.connectors,
     });
-  }, [undoStack, onUpdateDraftsState]);
+  }, [undoStack, commitDraftsState]);
 
   const handleRedo = useCallback(() => {
     if (redoStack.length === 0) return;
@@ -390,13 +526,15 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
       { elements: stateRef.current.elements, connectors: stateRef.current.connectors },
     ]);
     setRedoStack((r) => r.slice(0, -1));
+    editInitialSnapshotRef.current = null;
+    editingElementIdRef.current = null;
     setEditingElementId(null);
-    onUpdateDraftsState({
+    commitDraftsState({
       ...stateRef.current,
       elements: nextSnap.elements,
       connectors: nextSnap.connectors,
     });
-  }, [redoStack, onUpdateDraftsState]);
+  }, [redoStack, commitDraftsState]);
 
   // Resolver URLs de imagens persistidas no Supabase Storage / IndexedDB ao montar ou recarregar estado
   useEffect(() => {
@@ -456,6 +594,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
       worldPos?: { x: number; y: number },
       customStickyColor?: string
     ) => {
+      flushActiveTextEdit();
       const center = worldPos || getViewportCenterWorld();
       const nextZ = getMaxZIndex() + 1;
       let newEl: DraftElement;
@@ -521,12 +660,20 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
       setShowColorMenu(false);
 
       if (kind === 'text') {
-        setEditingElementId(newEl.id);
+        startEditingElement(newEl.id);
       } else {
+        editingElementIdRef.current = null;
         setEditingElementId(null);
       }
     },
-    [activeStickyColor, getMaxZIndex, getViewportCenterWorld, pushBoardSnapshot]
+    [
+      activeStickyColor,
+      flushActiveTextEdit,
+      getMaxZIndex,
+      getViewportCenterWorld,
+      pushBoardSnapshot,
+      startEditingElement,
+    ]
   );
 
   // Inserção de imagem (via Upload, Drag & Drop ou Ctrl+V)
@@ -576,11 +723,11 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
           zIndex: getMaxZIndex() + 1,
         };
 
+        flushActiveTextEdit();
         setResolvedImageUrls((prev) => ({ ...prev, [id]: uploaded.objectUrl }));
         pushBoardSnapshot([...stateRef.current.elements, newEl], stateRef.current.connectors);
         setSelectedElementId(id);
         setSelectedConnectorId(null);
-        setEditingElementId(null);
         setActiveTool('select');
       } catch (err: any) {
         showTempNotice(err?.message || 'Erro ao inserir imagem no quadro.');
@@ -588,7 +735,14 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
         setIsUploadingImage(false);
       }
     },
-    [currentUserId, getMaxZIndex, getViewportCenterWorld, pushBoardSnapshot, showTempNotice]
+    [
+      currentUserId,
+      flushActiveTextEdit,
+      getMaxZIndex,
+      getViewportCenterWorld,
+      pushBoardSnapshot,
+      showTempNotice,
+    ]
   );
 
   // Exclusão / Duplicação / Camadas
@@ -598,9 +752,11 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
       const nextConns = stateRef.current.connectors.filter(
         (c) => c.fromElementId !== selectedElementId && c.toElementId !== selectedElementId
       );
+      editInitialSnapshotRef.current = null;
+      editingElementIdRef.current = null;
+      setEditingElementId(null);
       pushBoardSnapshot(nextEls, nextConns);
       setSelectedElementId(null);
-      setEditingElementId(null);
       setShowColorMenu(false);
       return;
     }
@@ -613,6 +769,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
 
   const handleDuplicateSelected = useCallback(() => {
     if (!selectedElementId) return;
+    flushActiveTextEdit();
     const source = stateRef.current.elements.find((e) => e.id === selectedElementId);
     if (!source) return;
     const dupId = genDraftId('dr_dup');
@@ -628,7 +785,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
     }
     pushBoardSnapshot([...stateRef.current.elements, copy], stateRef.current.connectors);
     setSelectedElementId(dupId);
-  }, [selectedElementId, getMaxZIndex, resolvedImageUrls, pushBoardSnapshot]);
+  }, [selectedElementId, flushActiveTextEdit, getMaxZIndex, resolvedImageUrls, pushBoardSnapshot]);
 
   // Atualiza largura da área do quadro branco sem ler refs durante o render
   useEffect(() => {
@@ -675,17 +832,6 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
     editableRefs.current[id] = node;
   }, []);
 
-  const commitRichTextEdit = useCallback(
-    (elementId: string, html: string) => {
-      const currentEl = stateRef.current.elements.find((item) => item.id === elementId);
-      if (currentEl && html !== (currentEl.htmlContent || '')) {
-        updateElementById(elementId, (curr) => ({ ...curr, htmlContent: html }));
-      }
-      setEditingElementId((prev) => (prev === elementId ? null : prev));
-    },
-    [updateElementById]
-  );
-
   const updateSelectedConnector = useCallback(
     (updater: (c: DraftConnector) => DraftConnector) => {
       if (!selectedConnectorId) return;
@@ -729,39 +875,42 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
   };
 
   // Controle de Zoom & Enquadramento
-  const applyZoomAtPoint = useCallback((nextZoomRaw: number, clientX?: number, clientY?: number) => {
-    const nextZoom = Math.min(3, Math.max(0.15, Number(nextZoomRaw.toFixed(2))));
-    const vp = stateRef.current.viewport;
-    const rect = canvasViewportRef.current?.getBoundingClientRect();
-    if (!rect) {
-      onUpdateDraftsState({
+  const applyZoomAtPoint = useCallback(
+    (nextZoomRaw: number, clientX?: number, clientY?: number) => {
+      const nextZoom = Math.min(3, Math.max(0.15, Number(nextZoomRaw.toFixed(2))));
+      const vp = stateRef.current.viewport;
+      const rect = canvasViewportRef.current?.getBoundingClientRect();
+      if (!rect) {
+        commitDraftsState({
+          ...stateRef.current,
+          viewport: { ...vp, zoom: nextZoom },
+        });
+        return;
+      }
+
+      const focusX = clientX !== undefined ? clientX - rect.left : rect.width / 2;
+      const focusY = clientY !== undefined ? clientY - rect.top : rect.height / 2;
+      const worldX = (focusX - vp.x) / vp.zoom;
+      const worldY = (focusY - vp.y) / vp.zoom;
+
+      commitDraftsState({
         ...stateRef.current,
-        viewport: { ...vp, zoom: nextZoom },
+        viewport: {
+          zoom: nextZoom,
+          x: Math.round(focusX - worldX * nextZoom),
+          y: Math.round(focusY - worldY * nextZoom),
+        },
       });
-      return;
-    }
-
-    const focusX = clientX !== undefined ? clientX - rect.left : rect.width / 2;
-    const focusY = clientY !== undefined ? clientY - rect.top : rect.height / 2;
-    const worldX = (focusX - vp.x) / vp.zoom;
-    const worldY = (focusY - vp.y) / vp.zoom;
-
-    onUpdateDraftsState({
-      ...stateRef.current,
-      viewport: {
-        zoom: nextZoom,
-        x: Math.round(focusX - worldX * nextZoom),
-        y: Math.round(focusY - worldY * nextZoom),
-      },
-    });
-  }, [onUpdateDraftsState]);
+    },
+    [commitDraftsState]
+  );
 
   const handleFitView = useCallback(() => {
     const rect = canvasViewportRef.current?.getBoundingClientRect();
     if (!rect) return;
     const els = stateRef.current.elements;
     if (els.length === 0) {
-      onUpdateDraftsState({
+      commitDraftsState({
         ...stateRef.current,
         viewport: { x: 80, y: 60, zoom: 1 },
       });
@@ -780,7 +929,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
 
-    onUpdateDraftsState({
+    commitDraftsState({
       ...stateRef.current,
       viewport: {
         zoom,
@@ -788,7 +937,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
         y: Math.round(rect.height / 2 - cy * zoom),
       },
     });
-  }, [onUpdateDraftsState]);
+  }, [commitDraftsState]);
 
   // Comandos externos disparados pela guia Drafts no Ribbon
   const lastSeqRef = useRef<number>(0);
@@ -817,10 +966,12 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
         return;
       }
       if (window.confirm('Deseja limpar todos os elementos do quadro Drafts? (Você pode desfazer com Ctrl+Z)')) {
+        editInitialSnapshotRef.current = null;
+        editingElementIdRef.current = null;
+        setEditingElementId(null);
         pushBoardSnapshot([], []);
         setSelectedElementId(null);
         setSelectedConnectorId(null);
-        setEditingElementId(null);
       }
     }
   }, [externalCommand, createElementAt, handleFitView, pushBoardSnapshot]);
@@ -860,7 +1011,8 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
 
       if (isTyping) {
         if (e.key === 'Escape') {
-          setEditingElementId(null);
+          flushActiveTextEdit();
+          (document.activeElement as HTMLElement | null)?.blur?.();
         }
         return;
       }
@@ -874,9 +1026,9 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
       }
 
       if (e.key === 'Escape') {
+        flushActiveTextEdit();
         setSelectedElementId(null);
         setSelectedConnectorId(null);
-        setEditingElementId(null);
         setShowShapesPopover(false);
         setShowStickyColorPopover(false);
         setShowColorMenu(false);
@@ -937,6 +1089,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
     };
   }, [
     activeShapeKind,
+    flushActiveTextEdit,
     handleUndo,
     handleRedo,
     handleDuplicateSelected,
@@ -959,7 +1112,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
       const dyWorld = dyScreen / vp.zoom;
 
       if (ctx.kind === 'pan') {
-        onUpdateDraftsState({
+        commitDraftsState({
           ...stateRef.current,
           viewport: {
             ...vp,
@@ -974,7 +1127,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
         if (Math.abs(dxScreen) > 2 || Math.abs(dyScreen) > 2) ctx.hasMutated = true;
         const nextX = Math.round(ctx.startRect.x + dxWorld);
         const nextY = Math.round(ctx.startRect.y + dyWorld);
-        onUpdateDraftsState({
+        commitDraftsState({
           ...stateRef.current,
           elements: stateRef.current.elements.map((el) =>
             el.id === ctx.elementId ? { ...el, x: nextX, y: nextY } : el
@@ -1021,7 +1174,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
           }
         }
 
-        onUpdateDraftsState({
+        commitDraftsState({
           ...stateRef.current,
           elements: stateRef.current.elements.map((el) =>
             el.id === ctx.elementId
@@ -1060,7 +1213,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
           ctx.connectorEnd === 'from' ? targetConn?.toElementId : targetConn?.fromElementId;
         const snap = findNearestAnchor(stateRef.current.elements, wPt, otherElId, 28);
 
-        onUpdateDraftsState({
+        commitDraftsState({
           ...stateRef.current,
           connectors: stateRef.current.connectors.map((c) => {
             if (c.id !== ctx.connectorId) return c;
@@ -1145,7 +1298,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [onUpdateDraftsState, pushBoardSnapshot, screenToWorld]);
+  }, [commitDraftsState, pushBoardSnapshot, screenToWorld]);
 
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget && !(e.target as HTMLElement).dataset.draftCanvasBg) {
@@ -1156,10 +1309,8 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
     setShowStickyColorPopover(false);
     setShowColorMenu(false);
 
-    // Finaliza edição de texto se houver algum aberto
-    if (editingElementId) {
-      setEditingElementId(null);
-    }
+    // Finaliza e salva edição de texto aberta antes de desmarcar, mover ou criar outro item
+    flushActiveTextEdit();
 
     // Pan com botão do meio, tecla Espaço, ou ferramenta Pan
     if (e.button === 1 || spacePressed || activeTool === 'pan') {
@@ -1260,7 +1411,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
       return; // Permite seleção normal do cursor dentro do editor rico
     }
 
-    setEditingElementId(null);
+    flushActiveTextEdit();
     setSelectedElementId(el.id);
     setSelectedConnectorId(null);
     setShowColorMenu(false);
@@ -1448,8 +1599,8 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
           className="drafts-title-input"
           value={boardTitle}
           onChange={(e) =>
-            onUpdateDraftsState({
-              ...draftsState,
+            commitDraftsState({
+              ...stateRef.current,
               boardTitle: e.target.value,
             })
           }
@@ -2066,7 +2217,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
               const factor = e.deltaY < 0 ? 1.1 : 0.9;
               applyZoomAtPoint(viewport.zoom * factor, e.clientX, e.clientY);
             } else {
-              onUpdateDraftsState({
+              commitDraftsState({
                 ...stateRef.current,
                 viewport: {
                   ...viewport,
@@ -2156,9 +2307,9 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
                     style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
                     onMouseDown={(e) => {
                       e.stopPropagation();
+                      flushActiveTextEdit();
                       setSelectedConnectorId(conn.id);
                       setSelectedElementId(null);
-                      setEditingElementId(null);
                     }}
                   />
 
@@ -2290,7 +2441,7 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
                   if (el.type !== 'image') {
                     setSelectedElementId(el.id);
                     setSelectedConnectorId(null);
-                    setEditingElementId(el.id);
+                    startEditingElement(el.id);
                   }
                 }}
               >
@@ -2303,7 +2454,8 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
                       isEditing={isEditing}
                       style={textCss}
                       registerRef={registerEditableRef}
-                      onCommit={commitRichTextEdit}
+                      onInputChange={handleRichTextInput}
+                      onCommit={flushActiveTextEdit}
                     />
                   </div>
                 )}
@@ -2317,7 +2469,8 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
                       className="text-mode"
                       style={textCss}
                       registerRef={registerEditableRef}
-                      onCommit={commitRichTextEdit}
+                      onInputChange={handleRichTextInput}
+                      onCommit={flushActiveTextEdit}
                     />
                   </div>
                 )}
@@ -2367,7 +2520,8 @@ export const DraftsPlugin: React.FC<DraftsPluginProps> = ({
                         isEditing={isEditing}
                         style={textCss}
                         registerRef={registerEditableRef}
-                        onCommit={commitRichTextEdit}
+                        onInputChange={handleRichTextInput}
+                        onCommit={flushActiveTextEdit}
                       />
                     </div>
                   </div>
